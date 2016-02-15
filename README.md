@@ -1,15 +1,10 @@
 Build
 =============
 
-<<<<<<< HEAD
-To run using cargo, go into the project folder in a terminal and enter:
-=======
 To build and run using cargo, go into the project folder in a terminal and enter:
->>>>>>> 6a54c2ea37ab81f698fb565397dd1ef5feec14db
 	
 	cargo run
 	
-
 
 License
 =============

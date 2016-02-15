@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 use std::env;
 use std::process;
 use std::fs::File;
@@ -84,52 +83,10 @@ fn decode(inst: u16) -> Op {
 		
 		opcode if opcode < 16 => panic!("Invalid opcode ({})! Ahhhh!", opcode),
 		_ => unreachable!()
-=======
-use Op::*;
-
-#[derive(Debug)]
-enum Op {
-	Lit(u8, usize),            // vvvvvvvvaaaa
-	Load(usize),               // aaaaaaaaaaaa
-	Store(usize),              // aaaaaaaaaaaa
-	Halt,
-	
-	Not(usize),                // 00000000aaaa
-	Swap(usize, usize),        // 0000aaaabbbb
-	RotL(usize),               // 00000000aaaa
-	RotR(usize),               // 00000000aaaa
-	Toff(usize, usize, usize), // aaaabbbbcccc
-	Fredk(usize, usize, usize) // aaaabbbbcccc
-}
-
-fn interpret(inst: u16) -> Op {
-	let opcode = (inst & 0xF000) >> 12;
-	let data = inst & 0xFFF;
-	let a = (inst & 0xF00) >> 8;
-	let b = (inst & 0x0F0) >> 4;
-	let c = inst & 0x00F;
-	let ab = (inst & 0xFF0) >> 4;
-	let bc = inst & 0x0FF;
-	
-	match opcode {
-		0 => Halt,
-		1 => Lit(ab as u8, c as usize),
-		2 => Load(data as usize),
-		3 => Store(data as usize),
-		
-		4 => Not(c as usize),
-		5 => Swap(b as usize, c as usize),
-		6 => Toff(a as usize, b as usize, c as usize),
-		7 => Fredk(a as usize, b as usize, c as usize),
-		8 => RotL(c as usize),
-		9 => RotR(c as usize),
-		_ => panic!("Invalid opcode ({})! Ahhhh!", opcode)
->>>>>>> 6a54c2ea37ab81f698fb565397dd1ef5feec14db
 	}
 }
 
 fn main() {
-<<<<<<< HEAD
 	let mut pc: usize = 0;
 	//let mut sp : usize = 65535;
 	let mut ir: u16;
@@ -199,27 +156,6 @@ fn main() {
 		}
 		
 		mem[i] = (buffer[0] as u16) << 8 | buffer[1] as u16;
-=======
-	let mut pc : usize = 0;
-	let mut ir : u16;
-	let mut reg = [0_u16; 16];
-	let mut mem = [0_u16; 65536];
-	
-	let program = [
-		0x1010, // lit 1 r0
-		0x4001, // not r1
-		0x5001, // swap r0 r1
-		0x6012, // toff r0 r1 r2
-		0x5002, // swap r0 r2
-		0x3000, // store 0x0000
-		0x5003, // swap r0 r3
-		0x2000, // load 0x0000
-	];
-	
-	// load program into mem
-	for i in 0..program.len() {
-		mem[i] = program[i];
->>>>>>> 6a54c2ea37ab81f698fb565397dd1ef5feec14db
 	}
 	
 	loop {
@@ -228,7 +164,6 @@ fn main() {
 		pc += 1;
 		
 		// execute
-<<<<<<< HEAD
 		match decode(ir) {
 			Op::Lit(v, r) => reg[r] = v as u16,
 			
@@ -282,40 +217,5 @@ fn main() {
 		print!("0x{:04X}\t", ir);
 		print!("{:?}\t", reg);
 		println!("pc = {}", pc);
-=======
-		match interpret(ir) {
-			Lit(v, r) => reg[r] = v as u16,
-			
-			Load(addr) => reg[0] = mem[addr],
-			
-			Store(addr) => mem[addr] = reg[0],
-			
-			Halt => break,
-			
-			
-			Not(a) => reg[a] = !reg[a],
-			
-			Swap(a, b) => {
-				let temp = reg[a];
-				reg[a] = reg[b];
-				reg[b] = temp;
-			},
-			
-			RotL(a) => reg[a] = reg[a].rotate_left(1),
-			
-			RotR(a) => reg[a] = reg[a].rotate_right(1),
-			
-			Toff(a, b, c) => reg[c] ^= reg[a] & reg[b],
-			
-			Fredk(a, b, c) => {
-				let s = (reg[b] ^ reg[c]) & reg[a];
-				reg[b] = reg[b] ^ s;
-				reg[c] = reg[c] ^ s;
-			}
-		}
-		
-		print!("0x{:x}\t", ir);
-		println!("{:?}", reg);
->>>>>>> 6a54c2ea37ab81f698fb565397dd1ef5feec14db
 	}
 }

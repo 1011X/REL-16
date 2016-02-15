@@ -1,10 +1,4 @@
 [package]
-<<<<<<< HEAD
-name = "rel-vm"
-version = "0.1.0"
+name = "rel16"
+version = "0.0.1"
 authors = ["1011X <1011XXXXX@gmail.com>"]
-=======
-name = "rel"
-version = "0.1.0"
-authors = ["Angel Chacon <angel.chacon1011@gmail.com>"]
->>>>>>> 6a54c2ea37ab81f698fb565397dd1ef5feec14db
