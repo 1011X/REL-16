@@ -1,0 +1,8 @@
+[root]
+<<<<<<< HEAD
+name = "rel-vm"
+=======
+name = "rel"
+>>>>>>> 6a54c2ea37ab81f698fb565397dd1ef5feec14db
+version = "0.1.0"
+
