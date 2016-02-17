@@ -1,5 +1,4 @@
 use std::env;
-use std::process;
 use std::fs::File;
 use std::io::Read;
 
@@ -94,6 +93,8 @@ fn main() {
 	let mut mem = [0_u16; 65536];
 	
 	/*
+	Sample addition program that takes args a and b:
+	
 	let program = [
 		// addition using bit-ops
 		0x1001, // lit 0 r1   ; r1 = 0
@@ -125,7 +126,7 @@ fn main() {
 		0x0105, // swap r0 carry
 		0x600C, // jump 12
 		
-		0x0000
+		0x0000  // halt
 	];
 	*/
 	
@@ -134,12 +135,12 @@ fn main() {
 			Ok (file) => file,
 			Err (e) => {
 				println!("{}", e);
-				process::exit(1);
+				return;
 			}
 		}
 	} else {
 		println!("No input given; ending.");
-		process::exit(1);
+		return;
 	};
 	
 	// read file contents into mem
@@ -147,12 +148,23 @@ fn main() {
 	for i in 0.. {
 		match input.read(&mut buffer) {
 			Ok (0) => break,
-			Ok (1) => panic!("Incomplete instruction found."),
+			
+			Ok (1) => {
+				println!("Incomplete instruction found.");
+				return;
+			}
+			
 			Ok (2) => if i >= mem.len() {
-				panic!("File too big for memory!")
+				println!("File too big for memory!");
+				return;
 			},
+			
 			Ok (_) => unreachable!(),
-			Err (e) => panic!("{}", e),
+			
+			Err (e) => {
+				println!("{}", e);
+				return;
+			}
 		}
 		
 		mem[i] = (buffer[0] as u16) << 8 | buffer[1] as u16;
