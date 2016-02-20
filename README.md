@@ -6,7 +6,7 @@ REL-16 stands for Reversible/Entropy-Less 16-bit, and is an instruction set arch
 
 ## Instruction Set
 
-The details of this ISA can be found in the ISA-SPEC.md file on this directory.
+The details of this ISA can be found in the ISA-Spec.md file on this directory.
 
 ## Installation
 
