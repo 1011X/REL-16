@@ -4,7 +4,7 @@ use std::io::Read;
 
 enum Op {
 	Halt,
-	Lit(u8, usize),             // vvvvvvvvaaaa
+	Lit(usize, u8),             // aaaavvvvvvvv
 	Load(usize),                // aaaaaaaaaaaa
 	Store(usize),               // aaaaaaaaaaaa
 	
@@ -70,7 +70,7 @@ fn decode(inst: u16) -> Op {
 			_ => unreachable!()
 		},
 		
-		1 => Op::Lit(ab as u8, c as usize),
+		1 => Op::Lit(c as usize, ab as u8),
 		2 => Op::Load(data as usize),
 		3 => Op::Store(data as usize),
 		
@@ -177,7 +177,7 @@ fn main() {
 		
 		// execute
 		match decode(ir) {
-			Op::Lit(v, r) => reg[r] = v as u16,
+			Op::Lit(r, v) => reg[r] = v as u16,
 			
 			Op::Load(addr) => reg[0] = mem[addr],
 			
