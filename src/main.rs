@@ -70,7 +70,7 @@ fn decode(inst: u16) -> Op {
 			_ => unreachable!()
 		},
 		
-		1 => Op::Lit(c as usize, ab as u8),
+		1 => Op::Lit(a as usize, bc as u8),
 		2 => Op::Load(data as usize),
 		3 => Op::Store(data as usize),
 		
