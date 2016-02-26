@@ -9,6 +9,7 @@ enum Op {
 	Store(usize),               // aaaaaaaaaaaa
 	
 			Not(usize),         // 00000000aaaa
+			Neg(usize),         // 00000000aaaa
 			TurnL(usize),       // 00000000aaaa
 			TurnR(usize),       // 00000000aaaa
 			
@@ -50,8 +51,10 @@ fn decode(inst: u16) -> Op {
 				},
 				
 				1 => Op::Not(c as usize),
-				2 => Op::TurnL(c as usize),
-				3 => Op::TurnR(c as usize),
+				2 => Op::Neg(c as usize),
+				
+				3 => Op::TurnL(c as usize),
+				4 => Op::TurnR(c as usize),
 				
 				//4 => Push(c as usize),
 				//5 => Pop(c as usize),
@@ -187,6 +190,8 @@ fn main() {
 			
 			
 			Op::Not(a) => reg[a] = !reg[a],
+			
+			Op::Neg(a) => reg[a] = reg[a].wrapping_neg(),
 			
 			Op::TurnL(a) => reg[a] = reg[a].rotate_left(1),
 			
