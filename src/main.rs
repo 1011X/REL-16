@@ -9,9 +9,12 @@ enum Op {
 	Store(usize),               // aaaaaaaaaaaa
 	
 			Not(usize),         // 00000000aaaa
-			Neg(usize),         // 00000000aaaa
-			TurnL(usize),       // 00000000aaaa
-			TurnR(usize),       // 00000000aaaa
+			
+			RotateLeft(usize),  // 00000000aaaa
+			RotateRight(usize), // 00000000aaaa
+			
+			Increment(usize),   // 00000000aaaa
+			Decrement(usize),   // 00000000aaaa
 			
 			//Push(usize),
 			//Pop(usize),
@@ -22,8 +25,8 @@ enum Op {
 		Swap(usize, usize),     // 0000aaaabbbb
 		CNot(usize, usize),     // 0000aaaabbbb
 	
-	Toff(usize, usize, usize),  // aaaabbbbcccc
-	Fredk(usize, usize, usize), // aaaabbbbcccc
+	Toffoli(usize, usize, usize),  // aaaabbbbcccc
+	Fredkin(usize, usize, usize), // aaaabbbbcccc
 	
 	Jump(usize),                // aaaaaaaaaaaa
 	JZero(usize),               // aaaaaaaaaaaa
@@ -51,10 +54,12 @@ fn decode(inst: u16) -> Op {
 				},
 				
 				1 => Op::Not(c as usize),
-				2 => Op::Neg(c as usize),
 				
-				3 => Op::TurnL(c as usize),
-				4 => Op::TurnR(c as usize),
+				2 => Op::RotateLeft(c as usize),
+				3 => Op::RotateRight(c as usize),
+				
+				4 => Op::Increment(c as usize),
+				5 => Op::Decrement(c as usize),
 				
 				//4 => Push(c as usize),
 				//5 => Pop(c as usize),
@@ -77,8 +82,10 @@ fn decode(inst: u16) -> Op {
 		2 => Op::Load(data as usize),
 		3 => Op::Store(data as usize),
 		
-		4 => Op::Toff(a as usize, b as usize, c as usize),
-		5 => Op::Fredk(a as usize, b as usize, c as usize),
+		// CCNot
+		4 => Op::Toffoli(a as usize, b as usize, c as usize),
+		// CSwap
+		5 => Op::Fredkin(a as usize, b as usize, c as usize),
 		
 		6 => Op::Jump(data as usize),
 		7 => Op::JZero(data as usize),
@@ -135,8 +142,8 @@ fn main() {
 	
 	let mut input = if let Some(s) = env::args().nth(1) {
 		match File::open(s) {
-			Ok (file) => file,
-			Err (e) => {
+			Ok(file) => file,
+			Err(e) => {
 				println!("{}", e);
 				return;
 			}
@@ -183,7 +190,6 @@ fn main() {
 			Op::Lit(r, v) => reg[r] = v as u16,
 			
 			Op::Load(addr) => reg[0] = mem[addr],
-			
 			Op::Store(addr) => mem[addr] = reg[0],
 			
 			Op::Halt => break,
@@ -191,24 +197,26 @@ fn main() {
 			
 			Op::Not(a) => reg[a] = !reg[a],
 			
-			Op::Neg(a) => reg[a] = reg[a].wrapping_neg(),
+			Op::RotateLeft(a) => reg[a] = reg[a].rotate_left(1),
+			Op::RotateRight(a) => reg[a] = reg[a].rotate_right(1),
 			
-			Op::TurnL(a) => reg[a] = reg[a].rotate_left(1),
+			Op::Increment(a) => reg[a] = reg[a].wrapping_add(1),
+			Op::Decrement(a) => reg[a] = reg[a].wrapping_sub(1),
 			
-			Op::TurnR(a) => reg[a] = reg[a].rotate_right(1),
 			
 			Op::Swap(a, b) => reg.swap(a, b),
 			
 			Op::CNot(a, b) => reg[b] ^= reg[a],
 			
-			Op::Toff(a, b, c) => {
+			
+			Op::Toffoli(a, b, c) => {
 				if a == c || b == c {
 					panic!("ERROR (line {}): Control register in Toffoli instruction used again in last parameter.", pc - 1);
 				}
 				reg[c] ^= reg[a] & reg[b]
 			}
 			
-			Op::Fredk(a, b, c) => {
+			Op::Fredkin(a, b, c) => {
 				if a == c || a == b {
 					panic!("ERROR (line {}): Control register in Fredkin instruction used again in second or last parameter.", pc - 1);
 				}
@@ -227,8 +235,9 @@ fn main() {
 				std::io::stdin().read(&mut buf).expect("Couldn't read from stdin.");
 				reg[0] = ((buf[0] as u16) << 8) | buf[1] as u16;
 			}
+			
+			Write(c) => print!("{}", (reg[0] as u8) as char),
 			*/
-			//Write(c) => print!("{}", (reg[0] as u8) as char),
 		}
 		
 		print!("0x{:04X}\t", ir);
