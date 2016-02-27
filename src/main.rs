@@ -44,23 +44,23 @@ fn decode(inst: u16) -> Op {
 	let bc = data & 0x0FF;
 	
 	match opcode {
-		0 => match a {
-			0 => match b {
+		0x0 => match a {
+			0x0 => match b {
 				// signals
-				0 => match c {
-					0 => Op::Halt,
+				0x0 => match c {
+					0x0 => Op::Halt,
 					
-					c if c < 16 => panic!("Invalid signal ({})", c),
+					c if c < 0x10 => panic!("Invalid signal ({})", c),
 					_ => unreachable!()
 				},
 				
-				1 => Op::Not(c as usize),
+				0x1 => Op::Not(c as usize),
 				
-				2 => Op::RotateLeft(c as usize),
-				3 => Op::RotateRight(c as usize),
+				0x2 => Op::RotateLeft(c as usize),
+				0x3 => Op::RotateRight(c as usize),
 				
-				4 => Op::Increment(c as usize),
-				5 => Op::Decrement(c as usize),
+				0x4 => Op::Increment(c as usize),
+				0x5 => Op::Decrement(c as usize),
 				
 				//4 => Push(c as usize),
 				//5 => Pop(c as usize),
@@ -68,32 +68,32 @@ fn decode(inst: u16) -> Op {
 				//4 => Read(c as usize),
 				//5 => Write(c as usize),
 				
-				b if b < 16 => panic!("Invalid 1-arg opcode ({})", b),
+				b if b < 0x10 => panic!("Invalid 1-arg opcode ({})", b),
 				_ => unreachable!()
 			},
 			
-			1 => Op::Swap(b as usize, c as usize),
-			2 => Op::CNot(b as usize, c as usize),
+			0x1 => Op::Swap(b as usize, c as usize),
+			0x2 => Op::CNot(b as usize, c as usize),
 			
-			3 => Op::CAdd(b as usize, c as usize),
+			0x3 => Op::CAdd(b as usize, c as usize),
 			
-			a if a < 16 => panic!("Invalid 2-arg opcode ({})", a),
+			a if a < 0x10 => panic!("Invalid 2-arg opcode ({})", a),
 			_ => unreachable!()
 		},
 		
-		1 => Op::Lit(a as usize, bc as u8),
+		0x1 => Op::Lit(a as usize, bc as u8),
 		
-		2 => Op::MemSwap(a as usize, bc as usize),
+		0x2 => Op::MemSwap(a as usize, bc as usize),
 		
 		// CCNot
-		3 => Op::Toffoli(a as usize, b as usize, c as usize),
+		0x3 => Op::Toffoli(a as usize, b as usize, c as usize),
 		// CSwap
-		4 => Op::Fredkin(a as usize, b as usize, c as usize),
+		0x4 => Op::Fredkin(a as usize, b as usize, c as usize),
 		
-		5 => Op::Jump(data as usize),
-		6 => Op::JZero(data as usize),
+		0x5 => Op::Jump(data as usize),
+		0x6 => Op::JZero(data as usize),
 		
-		opcode if opcode < 16 => panic!("Invalid opcode ({})! Ahhhh!", opcode),
+		opcode if opcode < 0x10 => panic!("Invalid opcode ({})! Ahhhh!", opcode),
 		_ => unreachable!()
 	}
 }
