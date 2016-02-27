@@ -1,7 +1,5 @@
 # REL-16 Virtual Machine
 
-Current version: 0.0.1
-
 REL-16 stands for Reversible/Entropy-Less 16-bit, and is an instruction set architecture (ISA) designed for reversibility of operations. This virtual machine allows for emulation of such an architecture as an example of [reversible computing](https://en.wikipedia.org/wiki/Reversible_computing "Wikipedia - Reversible computing"), and is intended as a proof-of-concept.
 
 <!--

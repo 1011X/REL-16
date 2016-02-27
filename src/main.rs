@@ -5,8 +5,7 @@ use std::io::Read;
 enum Op {
 	Halt,
 	Lit(usize, u8),             // aaaavvvvvvvv
-	Load(usize),                // aaaaaaaaaaaa
-	Store(usize),               // aaaaaaaaaaaa
+	MemSwap(usize, usize),      // rrrraaaaaaaa
 	
 			Not(usize),         // 00000000aaaa
 			
@@ -24,6 +23,8 @@ enum Op {
 	
 		Swap(usize, usize),     // 0000aaaabbbb
 		CNot(usize, usize),     // 0000aaaabbbb
+		
+		//CAdd(usize, usize),     // 0000aaaabbbb
 	
 	Toffoli(usize, usize, usize),  // aaaabbbbcccc
 	Fredkin(usize, usize, usize), // aaaabbbbcccc
@@ -74,21 +75,23 @@ fn decode(inst: u16) -> Op {
 			1 => Op::Swap(b as usize, c as usize),
 			2 => Op::CNot(b as usize, c as usize),
 			
+			//3 => Op::CAdd(b as usize, c as usize),
+			
 			a if a < 16 => panic!("Invalid 2-arg opcode ({})", a),
 			_ => unreachable!()
 		},
 		
 		1 => Op::Lit(a as usize, bc as u8),
-		2 => Op::Load(data as usize),
-		3 => Op::Store(data as usize),
+		
+		2 => Op::MemSwap(a as usize, bc as usize),
 		
 		// CCNot
-		4 => Op::Toffoli(a as usize, b as usize, c as usize),
+		3 => Op::Toffoli(a as usize, b as usize, c as usize),
 		// CSwap
-		5 => Op::Fredkin(a as usize, b as usize, c as usize),
+		4 => Op::Fredkin(a as usize, b as usize, c as usize),
 		
-		6 => Op::Jump(data as usize),
-		7 => Op::JZero(data as usize),
+		5 => Op::Jump(data as usize),
+		6 => Op::JZero(data as usize),
 		
 		opcode if opcode < 16 => panic!("Invalid opcode ({})! Ahhhh!", opcode),
 		_ => unreachable!()
@@ -143,41 +146,30 @@ fn main() {
 	let mut input = if let Some(s) = env::args().nth(1) {
 		match File::open(s) {
 			Ok(file) => file,
-			Err(e) => {
-				println!("{}", e);
-				return;
-			}
+			Err(e) => panic!("{}", e),
 		}
 	} else {
-		println!("No input given; ending.");
-		return;
+		panic!("No input given; ending.");
 	};
 	
 	// read file contents into mem
 	let mut buffer = [0_u8; 2];
 	for i in 0.. {
 		match input.read(&mut buffer) {
-			Ok (0) => break,
+			Ok(0) => break,
 			
-			Ok (1) => {
-				println!("Incomplete instruction found.");
-				return;
-			}
+			Ok(1) => panic!("Got incomplete instruction."),
 			
-			Ok (2) => if i >= mem.len() {
-				println!("File too big for memory!");
-				return;
+			Ok(2) => if i < mem.len() {
+				mem[i] = (buffer[0] as u16) << 8 | buffer[1] as u16;
+			} else {
+				panic!("Binary too big for memory!");
 			},
 			
-			Ok (_) => unreachable!(),
+			Ok(_) => unreachable!(),
 			
-			Err (e) => {
-				println!("{}", e);
-				return;
-			}
+			Err(e) => panic!("{}", e),
 		}
-		
-		mem[i] = (buffer[0] as u16) << 8 | buffer[1] as u16;
 	}
 	
 	loop {
@@ -189,8 +181,7 @@ fn main() {
 		match decode(ir) {
 			Op::Lit(r, v) => reg[r] = v as u16,
 			
-			Op::Load(addr) => reg[0] = mem[addr],
-			Op::Store(addr) => mem[addr] = reg[0],
+			Op::MemSwap(r, addr) => std::mem::swap(&mut reg[r], &mut mem[addr]),
 			
 			Op::Halt => break,
 			
@@ -208,22 +199,22 @@ fn main() {
 			
 			Op::CNot(a, b) => reg[b] ^= reg[a],
 			
+			//Op::CAdd(a, b) => reg[b] += reg[a],
 			
-			Op::Toffoli(a, b, c) => {
-				if a == c || b == c {
-					panic!("ERROR (line {}): Control register in Toffoli instruction used again in last parameter.", pc - 1);
-				}
-				reg[c] ^= reg[a] & reg[b]
-			}
 			
-			Op::Fredkin(a, b, c) => {
-				if a == c || a == b {
-					panic!("ERROR (line {}): Control register in Fredkin instruction used again in second or last parameter.", pc - 1);
-				}
+			Op::Toffoli(a, b, c) => if a != c && b != c {
+				reg[c] ^= reg[a] & reg[b];
+			} else {
+				panic!("ERROR (line {}): Control register in Toffoli instruction used again in last parameter.", pc - 1);
+			},
+			
+			Op::Fredkin(a, b, c) => if a != c && a != b {
 				let s = (reg[b] ^ reg[c]) & reg[a];
 				reg[b] ^= s;
 				reg[c] ^= s;
-			}
+			} else {
+				panic!("ERROR (line {}): Control register in Fredkin instruction used again in second or last parameter.", pc - 1);
+			},
 			
 			Op::Jump(addr) => pc = addr,
 			
