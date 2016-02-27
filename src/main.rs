@@ -24,7 +24,7 @@ enum Op {
 		Swap(usize, usize),     // 0000aaaabbbb
 		CNot(usize, usize),     // 0000aaaabbbb
 		
-		//CAdd(usize, usize),     // 0000aaaabbbb
+		CAdd(usize, usize),     // 0000aaaabbbb
 	
 	Toffoli(usize, usize, usize),  // aaaabbbbcccc
 	Fredkin(usize, usize, usize), // aaaabbbbcccc
@@ -75,7 +75,7 @@ fn decode(inst: u16) -> Op {
 			1 => Op::Swap(b as usize, c as usize),
 			2 => Op::CNot(b as usize, c as usize),
 			
-			//3 => Op::CAdd(b as usize, c as usize),
+			3 => Op::CAdd(b as usize, c as usize),
 			
 			a if a < 16 => panic!("Invalid 2-arg opcode ({})", a),
 			_ => unreachable!()
@@ -199,7 +199,7 @@ fn main() {
 			
 			Op::CNot(a, b) => reg[b] ^= reg[a],
 			
-			//Op::CAdd(a, b) => reg[b] += reg[a],
+			Op::CAdd(a, b) => reg[b] += reg[a],
 			
 			
 			Op::Toffoli(a, b, c) => if a != c && b != c {
