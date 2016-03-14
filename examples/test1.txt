@@ -1,0 +1,27 @@
+lit r1 0
+lit r2 0
+not r2
+lit r3 2
+lit r4 2
+lit r5 0
+lit r6 0
+toff r3 r4 r5
+cnot r3 r4
+toff r2 r4 r6
+cnot r3 r4
+swap r0 r5
+jpz 24
+swap r0 r5
+lit r7 0
+lit r8 1
+not r8
+rotl r5
+toff r8 r5 r7
+lit r5 0
+toff r6 r7 r5
+cnot r7 r6
+swap r0 r5
+# 00C
+# 0 0 1101
+jump 12
+halt
