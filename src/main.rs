@@ -19,6 +19,9 @@ fn main() {
 			assembler::assemble(&file_path);
 		}
 		
-		_ => unimplemented!(),
+		command => {
+			println!("No such subcommand: {}", command);
+			return;
+		}
 	}
 }
