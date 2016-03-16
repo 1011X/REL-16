@@ -1,27 +1,25 @@
-lit r1 0
+lit r1 0      # r1 = 0
 lit r2 0
-not r2
-lit r3 2
-lit r4 2
-lit r5 0
-lit r6 0
-toff r3 r4 r5
-cnot r3 r4
-toff r2 r4 r6
-cnot r3 r4
+not r2        # r2 = 0xFFFF
+lit r3 2      # a = 2
+lit r4 2      # b = 2
+lit r5 0      # carry = 0
+lit r6 0      # result = 0
+toff r3 r4 r5 # carry = a & b
+cnot r3 r4    # b ^= a
+toff r2 r4 r6 # result = b
+cnot r3 r4    # b ^= a
 swap r0 r5
-jpz 24
+jpz 24        # if r0 == 0, goto line 25
 swap r0 r5
-lit r7 0
-lit r8 1
-not r8
+lit r7 0      # shiftedcarry = 0
+lit r8 1      # temp = 1
+not r8        # temp = ~temp
 rotl r5
-toff r8 r5 r7
-lit r5 0
-toff r6 r7 r5
-cnot r7 r6
+toff r8 r5 r7 # shiftedcarry = carry & temp
+lit r5 0      # carry = 0
+toff r6 r7 r5 # carry = result & shiftedcarry
+cnot r7 r6    # result ^= shiftedcarry
 swap r0 r5
-# 00C
-# 0 0 1101
 jump 12
 halt

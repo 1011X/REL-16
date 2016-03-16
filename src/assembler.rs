@@ -30,7 +30,7 @@ fn parse_reglit(s: &str) -> Result<u8, String> {
 
 pub fn assemble(in_path: &Path) {
 	let mut out_path = PathBuf::from(in_path.file_stem().unwrap());
-	out_path.set_extension(".o");
+	out_path.set_extension("o");
 	
 	let input = BufReader::new(File::open(in_path).unwrap());
 	let mut output = BufWriter::new(File::create(out_path).unwrap());

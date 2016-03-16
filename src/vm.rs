@@ -87,12 +87,12 @@ fn decode(inst: u16) -> Op {
 		0x2 => Op::MemSwap(a as usize, bc as usize),
 		
 		// CCNot
-		0x4 => Op::Toffoli(a as usize, b as usize, c as usize),
+		0x3 => Op::Toffoli(a as usize, b as usize, c as usize),
 		// CSwap
-		0x5 => Op::Fredkin(a as usize, b as usize, c as usize),
+		0x4 => Op::Fredkin(a as usize, b as usize, c as usize),
 		
-		0x6 => Op::Jump(data as usize),
-		0x7 => Op::JZero(data as usize),
+		0x5 => Op::Jump(data as usize),
+		0x6 => Op::JZero(data as usize),
 		
 		opcode if opcode < 0x10 => panic!("Invalid opcode ({})! Ahhhh!", opcode),
 		_ => unreachable!()
