@@ -1,3 +1,5 @@
+mod instr;
+
 mod vm;
 mod assembler;
 

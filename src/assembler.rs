@@ -1,3 +1,7 @@
+use instr::Op;
+use instr::encode;
+
+use std::fs;
 use std::fs::File;
 use std::error::Error;
 use std::path::Path;
@@ -7,16 +11,28 @@ use std::io::{
 	BufRead, Write
 };
 
+
+macro_rules! println_err(
+    ($($arg: tt)*) => {{
+        let result = writeln!(&mut ::std::io::stderr(), $($arg)*);
+        
+        if let Err(e) = result {
+        	panic!("failed printing to stderr: {}", e);
+        }
+    }}
+);
+
+
 fn parse_byte(s: &str) -> Result<u8, String> {
 	s.parse::<u8>()
 		.map_err(|e| e.description().to_string())
 }
 
-fn parse_reglit(s: &str) -> Result<u8, String> {
+fn parse_reglit(s: &str) -> Result<usize, String> {
 	if s.starts_with('r') {
 		match parse_byte(&s[1..]) {
 			Ok(byte) if byte < 16 =>
-				Ok(byte),
+				Ok(byte as usize),
 			
 			Ok(_) =>
 				Err("index for register too big!".to_string()),
@@ -32,8 +48,14 @@ pub fn assemble(in_path: &Path) {
 	let mut out_path = PathBuf::from(in_path.file_stem().unwrap());
 	out_path.set_extension("o");
 	
-	let input = BufReader::new(File::open(in_path).unwrap());
-	let mut output = BufWriter::new(File::create(out_path).unwrap());
+	let input = BufReader::new(match File::open(in_path) {
+		Ok(file) => file,
+		Err(e) => {
+			println_err!("Error: {}", e.description());
+			return;
+		}
+	});
+	let mut output = BufWriter::new(File::create(&out_path).unwrap());
 	
 	/*
 	let mut code: Vec<String> = input.lines()
@@ -76,36 +98,36 @@ pub fn assemble(in_path: &Path) {
 		};
 		
 		let instr = match opcode {
-			"halt" => Ok([0x00, 0x00]),
+			"halt" => Ok(Op::Halt),
 			
 			"not" => {
 				let reg = get_register(tokens.next());
 				
-				reg.map(|reg| [0x00, 0x10 | reg])
+				reg.map(Op::Not)
 			}
 			
 			"rotl" => {
 				let reg = get_register(tokens.next());
 				
-				reg.map(|reg| [0x00, 0x20 | reg])
+				reg.map(Op::RotateLeft)
 			}
 			
 			"rotr" => {
 				let reg = get_register(tokens.next());
 				
-				reg.map(|reg| [0x00, 0x30 | reg])
+				reg.map(Op::RotateRight)
 			}
 			
 			"incr" => {
 				let reg = get_register(tokens.next());
 				
-				reg.map(|reg| [0x00, 0x40 | reg])
+				reg.map(Op::Increment)
 			}
 			
 			"decr" => {
 				let reg = get_register(tokens.next());
 				
-				reg.map(|reg| [0x00, 0x50 | reg])
+				reg.map(Op::Decrement)
 			}
 			
 			"swap" => {
@@ -114,9 +136,10 @@ pub fn assemble(in_path: &Path) {
 				
 				match (regl, regr) {
 					(Ok(regl), Ok(regr)) =>
-						Ok([0x01, regl << 4 | regr]),
+						Ok(Op::Swap(regl, regr)),
 					
-					(Err(e), _) | (_, Err(e)) => Err(e),
+					(Err(e), _) | (_, Err(e)) =>
+						Err(e),
 				}
 			}
 			
@@ -126,12 +149,13 @@ pub fn assemble(in_path: &Path) {
 				
 				match (regc, regn) {
 					(Ok(regc), Ok(regn)) if regn != regc =>
-						Ok([0x02, regc << 4 | regn]),
+						Ok(Op::CNot(regc, regn)),
 					
 					(Ok(_), Ok(_)) =>
 						Err("can't use the same register in cnot".to_string()),
 					
-					(Err(e), _) | (_, Err(e)) => Err(e),
+					(Err(e), _) | (_, Err(e)) =>
+						Err(e),
 				}
 			}
 			/*
@@ -160,9 +184,10 @@ pub fn assemble(in_path: &Path) {
 				
 				match (reg, value) {
 					(Ok(reg), Ok(value)) =>
-						Ok([0x10 | reg, value]),
+						Ok(Op::Lit(reg, value)),
 					
-					(Err(e), _) | (_, Err(e)) => Err(e)
+					(Err(e), _) | (_, Err(e)) =>
+						Err(e)
 				}
 			}
 			
@@ -176,7 +201,7 @@ pub fn assemble(in_path: &Path) {
 				
 				match (reg, addr) {
 					(Ok(reg), Ok(addr)) =>
-						Ok([0x20 | reg, addr]),
+						Ok(Op::MemSwap(reg, addr as usize)),
 					
 					(Err(e), _) | (_, Err(e)) => Err(e),
 				}
@@ -189,7 +214,7 @@ pub fn assemble(in_path: &Path) {
 				
 				match (rega, regb, regc) {
 					(Ok(a), Ok(b), Ok(c)) if c != a && c != b =>
-						Ok([0x30 | a, b << 4 | c]),
+						Ok(Op::Toffoli(a, b, c)),
 					
 					(Ok(_), Ok(_), Ok(_)) =>
 						Err("controlled argument used in mutable argument".to_string()),
@@ -206,7 +231,7 @@ pub fn assemble(in_path: &Path) {
 				
 				match (rega, regb, regc) {
 					(Ok(a), Ok(b), Ok(c)) if b != a && c != a =>
-						Ok([0x40 | a, b << 4 | c]),
+						Ok(Op::Fredkin(a, b, c)),
 					
 					(Ok(_), Ok(_), Ok(_)) =>
 						Err("controlled argument used in mutable argument".to_string()),
@@ -219,7 +244,7 @@ pub fn assemble(in_path: &Path) {
 			"jump" | "jmp" => {
 				let addr = if let Some(s) = tokens.next() {
 					match s.parse::<u16>() {
-						Ok(v) if v < 0x1000 => Ok(v),
+						Ok(v) if v < 0x1000 => Ok(v as usize),
 						Ok(_) => Err("value for argument too big!".to_string()),
 						Err(e) => Err(e.description().to_string()),
 					}
@@ -227,16 +252,13 @@ pub fn assemble(in_path: &Path) {
 					Err("address argument not found".to_string())
 				};
 				
-				addr.map(|addr| [
-					0x50 | (addr >> 8) as u8,
-					addr as u8
-				])
+				addr.map(Op::Jump)
 			}
 			
 			"jpz" => {
 				let addr = if let Some(s) = tokens.next() {
 					match s.parse::<u16>() {
-						Ok(v) if v < 0x1000 => Ok(v),
+						Ok(v) if v < 0x1000 => Ok(v as usize),
 						Ok(_) => Err("value for argument too big!".to_string()),
 						Err(e) => Err(e.description().to_string()),
 					}
@@ -244,10 +266,7 @@ pub fn assemble(in_path: &Path) {
 					Err("address argument not found".to_string())
 				};
 				
-				addr.map(|addr| [
-					0x60 | (addr >> 8) as u8,
-					addr as u8
-				])
+				addr.map(Op::JZero)
 			}
 			
 			other => Err(format!("expected opcode mneumonic, found {}", other)),
@@ -260,30 +279,46 @@ pub fn assemble(in_path: &Path) {
 			None | Some("#") | Some(";") => {}
 			
 			// something that's not a comment marker
-			Some(t) => {
-				println!("Line {}: expected comment or line break, found '{}'", line_number, t);
-				return;
-			}
+			Some(t) =>
+				println_err!("Error (line {}): expected comment or line break, found '{}'", line_number, t),
 		}
 		
 		match instr {
 			// finally, write instruction if there was no error
-			Ok(instr) => match output.write(&instr) {
-				Ok(2) => {}
+			Ok(instr) => {
+				let op = encode(instr);
+				let data = [(op >> 8) as u8, op as u8];
 				
-				Ok(1) => panic!("Error: could not write complete instruction"),
+				match output.write(&data) {
+					Ok(2) => {}
 				
-				Ok(0) => panic!("Error: no more space in file to write"),
+					Ok(1) => {
+						println_err!("Error: could not write complete instruction");
+						return;
+					}
 				
-				Ok(_) => unreachable!(),
+					Ok(0) => {
+						println_err!("Error: no more space in file to write");
+						return;
+					}
 				
-				Err(e) => panic!("Error: {}", e.description()),
-			},
+					Ok(_) => unreachable!(),
+				
+					Err(e) => {
+						println_err!("Error: {}", e.description());
+						return;
+					}
+				}
+			}
 			
 			// if there was an error, write line number, description, and code line
 			Err(e) => {
-				println!("Line {}: {}\n{}", line_number, e, line);
-				// TODO: delete file
+				println_err!("Error (line {}): {}\n{}", line_number, e, line);
+				
+				if fs::remove_file(out_path).is_err() {
+					println_err!("Could not delete incomplete file.");
+				}
+				
 				return;
 			}
 		}

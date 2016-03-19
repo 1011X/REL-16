@@ -1,103 +1,10 @@
+use instr::Op;
+use instr::decode;
+
 use std::mem;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
-
-pub enum Op {
-	Halt,
-	Lit(usize, u8),             // aaaavvvvvvvv
-	MemSwap(usize, usize),      // rrrraaaaaaaa
-	
-			Not(usize),         // 00000000aaaa
-			
-			RotateLeft(usize),  // 00000000aaaa
-			RotateRight(usize), // 00000000aaaa
-			
-			Increment(usize),   // 00000000aaaa
-			Decrement(usize),   // 00000000aaaa
-			
-			//Push(usize),
-			//Pop(usize),
-			
-			//Read(usize),      // 00000000dddd
-			//Write(usize),     // 00000000dddd
-	
-		Swap(usize, usize),     // 0000aaaabbbb
-		CNot(usize, usize),     // 0000aaaabbbb
-		
-		//CAdd(usize, usize),     // 0000aaaabbbb
-	
-	Toffoli(usize, usize, usize),  // aaaabbbbcccc
-	Fredkin(usize, usize, usize), // aaaabbbbcccc
-	
-	Jump(usize),                // aaaaaaaaaaaa
-	JZero(usize),               // aaaaaaaaaaaa
-}
-
-#[allow(unused_variables)]
-fn decode(inst: u16) -> Op {
-	let opcode = (inst & 0xF000) >> 12;
-	let data = inst & 0x0FFF;
-	let a = (data & 0xF00) >> 8;
-	let b = (data & 0x0F0) >> 4;
-	let c = data & 0x00F;
-	let ab = (data & 0xFF0) >> 4;
-	let bc = data & 0x0FF;
-	
-	match opcode {
-		0x0 => match a {
-			0x0 => match b {
-				// signals
-				0x0 => match c {
-					0x0 => Op::Halt,
-					
-					c if c < 0x10 => panic!("Invalid signal ({})", c),
-					_ => unreachable!()
-				},
-				
-				0x1 => Op::Not(c as usize),
-				
-				0x2 => Op::RotateLeft(c as usize),
-				0x3 => Op::RotateRight(c as usize),
-				
-				0x4 => Op::Increment(c as usize),
-				0x5 => Op::Decrement(c as usize),
-				
-				//4 => Push(c as usize),
-				//5 => Pop(c as usize),
-				
-				//4 => Read(c as usize),
-				//5 => Write(c as usize),
-				
-				b if b < 0x10 => panic!("Invalid 1-arg opcode ({})", b),
-				_ => unreachable!()
-			},
-			
-			0x1 => Op::Swap(b as usize, c as usize),
-			0x2 => Op::CNot(b as usize, c as usize),
-			
-			// 0x3 => Op::CAdd(b as usize, c as usize),
-			
-			a if a < 0x10 => panic!("Invalid 2-arg opcode ({})", a),
-			_ => unreachable!()
-		},
-		
-		0x1 => Op::Lit(a as usize, bc as u8),
-		
-		0x2 => Op::MemSwap(a as usize, bc as usize),
-		
-		// CCNot
-		0x3 => Op::Toffoli(a as usize, b as usize, c as usize),
-		// CSwap
-		0x4 => Op::Fredkin(a as usize, b as usize, c as usize),
-		
-		0x5 => Op::Jump(data as usize),
-		0x6 => Op::JZero(data as usize),
-		
-		opcode if opcode < 0x10 => panic!("Invalid opcode ({})! Ahhhh!", opcode),
-		_ => unreachable!()
-	}
-}
 
 pub fn vm(file_path: &Path) {
 	let mut input = File::open(file_path).unwrap();
@@ -225,8 +132,20 @@ pub fn vm(file_path: &Path) {
 			*/
 		}
 		
-		print!("0x{:04X}\t", ir);
-		print!("{:?}\t", reg);
-		println!("pc = {}", pc);
+		print!("PC = {:>5}: ", pc);
+		
+		print!("{:<20}", format!("{:?}", decode(ir)));
+		
+		print!("[");
+		for (i, &r) in reg.iter().enumerate() {
+			print!("0x{:04X}", r);
+			
+			// is not last item
+			if i != reg.len() - 1 {
+				print!(", ");
+			}
+		}
+		println!("]");
+		println!("");
 	}
 }
