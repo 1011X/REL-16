@@ -11,8 +11,8 @@ pub enum Op {
 	Increment(usize),
 	Decrement(usize),
 	
-	//Push(usize),
-	//Pop(usize),
+	Push(usize),
+	Pop(usize),
 	
 	//Read(usize),
 	//Write(usize),
@@ -21,7 +21,7 @@ pub enum Op {
 	Swap(usize, usize),
 	CNot(usize, usize),
 	
-	//CAdd(usize, usize),
+	CAdd(usize, usize),
 	
 	
 	Lit(usize, u8),
@@ -56,6 +56,10 @@ pub fn encode(op: Op) -> u16 {
 		
 		Op::Decrement(reg) => 0x0050 | reg as u16,
 		
+		Op::Push(reg) => 0x0060 | reg as u16,
+		
+		Op::Pop(reg) => 0x0060 | reg as u16,
+		
 		
 		
 		Op::Swap(r_left, r_right) =>
@@ -63,6 +67,9 @@ pub fn encode(op: Op) -> u16 {
 		
 		Op::CNot(r_ctrl, r_not) =>
 			0x0200 | (r_ctrl as u16) << 4 | r_not as u16,
+		
+		Op::CAdd(r_ctrl, r_add) =>
+			0x0300 | (r_ctrl as u16) << 4 | r_add as u16,
 		
 		
 		
@@ -115,8 +122,8 @@ pub fn decode(instr: u16) -> Op {
 				0x4 => Op::Increment(c as usize),
 				0x5 => Op::Decrement(c as usize),
 				
-				//4 => Push(c as usize),
-				//5 => Pop(c as usize),
+				0x6 => Op::Push(c as usize),
+				0x7 => Op::Pop(c as usize),
 				
 				//4 => Read(c as usize),
 				//5 => Write(c as usize),
@@ -128,7 +135,7 @@ pub fn decode(instr: u16) -> Op {
 			0x1 => Op::Swap(b as usize, c as usize),
 			0x2 => Op::CNot(b as usize, c as usize),
 			
-			// 0x3 => Op::CAdd(b as usize, c as usize),
+			0x3 => Op::CAdd(b as usize, c as usize),
 			
 			a if a < 0x10 => panic!("Invalid 2-arg opcode ({}): {:04X}", a, instr),
 			_ => unreachable!()

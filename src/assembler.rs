@@ -130,6 +130,18 @@ pub fn assemble(in_path: &Path) {
 				reg.map(Op::Decrement)
 			}
 			
+			"push" => {
+				let reg = get_register(tokens.next());
+				
+				reg.map(Op::Push)
+			}
+			
+			"pop" => {
+				let reg = get_register(tokens.next());
+				
+				reg.map(Op::Pop)
+			}
+			
 			"swap" => {
 				let regl = get_register(tokens.next());
 				let regr = get_register(tokens.next());
@@ -158,14 +170,14 @@ pub fn assemble(in_path: &Path) {
 						Err(e),
 				}
 			}
-			/*
+			
 			"cadd" => {
 				let rctrl = get_register(tokens.next());
 				let radd = get_register(tokens.next());
 				
 				match (rctrl, radd) {
 					(Ok(rctrl), Ok(radd)) if radd != rctrl =>
-						Ok([0x03, rctrl << 4 | radd]),
+						Ok(Op::CAdd(rctrl, radd)),
 					
 					(Ok(_), Ok(_)) =>
 						Err("can't use the same register in cnot".to_string()),
@@ -173,7 +185,7 @@ pub fn assemble(in_path: &Path) {
 					(Err(e), _) | (_, Err(e)) => Err(e),
 				}
 			}
-			*/
+			
 			"lit" => {
 				let reg = get_register(tokens.next());
 				

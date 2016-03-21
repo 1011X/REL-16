@@ -10,7 +10,7 @@ pub fn vm(file_path: &Path) {
 	let mut input = File::open(file_path).unwrap();
 	
 	let mut pc: usize = 0;
-	//let mut sp: usize = 65535;
+	let mut sp: usize = 65535;
 	let mut ir: u16;
 	let mut reg = [0_u16; 16];
 	let mut mem = [0_u16; 65536];
@@ -57,12 +57,21 @@ pub fn vm(file_path: &Path) {
 			Op::Increment(a) => reg[a] = reg[a].wrapping_add(1),
 			Op::Decrement(a) => reg[a] = reg[a].wrapping_sub(1),
 			
+			Op::Push(r) => {
+				mem::swap(&mut reg[r], &mut mem[sp]);
+				sp -= 1;
+			}
+			
+			Op::Pop(r) => {
+				mem::swap(&mut reg[r], &mut mem[sp]);
+				sp += 1;
+			}
 			
 			Op::Swap(a, b) => reg.swap(a, b),
 			
 			Op::CNot(a, b) => reg[b] ^= reg[a],
 			
-			//Op::CAdd(a, b) => reg[b] += reg[a],
+			Op::CAdd(a, b) => reg[b] += reg[a],
 			
 			
 			Op::Toffoli(a, b, c) => if a != c && b != c {
