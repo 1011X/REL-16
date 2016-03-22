@@ -9,11 +9,12 @@ use std::path::Path;
 pub fn vm(file_path: &Path) {
 	let mut input = File::open(file_path).unwrap();
 	
-	let mut pc: usize = 0;
-	let mut sp: usize = 65535;
+	let mut pc: u16 = 0;
 	let mut ir: u16;
 	let mut reg = [0_u16; 16];
 	let mut mem = [0_u16; 65536];
+	
+	reg[15] = 0xFFFF; // use r15 as stack pointer
 	
 	// read file contents into mem
 	let mut buffer = [0_u8; 2];
@@ -37,7 +38,7 @@ pub fn vm(file_path: &Path) {
 	
 	loop {
 		// fetch
-		ir = mem[pc];
+		ir = mem[pc as usize];
 		pc += 1;
 		
 		// execute
@@ -58,13 +59,17 @@ pub fn vm(file_path: &Path) {
 			Op::Decrement(a) => reg[a] = reg[a].wrapping_sub(1),
 			
 			Op::Push(r) => {
+				let mut sp = reg[15] as usize;
 				sp -= 1;
 				mem::swap(&mut reg[r], &mut mem[sp]);
+				reg[15] = sp as u16;
 			}
 			
 			Op::Pop(r) => {
+				let mut sp = reg[15] as usize;
 				mem::swap(&mut reg[r], &mut mem[sp]);
 				sp += 1;
+				reg[15] = sp as u16;
 			}
 			
 			Op::Swap(a, b) => reg.swap(a, b),
@@ -88,9 +93,11 @@ pub fn vm(file_path: &Path) {
 				panic!("ERROR (line {}): Control register in Fredkin instruction used again in second or last parameter.", pc - 1);
 			},
 			
-			Op::Jump(addr) => pc = addr,
+			Op::Jump(addr) => pc = addr as u16,
 			
-			Op::JZero(addr) => if reg[0] == 0 {pc = addr},
+			Op::JZero(addr) => if reg[0] == 0 {
+				pc = addr as u16
+			},
 			
 			/*
 			Read(c) => {
