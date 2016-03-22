@@ -58,8 +58,8 @@ pub fn vm(file_path: &Path) {
 			Op::Decrement(a) => reg[a] = reg[a].wrapping_sub(1),
 			
 			Op::Push(r) => {
-				mem::swap(&mut reg[r], &mut mem[sp]);
 				sp -= 1;
+				mem::swap(&mut reg[r], &mut mem[sp]);
 			}
 			
 			Op::Pop(r) => {
