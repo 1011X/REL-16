@@ -10,7 +10,7 @@ pub fn vm(file_path: &Path) {
 	let mut input = File::open(file_path).unwrap();
 	
 	let mut pc: u16 = 0;
-	let mut ir: u16;
+	let mut ir: u16 = 0;
 	let mut reg = [0_u16; 16];
 	let mut mem = [0_u16; 65536];
 	
@@ -38,7 +38,7 @@ pub fn vm(file_path: &Path) {
 	
 	loop {
 		// fetch
-		ir = mem[pc as usize];
+		mem::swap(&mut ir, &mut mem[pc as usize]);
 		pc += 1;
 		
 		// execute
@@ -110,16 +110,27 @@ pub fn vm(file_path: &Path) {
 			*/
 		}
 		
-		print!("PC = {:>5}: ", pc);
+		print!("PC = 0x{:04X}: ", pc);
 		
-		print!("{:<20}", format!("{:?}", decode(ir)));
+		println!("{:<17}", format!("{:?}", decode(ir)));
 		
-		print!("[");
-		for (i, &r) in reg.iter().enumerate() {
+		print!("SP = 0x{:04X}: ", reg[15]);
+		for (i, &val) in mem[reg[15] as usize..].iter().enumerate() {
+			print!("0x{:04X}", val);
+			
+			// is not last item
+			if i != mem.len() - reg[15] as usize - 1 {
+				print!(", ");
+			}
+		}
+		println!("");
+		
+		print!("Registers: [");
+		for (i, &r) in reg[..reg.len() - 1].iter().enumerate() {
 			print!("0x{:04X}", r);
 			
 			// is not last item
-			if i != reg.len() - 1 {
+			if i != reg.len() - 2 {
 				print!(", ");
 			}
 		}

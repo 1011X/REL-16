@@ -58,7 +58,7 @@ pub fn encode(op: Op) -> u16 {
 		
 		Op::Push(reg) => 0x0060 | reg as u16,
 		
-		Op::Pop(reg) => 0x0060 | reg as u16,
+		Op::Pop(reg) => 0x0070 | reg as u16,
 		
 		
 		
