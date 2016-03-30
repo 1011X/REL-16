@@ -57,31 +57,6 @@ pub fn assemble(in_path: &Path) {
 	});
 	let mut output = BufWriter::new(File::create(&out_path).unwrap());
 	
-	/*
-	let mut code: Vec<String> = input.lines()
-		.map(|r| r.unwrap())
-		.collect();
-	
-	
-	// macro rewriting
-	let expand_macro = |op| match op {
-		"neg" => {
-			
-		}
-	};
-	
-	for i in 0..code.len() {
-		let mut tokens = code[i].split_whitespace();
-		
-		match tokens.nth(0).unwrap() {
-			"neg" => {
-				let ra = get_register(
-				code.push(
-			}
-		}
-	}
-	*/
-	
 	// replace mnemonics with actual instructions
 	for (line_number, result) in input.lines().enumerate() {
 		let line = result.unwrap();
