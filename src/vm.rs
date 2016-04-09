@@ -27,7 +27,7 @@ pub fn vm(file_path: &Path) {
 			Ok(2) => if i < mem.len() {
 				mem[i] = (buffer[0] as u16) << 8 | buffer[1] as u16;
 			} else {
-				panic!("Binary too big for memory!");
+				panic!("Binary is too big for memory!");
 			},
 			
 			Ok(_) => unreachable!(),
@@ -38,7 +38,7 @@ pub fn vm(file_path: &Path) {
 	
 	loop {
 		// fetch
-		mem::swap(&mut ir, &mut mem[pc as usize]);
+		ir = mem[pc as usize];
 		pc += 1;
 		
 		// execute
@@ -72,28 +72,34 @@ pub fn vm(file_path: &Path) {
 				reg[15] = sp as u16;
 			}
 			
+			
+			Op::Jump(r) => {
+				mem::swap(&mut pc, &mut reg[r]);
+			}
+			
+			
 			Op::Swap(a, b) => reg.swap(a, b),
 			
 			Op::CNot(a, b) => reg[b] ^= reg[a],
 			
 			Op::CAdd(a, b) => reg[b] += reg[a],
 			
+			Op::CSub(a, b) => reg[b] -= reg[a],
 			
-			Op::Toffoli(a, b, c) => if a != c && b != c {
+			
+			Op::CCNot(a, b, c) => if a != c && b != c {
 				reg[c] ^= reg[a] & reg[b];
 			} else {
-				panic!("ERROR (line {}): Control register in Toffoli instruction used again in last parameter.", pc - 1);
+				panic!("ERROR (line {}): Control register in CCNot instruction used again in last parameter.", pc - 1);
 			},
 			
-			Op::Fredkin(a, b, c) => if a != c && a != b {
+			Op::CSwap(a, b, c) => if a != c && a != b {
 				let s = (reg[b] ^ reg[c]) & reg[a];
 				reg[b] ^= s;
 				reg[c] ^= s;
 			} else {
-				panic!("ERROR (line {}): Control register in Fredkin instruction used again in second or last parameter.", pc - 1);
+				panic!("ERROR (line {}): Control register in CSwap instruction used again in second or last parameter.", pc - 1);
 			},
-			
-			Op::Jump(addr) => pc = addr as u16,
 			
 			Op::JZero(addr) => if reg[0] == 0 {
 				pc = addr as u16
@@ -110,6 +116,7 @@ pub fn vm(file_path: &Path) {
 			*/
 		}
 		
+		// debugging code
 		print!("PC = 0x{:04X}: ", pc);
 		
 		println!("{:<17}", format!("{:?}", decode(ir)));

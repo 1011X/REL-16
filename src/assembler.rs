@@ -161,6 +161,21 @@ pub fn assemble(in_path: &Path) {
 				}
 			}
 			
+			"csub" => {
+				let rctrl = get_register(tokens.next());
+				let radd = get_register(tokens.next());
+				
+				match (rctrl, radd) {
+					(Ok(rctrl), Ok(rsub)) if rsub != rctrl =>
+						Ok(Op::CSub(rctrl, rsub)),
+					
+					(Ok(_), Ok(_)) =>
+						Err("can't use the same register in cnot".to_string()),
+					
+					(Err(e), _) | (_, Err(e)) => Err(e),
+				}
+			}
+			
 			"lit" => {
 				let reg = get_register(tokens.next());
 				
@@ -201,7 +216,7 @@ pub fn assemble(in_path: &Path) {
 				
 				match (rega, regb, regc) {
 					(Ok(a), Ok(b), Ok(c)) if c != a && c != b =>
-						Ok(Op::Toffoli(a, b, c)),
+						Ok(Op::CCNot(a, b, c)),
 					
 					(Ok(_), Ok(_), Ok(_)) =>
 						Err("controlled argument used in mutable argument".to_string()),
@@ -218,7 +233,7 @@ pub fn assemble(in_path: &Path) {
 				
 				match (rega, regb, regc) {
 					(Ok(a), Ok(b), Ok(c)) if b != a && c != a =>
-						Ok(Op::Fredkin(a, b, c)),
+						Ok(Op::CSwap(a, b, c)),
 					
 					(Ok(_), Ok(_), Ok(_)) =>
 						Err("controlled argument used in mutable argument".to_string()),

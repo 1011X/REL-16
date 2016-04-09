@@ -56,9 +56,13 @@ pub fn encode(op: Op) -> u16 {
 		
 		Op::Decrement(reg) => 0x0050 | reg as u16,
 		
+		
 		Op::Push(reg) => 0x0060 | reg as u16,
 		
 		Op::Pop(reg) => 0x0070 | reg as u16,
+		
+		
+		Op::Jump(reg) => 0x0080 | reg as u16,
 		
 		
 		
@@ -71,6 +75,8 @@ pub fn encode(op: Op) -> u16 {
 		Op::CAdd(r_ctrl, r_add) =>
 			0x0300 | (r_ctrl as u16) << 4 | r_add as u16,
 		
+		Op::CSub(r_ctrl, r_add) =>
+			0x0400 | (r_ctrl as u16) << 4 | r_add as u16,
 		
 		
 		Op::Lit(reg, val) =>
@@ -80,14 +86,12 @@ pub fn encode(op: Op) -> u16 {
 			0x2000 | (reg as u16) << 8 | addr as u16,
 		
 		
-		Op::Toffoli(r_ctrl_0, r_ctrl_1, r_not) =>
+		Op::CCNot(r_ctrl_0, r_ctrl_1, r_not) =>
 			0x3000 | (r_ctrl_0 as u16) << 8 | (r_ctrl_1 as u16) << 4 | r_not as u16,
 		
-		Op::Fredkin(r_ctrl, r_swap_0, r_swap_1) =>
+		Op::CSwap(r_ctrl, r_swap_0, r_swap_1) =>
 			0x4000 | (r_ctrl as u16) << 8 | (r_swap_0 as u16) << 4 | r_swap_1 as u16,
 		
-		
-		Op::Jump(addr) => 0x5000 | addr as u16,
 		
 		Op::JZero(addr) => 0x6000 | addr as u16,
 	}
@@ -125,6 +129,8 @@ pub fn decode(instr: u16) -> Op {
 				0x6 => Op::Push(c as usize),
 				0x7 => Op::Pop(c as usize),
 				
+				0x8 => Op::Jump(c as usize),
+				
 				//4 => Read(c as usize),
 				//5 => Write(c as usize),
 				
@@ -136,6 +142,7 @@ pub fn decode(instr: u16) -> Op {
 			0x2 => Op::CNot(b as usize, c as usize),
 			
 			0x3 => Op::CAdd(b as usize, c as usize),
+			0x4 => Op::CSub(b as usize, c as usize),
 			
 			a if a < 0x10 => panic!("Invalid 2-arg opcode ({}): {:04X}", a, instr),
 			_ => unreachable!()
@@ -150,7 +157,6 @@ pub fn decode(instr: u16) -> Op {
 		// CSwap
 		0x4 => Op::Fredkin(a as usize, b as usize, c as usize),
 		
-		0x5 => Op::Jump(data as usize),
 		0x6 => Op::JZero(data as usize),
 		
 		opcode if opcode < 0x10 => panic!("Invalid opcode ({}): 0x{:04X}", opcode, instr),
