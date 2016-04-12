@@ -9,10 +9,15 @@ use std::path::Path;
 pub fn vm(file_path: &Path) {
 	let mut input = File::open(file_path).unwrap();
 	
+	// dir: false is forward, true is reverse mode
+	let mut dir = false;
+	let mut br: u16 = 0;
 	let mut pc: u16 = 0;
+	
 	let mut ir: u16 = 0;
 	let mut reg = [0_u16; 16];
-	let mut mem = [0_u16; 65536];
+	let mut data_mem = [0_u16; 65536];
+	let mut program_mem = [0_u16; 65536];
 	
 	reg[15] = 0xFFFF; // use r15 as stack pointer
 	
@@ -24,8 +29,8 @@ pub fn vm(file_path: &Path) {
 			
 			Ok(1) => panic!("Got incomplete instruction."),
 			
-			Ok(2) => if i < mem.len() {
-				mem[i] = (buffer[0] as u16) << 8 | buffer[1] as u16;
+			Ok(2) => if i < program_mem.len() {
+				program_mem[i] = (buffer[0] as u16) << 8 | buffer[1] as u16;
 			} else {
 				panic!("Binary is too big for memory!");
 			},
@@ -38,14 +43,14 @@ pub fn vm(file_path: &Path) {
 	
 	loop {
 		// fetch
-		ir = mem[pc as usize];
+		ir = program_mem[pc as usize];
 		pc += 1;
 		
 		// execute
 		match decode(ir) {
 			Op::Lit(r, v) => reg[r] = v as u16,
 			
-			Op::MemSwap(r, addr) => mem::swap(&mut reg[r], &mut mem[addr]),
+			Op::MemSwap(r, addr) => mem::swap(&mut reg[r], &mut data_mem[addr]),
 			
 			Op::Halt => break,
 			
@@ -61,13 +66,13 @@ pub fn vm(file_path: &Path) {
 			Op::Push(r) => {
 				let mut sp = reg[15] as usize;
 				sp -= 1;
-				mem::swap(&mut reg[r], &mut mem[sp]);
+				mem::swap(&mut reg[r], &mut data_mem[sp]);
 				reg[15] = sp as u16;
 			}
 			
 			Op::Pop(r) => {
 				let mut sp = reg[15] as usize;
-				mem::swap(&mut reg[r], &mut mem[sp]);
+				mem::swap(&mut reg[r], &mut data_mem[sp]);
 				sp += 1;
 				reg[15] = sp as u16;
 			}
@@ -122,11 +127,11 @@ pub fn vm(file_path: &Path) {
 		println!("{:<17}", format!("{:?}", decode(ir)));
 		
 		print!("SP = 0x{:04X}: ", reg[15]);
-		for (i, &val) in mem[reg[15] as usize..].iter().enumerate() {
+		for (i, &val) in data_mem[reg[15] as usize..].iter().enumerate() {
 			print!("0x{:04X}", val);
 			
 			// is not last item
-			if i != mem.len() - reg[15] as usize - 1 {
+			if i != data_mem.len() - data_mem[15] as usize - 1 {
 				print!(", ");
 			}
 		}
@@ -141,7 +146,6 @@ pub fn vm(file_path: &Path) {
 				print!(", ");
 			}
 		}
-		println!("]");
-		println!("");
+		println!("]\n");
 	}
 }

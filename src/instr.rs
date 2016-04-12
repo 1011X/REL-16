@@ -22,16 +22,17 @@ pub enum Op {
 	CNot(usize, usize),
 	
 	CAdd(usize, usize),
+	CSub(usize, usize),
 	
 	
 	Lit(usize, u8),
 	MemSwap(usize, usize),
 	
 	// CCNot
-	Toffoli(usize, usize, usize),
+	CCNot(usize, usize, usize),
 	
 	// CSwap
-	Fredkin(usize, usize, usize),
+	CSwap(usize, usize, usize),
 	
 	Jump(usize),
 	JZero(usize),
@@ -153,9 +154,9 @@ pub fn decode(instr: u16) -> Op {
 		0x2 => Op::MemSwap(a as usize, bc as usize),
 		
 		// CCNot
-		0x3 => Op::Toffoli(a as usize, b as usize, c as usize),
+		0x3 => Op::CCNot(a as usize, b as usize, c as usize),
 		// CSwap
-		0x4 => Op::Fredkin(a as usize, b as usize, c as usize),
+		0x4 => Op::CSwap(a as usize, b as usize, c as usize),
 		
 		0x6 => Op::JZero(data as usize),
 		
