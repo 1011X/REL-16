@@ -25,7 +25,7 @@ macro_rules! println_err(
 
 fn parse_byte(s: &str) -> Result<u8, String> {
 	s.parse::<u8>()
-		.map_err(|e| e.description().to_string())
+		.map_err(|e| e.description().to_owned())
 }
 
 fn parse_reglit(s: &str) -> Result<usize, String> {
@@ -35,7 +35,7 @@ fn parse_reglit(s: &str) -> Result<usize, String> {
 				Ok(byte as usize),
 			
 			Ok(_) =>
-				Err("index for register too big!".to_string()),
+				Err("index for register too big!".to_owned()),
 			
 			Err(e) => Err(e),
 		}
@@ -64,7 +64,7 @@ pub fn assemble(in_path: &Path) {
 		
 		let get_register = |token| match token {
 			Some(t) => parse_reglit(t),
-			_ => Err("register argument not found".to_string()),
+			_ => Err("register argument not found".to_owned()),
 		};
 		
 		let opcode = match tokens.next() {
@@ -81,13 +81,13 @@ pub fn assemble(in_path: &Path) {
 				reg.map(Op::Not)
 			}
 			
-			"rotl" => {
+			"rotl" | "umul2" => {
 				let reg = get_register(tokens.next());
 				
 				reg.map(Op::RotateLeft)
 			}
 			
-			"rotr" => {
+			"rotr" | "udiv2" => {
 				let reg = get_register(tokens.next());
 				
 				reg.map(Op::RotateRight)
@@ -139,7 +139,7 @@ pub fn assemble(in_path: &Path) {
 						Ok(Op::CNot(regc, regn)),
 					
 					(Ok(_), Ok(_)) =>
-						Err("can't use the same register in cnot".to_string()),
+						Err("can't use the same register in cnot".to_owned()),
 					
 					(Err(e), _) | (_, Err(e)) =>
 						Err(e),
@@ -155,7 +155,7 @@ pub fn assemble(in_path: &Path) {
 						Ok(Op::CAdd(rctrl, radd)),
 					
 					(Ok(_), Ok(_)) =>
-						Err("can't use the same register in cnot".to_string()),
+						Err("can't use the same register in cnot".to_owned()),
 					
 					(Err(e), _) | (_, Err(e)) => Err(e),
 				}
@@ -170,7 +170,7 @@ pub fn assemble(in_path: &Path) {
 						Ok(Op::CSub(rctrl, rsub)),
 					
 					(Ok(_), Ok(_)) =>
-						Err("can't use the same register in cnot".to_string()),
+						Err("can't use the same register in cnot".to_owned()),
 					
 					(Err(e), _) | (_, Err(e)) => Err(e),
 				}
@@ -181,7 +181,7 @@ pub fn assemble(in_path: &Path) {
 				
 				let value = match tokens.next() {
 					Some(t) => parse_byte(t),
-					_ => Err("no value for lit instruction given".to_string()),
+					_ => Err("no value for lit instruction given".to_owned()),
 				};
 				
 				match (reg, value) {
@@ -198,7 +198,7 @@ pub fn assemble(in_path: &Path) {
 				
 				let addr = match tokens.next() {
 					Some(s) => parse_byte(s),
-					_ => Err("address argument not found".to_string())
+					_ => Err("address argument not found".to_owned())
 				};
 				
 				match (reg, addr) {
@@ -219,7 +219,7 @@ pub fn assemble(in_path: &Path) {
 						Ok(Op::CCNot(a, b, c)),
 					
 					(Ok(_), Ok(_), Ok(_)) =>
-						Err("controlled argument used in mutable argument".to_string()),
+						Err("controlled argument used in mutable argument".to_owned()),
 					
 					(Err(e), _, _) | (_, Err(e), _) | (_, _, Err(e)) =>
 						Err(e),
@@ -236,7 +236,7 @@ pub fn assemble(in_path: &Path) {
 						Ok(Op::CSwap(a, b, c)),
 					
 					(Ok(_), Ok(_), Ok(_)) =>
-						Err("controlled argument used in mutable argument".to_string()),
+						Err("controlled argument used in mutable argument".to_owned()),
 					
 					(Err(e), _, _) | (_, Err(e), _) | (_, _, Err(e)) =>
 						Err(e),
@@ -247,11 +247,11 @@ pub fn assemble(in_path: &Path) {
 				let addr = if let Some(s) = tokens.next() {
 					match s.parse::<u16>() {
 						Ok(v) if v < 0x1000 => Ok(v as usize),
-						Ok(_) => Err("value for argument too big!".to_string()),
-						Err(e) => Err(e.description().to_string()),
+						Ok(_) => Err("value for argument too big!".to_owned()),
+						Err(e) => Err(e.description().to_owned()),
 					}
 				} else {
-					Err("address argument not found".to_string())
+					Err("address argument not found".to_owned())
 				};
 				
 				addr.map(Op::Jump)
@@ -261,11 +261,11 @@ pub fn assemble(in_path: &Path) {
 				let addr = if let Some(s) = tokens.next() {
 					match s.parse::<u16>() {
 						Ok(v) if v < 0x1000 => Ok(v as usize),
-						Ok(_) => Err("value for argument too big!".to_string()),
-						Err(e) => Err(e.description().to_string()),
+						Ok(_) => Err("value for argument too big!".to_owned()),
+						Err(e) => Err(e.description().to_owned()),
 					}
 				} else {
-					Err("address argument not found".to_string())
+					Err("address argument not found".to_owned())
 				};
 				
 				addr.map(Op::JZero)
