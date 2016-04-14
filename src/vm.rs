@@ -14,7 +14,7 @@ pub fn vm(file_path: &Path) {
 	let mut br: u16 = 0;
 	let mut pc: u16 = 0;
 	
-	let mut ir: u16 = 0;
+	let mut ir: u16;
 	let mut reg = [0_u16; 16];
 	let mut data_mem = [0_u16; 65536];
 	let mut program_mem = [0_u16; 65536];
@@ -44,13 +44,19 @@ pub fn vm(file_path: &Path) {
 	loop {
 		// fetch
 		ir = program_mem[pc as usize];
-		pc += 1;
+		
+		if dir {
+			pc += if br == 0 { 1 } else { br };
+		}
+		else {
+			pc -= if br == 0 { 1 } else { br };
+		}
 		
 		// execute
 		match decode(ir) {
-			Op::Lit(r, v) => reg[r] = v as u16,
+			Op::Immediate(r, v) => reg[r] ^= v as u16,
 			
-			Op::MemSwap(r, addr) => mem::swap(&mut reg[r], &mut data_mem[addr]),
+			Op::Exchange(r, addr) => mem::swap(&mut reg[r], &mut data_mem[addr]),
 			
 			Op::Halt => break,
 			
@@ -77,10 +83,13 @@ pub fn vm(file_path: &Path) {
 				reg[15] = sp as u16;
 			}
 			
+			Op::SwapBr(r) => mem::swap(&mut br, &mut reg[r]),
 			
-			Op::Jump(r) => {
-				mem::swap(&mut pc, &mut reg[r]);
+			Op::RevSwapBr(r) => {
+				mem::swap(&mut br, &mut reg[r]);
+				dir ^= true;
 			}
+			
 			
 			
 			Op::Swap(a, b) => reg.swap(a, b),
@@ -106,9 +115,23 @@ pub fn vm(file_path: &Path) {
 				panic!("ERROR (line {}): Control register in CSwap instruction used again in second or last parameter.", pc - 1);
 			},
 			
-			Op::JZero(addr) => if reg[0] == 0 {
-				pc = addr as u16
-			},
+			Op::Branch(off) => br += off,
+			
+			Op::BrGEZ(r, off) => br +=
+				if (reg[r] as i16) >= 0 { off as u16 }
+				else { 0 },
+			
+			Op::BrLZ(r, off) => br +=
+				if (reg[r] as i16) < 0 { off as u16 }
+				else { 0 },
+			
+			Op::BrEven(r, off) => br +=
+				if reg[r] % 2 == 0 { off as u16 }
+				else { 0 },
+			
+			Op::BrOdd(r, off) => br +=
+				if reg[r] % 2 != 0 { off as u16 }
+				else { 0 },
 			
 			/*
 			Read(c) => {

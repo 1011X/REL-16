@@ -81,25 +81,25 @@ pub fn assemble(in_path: &Path) {
 				reg.map(Op::Not)
 			}
 			
-			"rotl" | "umul2" => {
+			"rotl" => {
 				let reg = get_register(tokens.next());
 				
 				reg.map(Op::RotateLeft)
 			}
 			
-			"rotr" | "udiv2" => {
+			"rotr" => {
 				let reg = get_register(tokens.next());
 				
 				reg.map(Op::RotateRight)
 			}
 			
-			"incr" => {
+			"inc" => {
 				let reg = get_register(tokens.next());
 				
 				reg.map(Op::Increment)
 			}
 			
-			"decr" => {
+			"dec" => {
 				let reg = get_register(tokens.next());
 				
 				reg.map(Op::Decrement)
@@ -117,7 +117,7 @@ pub fn assemble(in_path: &Path) {
 				reg.map(Op::Pop)
 			}
 			
-			"swap" => {
+			"swp" => {
 				let regl = get_register(tokens.next());
 				let regr = get_register(tokens.next());
 				
@@ -157,7 +157,8 @@ pub fn assemble(in_path: &Path) {
 					(Ok(_), Ok(_)) =>
 						Err("can't use the same register in cnot".to_owned()),
 					
-					(Err(e), _) | (_, Err(e)) => Err(e),
+					(Err(e), _) | (_, Err(e)) =>
+						Err(e),
 				}
 			}
 			
@@ -172,11 +173,12 @@ pub fn assemble(in_path: &Path) {
 					(Ok(_), Ok(_)) =>
 						Err("can't use the same register in cnot".to_owned()),
 					
-					(Err(e), _) | (_, Err(e)) => Err(e),
+					(Err(e), _) | (_, Err(e)) =>
+						Err(e),
 				}
 			}
 			
-			"lit" => {
+			"imm" => {
 				let reg = get_register(tokens.next());
 				
 				let value = match tokens.next() {
@@ -186,14 +188,14 @@ pub fn assemble(in_path: &Path) {
 				
 				match (reg, value) {
 					(Ok(reg), Ok(value)) =>
-						Ok(Op::Lit(reg, value)),
+						Ok(Op::Immediate(reg, value)),
 					
 					(Err(e), _) | (_, Err(e)) =>
 						Err(e)
 				}
 			}
 			
-			"memswap" => {
+			"exch" => {
 				let reg = get_register(tokens.next());
 				
 				let addr = match tokens.next() {
@@ -203,13 +205,14 @@ pub fn assemble(in_path: &Path) {
 				
 				match (reg, addr) {
 					(Ok(reg), Ok(addr)) =>
-						Ok(Op::MemSwap(reg, addr as usize)),
+						Ok(Op::Exchange(reg, addr as usize)),
 					
-					(Err(e), _) | (_, Err(e)) => Err(e),
+					(Err(e), _) | (_, Err(e)) =>
+						Err(e),
 				}
 			}
 			
-			"toffoli" | "toff" | "ccnot" => {
+			"toff" | "ccnot" => {
 				let rega = get_register(tokens.next());
 				let regb = get_register(tokens.next());
 				let regc = get_register(tokens.next());
@@ -226,7 +229,7 @@ pub fn assemble(in_path: &Path) {
 				}
 			}
 			
-			"fredkin" | "fredk" | "cswap" => {
+			"cswp" => {
 				let rega = get_register(tokens.next());
 				let regb = get_register(tokens.next());
 				let regc = get_register(tokens.next());
@@ -243,10 +246,10 @@ pub fn assemble(in_path: &Path) {
 				}
 			}
 			
-			"jump" | "jmp" => {
+			"bra" => {
 				let addr = if let Some(s) = tokens.next() {
 					match s.parse::<u16>() {
-						Ok(v) if v < 0x1000 => Ok(v as usize),
+						Ok(v) if v < 0x1000 => Ok(v),
 						Ok(_) => Err("value for argument too big!".to_owned()),
 						Err(e) => Err(e.description().to_owned()),
 					}
@@ -254,24 +257,98 @@ pub fn assemble(in_path: &Path) {
 					Err("address argument not found".to_owned())
 				};
 				
-				addr.map(Op::Jump)
+				addr.map(Op::Branch)
 			}
 			
-			"jpz" => {
-				let addr = if let Some(s) = tokens.next() {
-					match s.parse::<u16>() {
-						Ok(v) if v < 0x1000 => Ok(v as usize),
-						Ok(_) => Err("value for argument too big!".to_owned()),
-						Err(e) => Err(e.description().to_owned()),
-					}
+			"blz" => {
+				let reg = get_register(tokens.next());
+				
+				let off = if let Some(s) = tokens.next() {
+					s.parse::<u8>()
+						.map_err(|e| e.description().to_owned())
 				} else {
 					Err("address argument not found".to_owned())
 				};
 				
-				addr.map(Op::JZero)
+				match (reg, off) {
+					(Ok(reg), Ok(off)) =>
+						Ok(Op::BrLZ(reg, off)),
+					
+					(Err(e), _) | (_, Err(e)) =>
+						Err(e),
+				}
 			}
 			
-			other => Err(format!("expected opcode mneumonic, found {}", other)),
+			"bgez" => {
+				let reg = get_register(tokens.next());
+				
+				let off = if let Some(s) = tokens.next() {
+					s.parse::<u8>()
+						.map_err(|e| e.description().to_owned())
+				} else {
+					Err("address argument not found".to_owned())
+				};
+				
+				match (reg, off) {
+					(Ok(reg), Ok(off)) =>
+						Ok(Op::BrGEZ(reg, off)),
+					
+					(Err(e), _) | (_, Err(e)) =>
+						Err(e),
+				}
+			}
+			
+			"bevn" => {
+				let reg = get_register(tokens.next());
+				
+				let off = if let Some(s) = tokens.next() {
+					s.parse::<u8>()
+						.map_err(|e| e.description().to_owned())
+				} else {
+					Err("address argument not found".to_owned())
+				};
+				
+				match (reg, off) {
+					(Ok(reg), Ok(off)) =>
+						Ok(Op::BrEven(reg, off)),
+					
+					(Err(e), _) | (_, Err(e)) =>
+						Err(e),
+				}
+			}
+			
+			"bodd" => {
+				let reg = get_register(tokens.next());
+				
+				let off = if let Some(s) = tokens.next() {
+					s.parse::<u8>()
+						.map_err(|e| e.description().to_owned())
+				} else {
+					Err("address argument not found".to_owned())
+				};
+				
+				match (reg, off) {
+					(Ok(reg), Ok(off)) =>
+						Ok(Op::BrOdd(reg, off)),
+					
+					(Err(e), _) | (_, Err(e)) =>
+						Err(e),
+				}
+			}
+			
+			"swb" => {
+				let reg = get_register(tokens.next());
+				
+				reg.map(Op::SwapBr)
+			}
+			
+			"rswb" => {
+				let reg = get_register(tokens.next());
+				
+				reg.map(Op::RevSwapBr)
+			}
+			
+			other => Err(format!("unknown opcode mneumonic: {}", other)),
 		};
 		
 		// handle comments

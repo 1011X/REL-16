@@ -25,17 +25,21 @@ pub enum Op {
 	CSub(usize, usize),
 	
 	
-	Lit(usize, u8),
-	MemSwap(usize, usize),
+	Immediate(usize, u8),
+	Exchange(usize, usize),
 	
-	// CCNot
 	CCNot(usize, usize, usize),
 	
-	// CSwap
 	CSwap(usize, usize, usize),
 	
-	Jump(usize),
-	JZero(usize),
+	Branch(u16),
+	BrGEZ(usize, u8),
+	BrLZ(usize, u8),
+	BrEven(usize, u8),
+	BrOdd(usize, u8),
+	
+	SwapBr(usize),
+	RevSwapBr(usize),
 }
 
 pub fn encode(op: Op) -> u16 {
@@ -63,38 +67,67 @@ pub fn encode(op: Op) -> u16 {
 		Op::Pop(reg) => 0x0070 | reg as u16,
 		
 		
-		Op::Jump(reg) => 0x0080 | reg as u16,
+		
+		Op::Swap(r_left, r_right) => 0x0100
+			| (r_left as u16) << 4
+			| r_right as u16,
+		
+		Op::CNot(r_ctrl, r_not) => 0x0200
+			| (r_ctrl as u16) << 4
+			| r_not as u16,
+		
+		Op::CAdd(r_ctrl, r_add) => 0x0300
+			| (r_ctrl as u16) << 4
+			| r_add as u16,
+		
+		Op::CSub(r_ctrl, r_add) => 0x0400
+			| (r_ctrl as u16) << 4
+			| r_add as u16,
 		
 		
+		Op::Immediate(reg, val) => 0x1000
+			| (reg as u16) << 8
+			| val as u16,
 		
-		Op::Swap(r_left, r_right) =>
-			0x0100 | (r_left as u16) << 4 | r_right as u16,
-		
-		Op::CNot(r_ctrl, r_not) =>
-			0x0200 | (r_ctrl as u16) << 4 | r_not as u16,
-		
-		Op::CAdd(r_ctrl, r_add) =>
-			0x0300 | (r_ctrl as u16) << 4 | r_add as u16,
-		
-		Op::CSub(r_ctrl, r_add) =>
-			0x0400 | (r_ctrl as u16) << 4 | r_add as u16,
+		Op::Exchange(reg, addr) => 0x2000
+			| (reg as u16) << 8
+			| addr as u16,
 		
 		
-		Op::Lit(reg, val) =>
-			0x1000 | (reg as u16) << 8 | val as u16,
+		Op::CCNot(r_ctrl_0, r_ctrl_1, r_not) => 0x3000
+			| (r_ctrl_0 as u16) << 8
+			| (r_ctrl_1 as u16) << 4
+			| r_not as u16,
 		
-		Op::MemSwap(reg, addr) =>
-			0x2000 | (reg as u16) << 8 | addr as u16,
-		
-		
-		Op::CCNot(r_ctrl_0, r_ctrl_1, r_not) =>
-			0x3000 | (r_ctrl_0 as u16) << 8 | (r_ctrl_1 as u16) << 4 | r_not as u16,
-		
-		Op::CSwap(r_ctrl, r_swap_0, r_swap_1) =>
-			0x4000 | (r_ctrl as u16) << 8 | (r_swap_0 as u16) << 4 | r_swap_1 as u16,
+		Op::CSwap(r_ctrl, r_swap_0, r_swap_1) => 0x4000
+			| (r_ctrl as u16) << 8
+			| (r_swap_0 as u16) << 4
+			| r_swap_1 as u16,
 		
 		
-		Op::JZero(addr) => 0x6000 | addr as u16,
+		// control flow
+		
+		Op::Branch(off) => 0x6000 | off,
+		
+		Op::BrLZ(reg, off) => 0x7000
+			| (reg as u16) << 8
+			| off as u16,
+		
+		Op::BrGEZ(reg, off) => 0x8000
+			| (reg as u16) << 8
+			| off as u16,
+		
+		Op::BrEven(reg, off) => 0x9000
+			| (reg as u16) << 8
+			| off as u16,
+		
+		Op::BrOdd(reg, off) => 0xA000
+			| (reg as u16) << 8
+			| off as u16,
+		
+		Op::SwapBr(reg) => 0x0080 | reg as u16,
+		
+		Op::RevSwapBr(reg) => 0x0090 | reg as u16,
 	}
 }
 
@@ -130,7 +163,9 @@ pub fn decode(instr: u16) -> Op {
 				0x6 => Op::Push(c as usize),
 				0x7 => Op::Pop(c as usize),
 				
-				0x8 => Op::Jump(c as usize),
+				0x8 => Op::SwapBr(c as usize),
+				
+				0x9 => Op::RevSwapBr(c as usize),
 				
 				//4 => Read(c as usize),
 				//5 => Write(c as usize),
@@ -149,18 +184,26 @@ pub fn decode(instr: u16) -> Op {
 			_ => unreachable!()
 		},
 		
-		0x1 => Op::Lit(a as usize, bc as u8),
+		0x1 => Op::Immediate(a as usize, bc as u8),
 		
-		0x2 => Op::MemSwap(a as usize, bc as usize),
+		0x2 => Op::Exchange(a as usize, bc as usize),
 		
 		// CCNot
 		0x3 => Op::CCNot(a as usize, b as usize, c as usize),
 		// CSwap
 		0x4 => Op::CSwap(a as usize, b as usize, c as usize),
 		
-		0x6 => Op::JZero(data as usize),
+		0x6 => Op::Branch(data as u16),
 		
-		opcode if opcode < 0x10 => panic!("Invalid opcode ({}): 0x{:04X}", opcode, instr),
+		0x7 => Op::BrLZ(a as usize, bc as u8),
+		
+		0x8 => Op::BrGEZ(a as usize, bc as u8),
+		
+		0x9 => Op::BrEven(a as usize, bc as u8),
+		
+		0xA => Op::BrOdd(a as usize, bc as u8),
+		
+		opcode if opcode > 0xA => panic!("Invalid opcode ({}): 0x{:04X}", opcode, instr),
 		_ => unreachable!()
 	}
 }
