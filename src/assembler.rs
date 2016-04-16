@@ -205,7 +205,7 @@ pub fn assemble(in_path: &Path) {
 				
 				match (reg, addr) {
 					(Ok(reg), Ok(addr)) =>
-						Ok(Op::Exchange(reg, addr as usize)),
+						Ok(Op::Exchange(reg, addr as u16)),
 					
 					(Err(e), _) | (_, Err(e)) =>
 						Err(e),
@@ -246,7 +246,7 @@ pub fn assemble(in_path: &Path) {
 				}
 			}
 			
-			"bra" => {
+			"goto" => {
 				let addr = if let Some(s) = tokens.next() {
 					match s.parse::<u16>() {
 						Ok(v) if v < 0x1000 => Ok(v),
@@ -257,9 +257,23 @@ pub fn assemble(in_path: &Path) {
 					Err("address argument not found".to_owned())
 				};
 				
-				addr.map(Op::Branch)
+				addr.map(Op::GoTo)
 			}
 			
+			"cmfr" => {
+				let addr = if let Some(s) = tokens.next() {
+					match s.parse::<u16>() {
+						Ok(v) if v < 0x1000 => Ok(v),
+						Ok(_) => Err("value for argument too big!".to_owned()),
+						Err(e) => Err(e.description().to_owned()),
+					}
+				} else {
+					Err("address argument not found".to_owned())
+				};
+				
+				addr.map(Op::ComeFrom)
+			}
+			/*
 			"blz" => {
 				let reg = get_register(tokens.next());
 				
@@ -298,44 +312,6 @@ pub fn assemble(in_path: &Path) {
 				}
 			}
 			
-			"bevn" => {
-				let reg = get_register(tokens.next());
-				
-				let off = if let Some(s) = tokens.next() {
-					s.parse::<u8>()
-						.map_err(|e| e.description().to_owned())
-				} else {
-					Err("address argument not found".to_owned())
-				};
-				
-				match (reg, off) {
-					(Ok(reg), Ok(off)) =>
-						Ok(Op::BrEven(reg, off)),
-					
-					(Err(e), _) | (_, Err(e)) =>
-						Err(e),
-				}
-			}
-			
-			"bodd" => {
-				let reg = get_register(tokens.next());
-				
-				let off = if let Some(s) = tokens.next() {
-					s.parse::<u8>()
-						.map_err(|e| e.description().to_owned())
-				} else {
-					Err("address argument not found".to_owned())
-				};
-				
-				match (reg, off) {
-					(Ok(reg), Ok(off)) =>
-						Ok(Op::BrOdd(reg, off)),
-					
-					(Err(e), _) | (_, Err(e)) =>
-						Err(e),
-				}
-			}
-			
 			"swb" => {
 				let reg = get_register(tokens.next());
 				
@@ -347,6 +323,7 @@ pub fn assemble(in_path: &Path) {
 				
 				reg.map(Op::RevSwapBr)
 			}
+			*/
 			
 			other => Err(format!("unknown opcode mneumonic: {}", other)),
 		};

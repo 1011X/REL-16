@@ -1,45 +1,53 @@
+pub type Reg = usize;
+pub type Addr = u16;
+
 #[derive(Debug)]
 pub enum Op {
 	Halt,
 	
 	
-	Not(usize),
+	Not(Reg),
 			
-	RotateLeft(usize),
-	RotateRight(usize),
+	RotateLeft(Reg),
+	RotateRight(Reg),
 			
-	Increment(usize),
-	Decrement(usize),
+	Increment(Reg),
+	Decrement(Reg),
 	
-	Push(usize),
-	Pop(usize),
+	Push(Reg),
+	Pop(Reg),
 	
-	//Read(usize),
-	//Write(usize),
-	
-	
-	Swap(usize, usize),
-	CNot(usize, usize),
-	
-	CAdd(usize, usize),
-	CSub(usize, usize),
+	//Read(Reg),
+	//Write(Reg),
 	
 	
-	Immediate(usize, u8),
-	Exchange(usize, usize),
+	Swap(Reg, Reg),
 	
-	CCNot(usize, usize, usize),
+	CNot(Reg, Reg),
 	
-	CSwap(usize, usize, usize),
+	CAdd(Reg, Reg),
+	CSub(Reg, Reg),
 	
-	Branch(u16),
-	BrGEZ(usize, u8),
-	BrLZ(usize, u8),
-	BrEven(usize, u8),
-	BrOdd(usize, u8),
 	
-	SwapBr(usize),
-	RevSwapBr(usize),
+	Immediate(Reg, u8),
+	
+	Exchange(Reg, Addr),
+	
+	CCNot(Reg, Reg, Reg),
+	
+	CSwap(Reg, Reg, Reg),
+	
+	GoTo(Addr),
+	ComeFrom(Addr),
+	/*
+	BrGEZ(Reg, u8),
+	
+	BrLZ(Reg, u8),
+	
+	SwapBr(Reg),
+	
+	RevSwapBr(Reg),
+	*/
 }
 
 pub fn encode(op: Op) -> u16 {
@@ -68,21 +76,22 @@ pub fn encode(op: Op) -> u16 {
 		
 		
 		
-		Op::Swap(r_left, r_right) => 0x0100
-			| (r_left as u16) << 4
-			| r_right as u16,
+		Op::Swap(rl, rr) => 0x0100
+			| (rl as u16) << 4
+			| rr as u16,
 		
-		Op::CNot(r_ctrl, r_not) => 0x0200
-			| (r_ctrl as u16) << 4
-			| r_not as u16,
+		Op::CNot(rc, rn) => 0x0200
+			| (rc as u16) << 4
+			| rn as u16,
 		
-		Op::CAdd(r_ctrl, r_add) => 0x0300
-			| (r_ctrl as u16) << 4
-			| r_add as u16,
+		Op::CAdd(rc, ra) => 0x0300
+			| (rc as u16) << 4
+			| ra as u16,
 		
-		Op::CSub(r_ctrl, r_add) => 0x0400
-			| (r_ctrl as u16) << 4
-			| r_add as u16,
+		Op::CSub(rc, rs) => 0x0400
+			| (rc as u16) << 4
+			| rs as u16,
+		
 		
 		
 		Op::Immediate(reg, val) => 0x1000
@@ -94,40 +103,36 @@ pub fn encode(op: Op) -> u16 {
 			| addr as u16,
 		
 		
-		Op::CCNot(r_ctrl_0, r_ctrl_1, r_not) => 0x3000
-			| (r_ctrl_0 as u16) << 8
-			| (r_ctrl_1 as u16) << 4
-			| r_not as u16,
+		Op::CCNot(rc0, rc1, rn) => 0x3000
+			| (rc0 as u16) << 8
+			| (rc1 as u16) << 4
+			| rn as u16,
 		
-		Op::CSwap(r_ctrl, r_swap_0, r_swap_1) => 0x4000
-			| (r_ctrl as u16) << 8
-			| (r_swap_0 as u16) << 4
-			| r_swap_1 as u16,
+		Op::CSwap(rc, rs0, rs1) => 0x4000
+			| (rc as u16) << 8
+			| (rs0 as u16) << 4
+			| rs1 as u16,
 		
 		
 		// control flow
 		
-		Op::Branch(off) => 0x6000 | off,
+		Op::GoTo(off) => 0x6000 | off as u16,
 		
-		Op::BrLZ(reg, off) => 0x7000
+		Op::ComeFrom(off) => 0x7000 | off as u16,
+		
+		/*
+		Op::BrLZ(reg, off) => 0x8000
 			| (reg as u16) << 8
 			| off as u16,
 		
-		Op::BrGEZ(reg, off) => 0x8000
-			| (reg as u16) << 8
-			| off as u16,
-		
-		Op::BrEven(reg, off) => 0x9000
-			| (reg as u16) << 8
-			| off as u16,
-		
-		Op::BrOdd(reg, off) => 0xA000
+		Op::BrGEZ(reg, off) => 0x9000
 			| (reg as u16) << 8
 			| off as u16,
 		
 		Op::SwapBr(reg) => 0x0080 | reg as u16,
 		
 		Op::RevSwapBr(reg) => 0x0090 | reg as u16,
+		*/
 	}
 }
 
@@ -163,9 +168,11 @@ pub fn decode(instr: u16) -> Op {
 				0x6 => Op::Push(c as usize),
 				0x7 => Op::Pop(c as usize),
 				
+				/*
 				0x8 => Op::SwapBr(c as usize),
 				
 				0x9 => Op::RevSwapBr(c as usize),
+				*/
 				
 				//4 => Read(c as usize),
 				//5 => Write(c as usize),
@@ -175,6 +182,7 @@ pub fn decode(instr: u16) -> Op {
 			},
 			
 			0x1 => Op::Swap(b as usize, c as usize),
+			
 			0x2 => Op::CNot(b as usize, c as usize),
 			
 			0x3 => Op::CAdd(b as usize, c as usize),
@@ -186,24 +194,89 @@ pub fn decode(instr: u16) -> Op {
 		
 		0x1 => Op::Immediate(a as usize, bc as u8),
 		
-		0x2 => Op::Exchange(a as usize, bc as usize),
+		0x2 => Op::Exchange(a as usize, bc as u16),
 		
-		// CCNot
 		0x3 => Op::CCNot(a as usize, b as usize, c as usize),
-		// CSwap
+		
 		0x4 => Op::CSwap(a as usize, b as usize, c as usize),
 		
-		0x6 => Op::Branch(data as u16),
+		0x6 => Op::GoTo(data as u16),
+		0x7 => Op::ComeFrom(data as u16),
+		/*
+		0x8 => Op::BrLZ(a as usize, bc as u8),
 		
-		0x7 => Op::BrLZ(a as usize, bc as u8),
-		
-		0x8 => Op::BrGEZ(a as usize, bc as u8),
-		
-		0x9 => Op::BrEven(a as usize, bc as u8),
-		
-		0xA => Op::BrOdd(a as usize, bc as u8),
-		
-		opcode if opcode > 0xA => panic!("Invalid opcode ({}): 0x{:04X}", opcode, instr),
+		0x9 => Op::BrGEZ(a as usize, bc as u8),
+		*/
+		opcode if opcode < 0x10 => panic!("Invalid opcode ({}): 0x{:04X}", opcode, instr),
 		_ => unreachable!()
+	}
+}
+
+// To guarantee VM is reversible, every operation must have an inverse.
+pub fn invert(op: Op) -> Op {
+	match op {
+		Op::Halt => Op::Halt,
+		
+		
+		
+		Op::Not(reg) => Op::Not(reg),
+		
+		
+		Op::RotateLeft(reg) => Op::RotateRight(reg),
+		
+		Op::RotateRight(reg) => Op::RotateLeft(reg),
+		
+		
+		Op::Increment(reg) => Op::Decrement(reg),
+		
+		Op::Decrement(reg) => Op::Increment(reg),
+		
+		
+		Op::Push(reg) => Op::Pop(reg),
+		
+		Op::Pop(reg) => Op::Push(reg),
+		
+		
+		
+		Op::Swap(rl, rr) => Op::Swap(rl, rr),
+		
+		Op::CNot(rc, rn) => Op::CNot(rc, rn),
+		
+		
+		Op::CAdd(rc, ra) => Op::CSub(rc, ra),
+		
+		Op::CSub(rc, rs) => Op::CAdd(rc, rs),
+		
+		
+		
+		Op::Immediate(reg, val) => Op::Immediate(reg, val),
+		
+		Op::Exchange(reg, addr) => Op::Exchange(reg, addr),
+		
+		
+		Op::CCNot(rc0, rc1, rn) => Op::CCNot(rc0, rc1, rn),
+		
+		Op::CSwap(rc, rs0, rs1) => Op::CSwap(rc, rs0, rs1),
+		
+		
+		// control flow
+		
+		Op::GoTo(off) => Op::ComeFrom(off),
+		
+		Op::ComeFrom(off) => Op::GoTo(off),
+		
+		/*
+		Op::BrLZ(reg, off) => 0x8000
+			| (reg as u16) << 8
+			| off as u16,
+		
+		Op::BrGEZ(reg, off) => 0x9000
+			| (reg as u16) << 8
+			| off as u16,
+		
+		Op::SwapBr(reg) => 0x0080 | reg as u16,
+		
+		Op::RevSwapBr(reg) => 0x0090 | reg as u16,
+		*/
 	}
 }

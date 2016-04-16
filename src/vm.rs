@@ -1,7 +1,6 @@
-use instr::Op;
-use instr::decode;
+use instr::{self, Op};
 
-use std::mem;
+use std::mem::swap;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
@@ -9,7 +8,7 @@ use std::path::Path;
 pub fn vm(file_path: &Path) {
 	let mut input = File::open(file_path).unwrap();
 	
-	// dir: false is forward, true is reverse mode
+	// when dir is true, it is in backwards mode
 	let mut dir = false;
 	let mut br: u16 = 0;
 	let mut pc: u16 = 0;
@@ -45,25 +44,24 @@ pub fn vm(file_path: &Path) {
 		// fetch
 		ir = program_mem[pc as usize];
 		
+		let mut op = instr::decode(ir);
+		
 		if dir {
-			pc += if br == 0 { 1 } else { br };
-		}
-		else {
-			pc -= if br == 0 { 1 } else { br };
+			op = instr::invert(op);
 		}
 		
 		// execute
-		match decode(ir) {
+		match op {
 			Op::Immediate(r, v) => reg[r] ^= v as u16,
 			
-			Op::Exchange(r, addr) => mem::swap(&mut reg[r], &mut data_mem[addr]),
+			Op::Exchange(r, addr) => swap(&mut reg[r], &mut data_mem[addr as usize]),
 			
 			Op::Halt => break,
 			
 			
 			Op::Not(a) => reg[a] = !reg[a],
 			
-			Op::RotateLeft(a) => reg[a] = reg[a].rotate_left(1),
+			Op::RotateLeft(a)  => reg[a] = reg[a].rotate_left(1),
 			Op::RotateRight(a) => reg[a] = reg[a].rotate_right(1),
 			
 			Op::Increment(a) => reg[a] = reg[a].wrapping_add(1),
@@ -72,33 +70,32 @@ pub fn vm(file_path: &Path) {
 			Op::Push(r) => {
 				let mut sp = reg[15] as usize;
 				sp -= 1;
-				mem::swap(&mut reg[r], &mut data_mem[sp]);
+				swap(&mut reg[r], &mut data_mem[sp]);
 				reg[15] = sp as u16;
 			}
 			
 			Op::Pop(r) => {
 				let mut sp = reg[15] as usize;
-				mem::swap(&mut reg[r], &mut data_mem[sp]);
+				swap(&mut reg[r], &mut data_mem[sp]);
 				sp += 1;
 				reg[15] = sp as u16;
 			}
-			
-			Op::SwapBr(r) => mem::swap(&mut br, &mut reg[r]),
+			/*
+			Op::SwapBr(r) => swap(&mut br, &mut reg[r]),
 			
 			Op::RevSwapBr(r) => {
-				mem::swap(&mut br, &mut reg[r]);
+				swap(&mut br, &mut reg[r]);
 				dir ^= true;
 			}
-			
+			*/
 			
 			
 			Op::Swap(a, b) => reg.swap(a, b),
 			
 			Op::CNot(a, b) => reg[b] ^= reg[a],
 			
-			Op::CAdd(a, b) => reg[b] += reg[a],
-			
-			Op::CSub(a, b) => reg[b] -= reg[a],
+			Op::CAdd(a, b) => reg[b] = reg[b].wrapping_add(reg[a]),
+			Op::CSub(a, b) => reg[b] = reg[b].wrapping_sub(reg[a]),
 			
 			
 			Op::CCNot(a, b, c) => if a != c && b != c {
@@ -115,8 +112,9 @@ pub fn vm(file_path: &Path) {
 				panic!("ERROR (line {}): Control register in CSwap instruction used again in second or last parameter.", pc - 1);
 			},
 			
-			Op::Branch(off) => br += off,
-			
+			Op::GoTo(off)     => br = br.wrapping_add(off),
+			Op::ComeFrom(off) => br = br.wrapping_sub(off),
+			/*
 			Op::BrGEZ(r, off) => br +=
 				if (reg[r] as i16) >= 0 { off as u16 }
 				else { 0 },
@@ -125,15 +123,6 @@ pub fn vm(file_path: &Path) {
 				if (reg[r] as i16) < 0 { off as u16 }
 				else { 0 },
 			
-			Op::BrEven(r, off) => br +=
-				if reg[r] % 2 == 0 { off as u16 }
-				else { 0 },
-			
-			Op::BrOdd(r, off) => br +=
-				if reg[r] % 2 != 0 { off as u16 }
-				else { 0 },
-			
-			/*
 			Read(c) => {
 				let mut buf = [0_u8, 0];
 				std::io::stdin().read(&mut buf).expect("Couldn't read from stdin.");
@@ -144,10 +133,17 @@ pub fn vm(file_path: &Path) {
 			*/
 		}
 		
+		// next instruction
+		if dir {
+			pc -= br;
+		} else {
+			pc += br;
+		}
+		
 		// debugging code
 		print!("PC = 0x{:04X}: ", pc);
 		
-		println!("{:<17}", format!("{:?}", decode(ir)));
+		println!("{:<17}", format!("{:?}", op));
 		
 		print!("SP = 0x{:04X}: ", reg[15]);
 		for (i, &val) in data_mem[reg[15] as usize..].iter().enumerate() {
