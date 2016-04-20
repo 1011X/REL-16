@@ -50,6 +50,74 @@ pub enum Op {
 	*/
 }
 
+impl Op {
+	
+	// To guarantee VM is reversible, every operation must have an inverse.
+	pub fn invert(self) -> Op {
+		match self {
+			Op::Halt => Op::Halt,
+		
+		
+		
+			Op::Not(reg) => Op::Not(reg),
+		
+		
+			Op::RotateLeft(reg) => Op::RotateRight(reg),
+		
+			Op::RotateRight(reg) => Op::RotateLeft(reg),
+		
+		
+			Op::Increment(reg) => Op::Decrement(reg),
+		
+			Op::Decrement(reg) => Op::Increment(reg),
+		
+		
+			Op::Push(reg) => Op::Pop(reg),
+		
+			Op::Pop(reg) => Op::Push(reg),
+		
+		
+		
+			Op::Swap(rl, rr) => Op::Swap(rl, rr),
+		
+			Op::CNot(rc, rn) => Op::CNot(rc, rn),
+		
+		
+			Op::CAdd(rc, ra) => Op::CSub(rc, ra),
+		
+			Op::CSub(rc, rs) => Op::CAdd(rc, rs),
+		
+		
+		
+			Op::Immediate(reg, val) => Op::Immediate(reg, val),
+		
+			Op::Exchange(reg, addr) => Op::Exchange(reg, addr),
+		
+		
+			Op::CCNot(rc0, rc1, rn) => Op::CCNot(rc0, rc1, rn),
+		
+			Op::CSwap(rc, rs0, rs1) => Op::CSwap(rc, rs0, rs1),
+		
+		
+			// control flow
+		
+			Op::GoTo(off) => Op::ComeFrom(off),
+		
+			Op::ComeFrom(off) => Op::GoTo(off),
+		
+			/*
+			Op::BrLZ(reg, off) => 
+		
+			Op::BrGEZ(reg, off) => 
+		
+			Op::SwapBr(reg) => 
+		
+			Op::RevSwapBr(reg) => 
+			*/
+		}
+	}
+}
+
 pub fn encode(op: Op) -> u16 {
 	// TODO: decide if I want to have assertions for values.
 	match op {
@@ -57,22 +125,29 @@ pub fn encode(op: Op) -> u16 {
 		
 		
 		
-		Op::Not(reg) => 0x0010 | reg as u16,
+		Op::Not(reg) => 0x0010
+			| reg as u16,
 		
 		
-		Op::RotateLeft(reg) => 0x0020 | reg as u16,
+		Op::RotateLeft(reg) => 0x0020
+			| reg as u16,
 		
-		Op::RotateRight(reg) => 0x0030 | reg as u16,
-		
-		
-		Op::Increment(reg) => 0x0040 | reg as u16,
-		
-		Op::Decrement(reg) => 0x0050 | reg as u16,
+		Op::RotateRight(reg) => 0x0030
+			| reg as u16,
 		
 		
-		Op::Push(reg) => 0x0060 | reg as u16,
+		Op::Increment(reg) => 0x0040
+			| reg as u16,
 		
-		Op::Pop(reg) => 0x0070 | reg as u16,
+		Op::Decrement(reg) => 0x0050
+			| reg as u16,
+		
+		
+		Op::Push(reg) => 0x0060
+			| reg as u16,
+		
+		Op::Pop(reg) => 0x0070
+			| reg as u16,
 		
 		
 		
@@ -94,31 +169,34 @@ pub fn encode(op: Op) -> u16 {
 		
 		
 		
-		Op::Immediate(reg, val) => 0x1000
-			| (reg as u16) << 8
-			| val as u16,
-		
-		Op::Exchange(reg, addr) => 0x2000
-			| (reg as u16) << 8
-			| addr as u16,
-		
-		
-		Op::CCNot(rc0, rc1, rn) => 0x3000
+		Op::CCNot(rc0, rc1, rn) => 0x1000
 			| (rc0 as u16) << 8
 			| (rc1 as u16) << 4
 			| rn as u16,
 		
-		Op::CSwap(rc, rs0, rs1) => 0x4000
+		Op::CSwap(rc, rs0, rs1) => 0x2000
 			| (rc as u16) << 8
 			| (rs0 as u16) << 4
 			| rs1 as u16,
 		
 		
+		
+		Op::Immediate(reg, val) => 0x3000
+			| (reg as u16) << 8
+			| val as u16,
+		
+		Op::Exchange(reg, addr) => 0x4000
+			| (reg as u16) << 8
+			| addr as u16,
+		
+		
 		// control flow
 		
-		Op::GoTo(off) => 0x6000 | off as u16,
+		Op::GoTo(off) => 0x5000
+			| off as u16,
 		
-		Op::ComeFrom(off) => 0x7000 | off as u16,
+		Op::ComeFrom(off) => 0x6000
+			| off as u16,
 		
 		/*
 		Op::BrLZ(reg, off) => 0x8000
@@ -138,7 +216,7 @@ pub fn encode(op: Op) -> u16 {
 
 #[allow(unused_variables)]
 pub fn decode(instr: u16) -> Op {
-	let opcode = (instr & 0xF000) >> 12;
+	let opcode = (instr & 0xF000) >> 11;
 	let data = instr & 0x0FFF;
 	let a = (data & 0xF00) >> 8;
 	let b = (data & 0x0F0) >> 4;
@@ -192,16 +270,16 @@ pub fn decode(instr: u16) -> Op {
 			_ => unreachable!()
 		},
 		
-		0x1 => Op::Immediate(a as usize, bc as u8),
+		0x1 => Op::CCNot(a as usize, b as usize, c as usize),
 		
-		0x2 => Op::Exchange(a as usize, bc as u16),
+		0x2 => Op::CSwap(a as usize, b as usize, c as usize),
 		
-		0x3 => Op::CCNot(a as usize, b as usize, c as usize),
+		0x3 => Op::Immediate(a as usize, bc as u8),
 		
-		0x4 => Op::CSwap(a as usize, b as usize, c as usize),
+		0x4 => Op::Exchange(a as usize, bc as u16),
 		
-		0x6 => Op::GoTo(data as u16),
-		0x7 => Op::ComeFrom(data as u16),
+		0x5 => Op::GoTo(data as u16),
+		0x6 => Op::ComeFrom(data as u16),
 		/*
 		0x8 => Op::BrLZ(a as usize, bc as u8),
 		
@@ -209,74 +287,5 @@ pub fn decode(instr: u16) -> Op {
 		*/
 		opcode if opcode < 0x10 => panic!("Invalid opcode ({}): 0x{:04X}", opcode, instr),
 		_ => unreachable!()
-	}
-}
-
-// To guarantee VM is reversible, every operation must have an inverse.
-pub fn invert(op: Op) -> Op {
-	match op {
-		Op::Halt => Op::Halt,
-		
-		
-		
-		Op::Not(reg) => Op::Not(reg),
-		
-		
-		Op::RotateLeft(reg) => Op::RotateRight(reg),
-		
-		Op::RotateRight(reg) => Op::RotateLeft(reg),
-		
-		
-		Op::Increment(reg) => Op::Decrement(reg),
-		
-		Op::Decrement(reg) => Op::Increment(reg),
-		
-		
-		Op::Push(reg) => Op::Pop(reg),
-		
-		Op::Pop(reg) => Op::Push(reg),
-		
-		
-		
-		Op::Swap(rl, rr) => Op::Swap(rl, rr),
-		
-		Op::CNot(rc, rn) => Op::CNot(rc, rn),
-		
-		
-		Op::CAdd(rc, ra) => Op::CSub(rc, ra),
-		
-		Op::CSub(rc, rs) => Op::CAdd(rc, rs),
-		
-		
-		
-		Op::Immediate(reg, val) => Op::Immediate(reg, val),
-		
-		Op::Exchange(reg, addr) => Op::Exchange(reg, addr),
-		
-		
-		Op::CCNot(rc0, rc1, rn) => Op::CCNot(rc0, rc1, rn),
-		
-		Op::CSwap(rc, rs0, rs1) => Op::CSwap(rc, rs0, rs1),
-		
-		
-		// control flow
-		
-		Op::GoTo(off) => Op::ComeFrom(off),
-		
-		Op::ComeFrom(off) => Op::GoTo(off),
-		
-		/*
-		Op::BrLZ(reg, off) => 0x8000
-			| (reg as u16) << 8
-			| off as u16,
-		
-		Op::BrGEZ(reg, off) => 0x9000
-			| (reg as u16) << 8
-			| off as u16,
-		
-		Op::SwapBr(reg) => 0x0080 | reg as u16,
-		
-		Op::RevSwapBr(reg) => 0x0090 | reg as u16,
-		*/
 	}
 }

@@ -5,18 +5,32 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
+const DMEM_LEN: usize = 65536;
+const PMEM_LEN: usize = 65536;
+
+macro_rules! println_err(
+    ($($arg: tt)*) => {{
+    	use std::io::Write;
+        let result = writeln!(&mut ::std::io::stderr(), $($arg)*);
+        
+        if let Err(e) = result {
+        	panic!("failed printing to stderr: {}", e);
+        }
+    }}
+);
+
 pub fn vm(file_path: &Path) {
 	let mut input = File::open(file_path).unwrap();
 	
 	// when dir is true, it is in backwards mode
 	let mut dir = false;
-	let mut br: u16 = 0;
+	let mut br: u16 = 1;
 	let mut pc: u16 = 0;
 	
 	let mut ir: u16;
 	let mut reg = [0_u16; 16];
-	let mut data_mem = [0_u16; 65536];
-	let mut program_mem = [0_u16; 65536];
+	let mut data_mem = [0_u16; DMEM_LEN];
+	let mut program_mem = Vec::with_capacity(PMEM_LEN);
 	
 	reg[15] = 0xFFFF; // use r15 as stack pointer
 	
@@ -24,31 +38,45 @@ pub fn vm(file_path: &Path) {
 	let mut buffer = [0_u8; 2];
 	for i in 0.. {
 		match input.read(&mut buffer) {
-			Ok(0) => break,
+			Ok(0) => {
+				program_mem.shrink_to_fit();
+				break;
+			}
 			
-			Ok(1) => panic!("Got incomplete instruction."),
+			Ok(1) => {
+				println_err!("Got incomplete instruction.");
+				return;
+			}
 			
-			Ok(2) => if i < program_mem.len() {
-				program_mem[i] = (buffer[0] as u16) << 8 | buffer[1] as u16;
-			} else {
-				panic!("Binary is too big for memory!");
+			Ok(2) => if i < program_mem.capacity() {
+				let instr = (buffer[0] as u16) << 8 | buffer[1] as u16;
+				
+				program_mem.push(instr);
+			}
+			else {
+				println_err!("Binary is too big for memory!");
+				return;
 			},
 			
 			Ok(_) => unreachable!(),
 			
-			Err(e) => panic!("{}", e),
+			Err(e) => {
+				println_err!("{}", e);
+				return;
+			}
 		}
 	}
 	
+	// redeclare so program memory is read-only.
+	let program_mem = program_mem;
+	
 	loop {
 		// fetch
-		ir = program_mem[pc as usize];
+		ir = program_mem.get(pc as usize).cloned().unwrap_or(0);
 		
 		let mut op = instr::decode(ir);
 		
-		if dir {
-			op = instr::invert(op);
-		}
+		if dir { op = op.invert() }
 		
 		// execute
 		match op {
@@ -141,30 +169,45 @@ pub fn vm(file_path: &Path) {
 		}
 		
 		// debugging code
-		print!("PC = 0x{:04X}: ", pc);
+		print!("PC = {:04X}: ", pc);
 		
 		println!("{:<17}", format!("{:?}", op));
 		
-		print!("SP = 0x{:04X}: ", reg[15]);
-		for (i, &val) in data_mem[reg[15] as usize..].iter().enumerate() {
-			print!("0x{:04X}", val);
-			
-			// is not last item
-			if i != data_mem.len() - data_mem[15] as usize - 1 {
-				print!(", ");
-			}
-		}
-		println!("");
+		// print contents of stack
+		print!("SP = {:04X}: ", reg[15]);
 		
+		if reg[15] as usize == DMEM_LEN - 1 {
+			println!("nil");
+		}
+		else {
+			let sp = reg[15] as usize;
+			
+			print!("<");
+			
+			for (i, &val) in data_mem[sp..DMEM_LEN - 1].iter().enumerate() {
+				print!("{:04X}", val);
+				
+				// is not last item; excludes zero at bottom of stack
+				if sp + i < DMEM_LEN - 2 {
+					print!(", ");
+				}
+			}
+			
+			println!("]");
+		}
+		
+		// print contents of registers
 		print!("Registers: [");
+		
 		for (i, &r) in reg[..reg.len() - 1].iter().enumerate() {
-			print!("0x{:04X}", r);
+			print!("{:04X}", r);
 			
 			// is not last item
 			if i != reg.len() - 2 {
 				print!(", ");
 			}
 		}
+		
 		println!("]\n");
 	}
 }

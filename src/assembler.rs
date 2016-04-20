@@ -14,6 +14,7 @@ use std::io::{
 
 macro_rules! println_err(
     ($($arg: tt)*) => {{
+    	use std::io::Write;
         let result = writeln!(&mut ::std::io::stderr(), $($arg)*);
         
         if let Err(e) = result {
@@ -50,6 +51,7 @@ pub fn assemble(in_path: &Path) {
 	
 	let input = BufReader::new(match File::open(in_path) {
 		Ok(file) => file,
+		
 		Err(e) => {
 			println_err!("Error: {}", e.description());
 			return;
@@ -229,7 +231,7 @@ pub fn assemble(in_path: &Path) {
 				}
 			}
 			
-			"cswp" => {
+			"fredk" | "cswp" => {
 				let rega = get_register(tokens.next());
 				let regb = get_register(tokens.next());
 				let regc = get_register(tokens.next());

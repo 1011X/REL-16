@@ -1,8 +1,9 @@
-incr r0  # r0 = 1
-push r0  # r0 = 0
-incr r0
-incr r0  # r0 = 2
-push r0
-pop r0  # r0 = 2
-pop r1  # r1 = 1
-cadd r1 r0 # r0 += r1
+inc r0      # ++r0  // r0 = 1
+push r0     # push(r0, stack)
+inc r0      # ++r0
+inc r0      # ++r0  // r0 = 2
+push r0     # push(r0, stack)
+pop r0      # pop(r0, stack)  // r0 = 2
+pop r1      # pop(r1, stack)  // r1 = 1
+cadd r1 r0  # r0 += r1
+halt

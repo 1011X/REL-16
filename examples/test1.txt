@@ -1,11 +1,11 @@
                  # r1 = 0
 not r2           # r2 = 0xFFFF
                  # (r3) a = 0
-incr r3          # ++a // a = 1
-incr r3          # ++a // a = 2
+inc r3           # ++a // a = 1
+inc r3           # ++a // a = 2
                  # (r4) b = 0
-incr r4          # ++b // b = 1
-incr r4          # ++b // b = 2
+inc r4           # ++b // b = 1
+inc r4           # ++b // b = 2
                  # (r5) carry = 0
                  # (r6) result = 0
 
@@ -13,18 +13,18 @@ toff r3 r4 r5    # carry = a & b
 cnot r3 r4       # b ^= a
 toff r2 r4 r6    # result = b
 cnot r3 r4       # b ^= a
-swap r0 r5       # r0 <=> carry
+swp r0 r5        # r0 <=> carry
 
 jpz 21           # while r0 != 0 {
-swap r0 r5       #   r0 <=> carry
+swp r0 r5        #   r0 <=> carry
                  #   (r7) shiftedcarry = 0
-incr r8          #   (r8) temp = 1
+inc r8           #   (r8) temp = 1
 not r8           #   temp = ~temp
 rotl r5          #   carry << 1
 toff r8 r5 r7    #   shiftedcarry = carry & temp
-lit r5 0         #   carry = 0
+imm r5 0         #   carry = 0
 toff r6 r7 r5    #   carry = result & shiftedcarry
 cnot r7 r6       #   result ^= shiftedcarry
-swap r0 r5       #   r0 <=> carry
-jump 10          # }
+swp r0 r5        #   r0 <=> carry
+jmp 10           # }
 halt
