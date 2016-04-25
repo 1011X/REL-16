@@ -25,17 +25,35 @@ enum Command {
 fn main() {
 	let mut args = env::args().skip(1);
 	
-	let command = match &*args.next().expect("missing command argument") {
-		"run" => Command::Run,
-		"build" => Command::Build,
+	let command = {
+		let c = match args.next() {
+			Some(c) => c,
+			
+			None => {
+				println_err!("missing command argument");
+				return;
+			}
+		};
 		
-		other => {
-			println!("No such subcommand: {}", other);
-			return;
+		match &*c {
+			"run" => Command::Run,
+			"build" => Command::Build,
+		
+			other => {
+				println!("No such subcommand: {}", other);
+				return;
+			}
 		}
 	};
 	
-	let file_path = PathBuf::from(args.next().expect("no file path given"));
+	let file_path = PathBuf::from(match args.next() {
+		Some(path) => path,
+		
+		None => {
+			println_err!("no file path given");
+			return;
+		}
+	});
 	
 	match command {
 		Command::Run => {

@@ -1,6 +1,14 @@
 pub type Reg = usize;
 pub type Addr = u16;
 
+// Types of instructions:
+// * Signal - tells machine to do something
+// * Single - uses 1 register
+// * Double - uses 2 registers
+// * Triple - uses 3 registers
+// * Pair - uses 1 register and a value
+// * Data - uses a value
+
 #[derive(Debug)]
 pub enum Op {
 	Halt,
@@ -28,10 +36,10 @@ pub enum Op {
 	CAdd(Reg, Reg),
 	CSub(Reg, Reg),
 	
+	Exchange(Reg, Reg),
+	
 	
 	Immediate(Reg, u8),
-	
-	Exchange(Reg, Addr),
 	
 	CCNot(Reg, Reg, Reg),
 	
@@ -53,13 +61,14 @@ pub enum Op {
 impl Op {
 	
 	// To guarantee VM is reversible, every operation must have an inverse.
+	// Involutory instructions (instructions that are their own inverse) return self.
 	pub fn invert(self) -> Op {
 		match self {
-			Op::Halt => Op::Halt,
+			Op::Halt => self,
 		
 		
 		
-			Op::Not(reg) => Op::Not(reg),
+			Op::Not(..) => self,
 		
 		
 			Op::RotateLeft(reg) => Op::RotateRight(reg),
@@ -78,25 +87,25 @@ impl Op {
 		
 		
 		
-			Op::Swap(rl, rr) => Op::Swap(rl, rr),
+			Op::Swap(..) => self,
 		
-			Op::CNot(rc, rn) => Op::CNot(rc, rn),
+			Op::CNot(..) => self,
 		
 		
 			Op::CAdd(rc, ra) => Op::CSub(rc, ra),
 		
 			Op::CSub(rc, rs) => Op::CAdd(rc, rs),
 		
+			Op::Exchange(..) => self,
 		
 		
-			Op::Immediate(reg, val) => Op::Immediate(reg, val),
 		
-			Op::Exchange(reg, addr) => Op::Exchange(reg, addr),
+			Op::Immediate(..) => self,
 		
 		
-			Op::CCNot(rc0, rc1, rn) => Op::CCNot(rc0, rc1, rn),
+			Op::CCNot(..) => self,
 		
-			Op::CSwap(rc, rs0, rs1) => Op::CSwap(rc, rs0, rs1),
+			Op::CSwap(..) => self,
 		
 		
 			// control flow
@@ -167,6 +176,10 @@ pub fn encode(op: Op) -> u16 {
 			| (rc as u16) << 4
 			| rs as u16,
 		
+		Op::Exchange(r, ra) => 0x0500
+			| (r as u16) << 4
+			| ra as u16,
+		
 		
 		
 		Op::CCNot(rc0, rc1, rn) => 0x1000
@@ -184,10 +197,6 @@ pub fn encode(op: Op) -> u16 {
 		Op::Immediate(reg, val) => 0x3000
 			| (reg as u16) << 8
 			| val as u16,
-		
-		Op::Exchange(reg, addr) => 0x4000
-			| (reg as u16) << 8
-			| addr as u16,
 		
 		
 		// control flow
@@ -216,7 +225,7 @@ pub fn encode(op: Op) -> u16 {
 
 #[allow(unused_variables)]
 pub fn decode(instr: u16) -> Op {
-	let opcode = (instr & 0xF000) >> 11;
+	let opcode = (instr & 0xF000) >> 12;
 	let data = instr & 0x0FFF;
 	let a = (data & 0xF00) >> 8;
 	let b = (data & 0x0F0) >> 4;
@@ -266,6 +275,8 @@ pub fn decode(instr: u16) -> Op {
 			0x3 => Op::CAdd(b as usize, c as usize),
 			0x4 => Op::CSub(b as usize, c as usize),
 			
+			0x5 => Op::Exchange(b as usize, c as usize),
+			
 			a if a < 0x10 => panic!("Invalid 2-arg opcode ({}): {:04X}", a, instr),
 			_ => unreachable!()
 		},
@@ -275,8 +286,6 @@ pub fn decode(instr: u16) -> Op {
 		0x2 => Op::CSwap(a as usize, b as usize, c as usize),
 		
 		0x3 => Op::Immediate(a as usize, bc as u8),
-		
-		0x4 => Op::Exchange(a as usize, bc as u16),
 		
 		0x5 => Op::GoTo(data as u16),
 		0x6 => Op::ComeFrom(data as u16),

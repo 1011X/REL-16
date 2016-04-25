@@ -82,7 +82,10 @@ pub fn vm(file_path: &Path) {
 		match op {
 			Op::Immediate(r, v) => reg[r] ^= v as u16,
 			
-			Op::Exchange(r, addr) => swap(&mut reg[r], &mut data_mem[addr as usize]),
+			Op::Exchange(r, ra) => {
+				let raddr = reg[ra];
+				swap(&mut reg[r], &mut data_mem[raddr as usize]);
+			}
 			
 			Op::Halt => break,
 			

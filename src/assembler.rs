@@ -200,14 +200,11 @@ pub fn assemble(in_path: &Path) {
 			"exch" => {
 				let reg = get_register(tokens.next());
 				
-				let addr = match tokens.next() {
-					Some(s) => parse_byte(s),
-					_ => Err("address argument not found".to_owned())
-				};
+				let raddr = get_register(tokens.next());
 				
-				match (reg, addr) {
-					(Ok(reg), Ok(addr)) =>
-						Ok(Op::Exchange(reg, addr as u16)),
+				match (reg, raddr) {
+					(Ok(reg), Ok(raddr)) =>
+						Ok(Op::Exchange(reg, raddr)),
 					
 					(Err(e), _) | (_, Err(e)) =>
 						Err(e),
