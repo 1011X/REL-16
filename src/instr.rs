@@ -1,13 +1,62 @@
-pub type Reg = usize;
-pub type Addr = u16;
+pub type Reg = usize; // always in range [0-7]
+pub type Offset = u16;
 
-// Types of instructions:
-// * Signal - tells machine to do something
-// * Single - uses 1 register
-// * Double - uses 2 registers
-// * Triple - uses 3 registers
-// * Pair - uses 1 register and a value
-// * Data - uses a value
+/*
+pub enum OpType {
+	Signal,
+	Single,
+	Double,
+	Triple,
+	Data,
+	Pair,
+	
+	Unused,
+}
+*/
+
+/// Types of instructions:
+///
+/// * *Pair*: Has 1 register and an 8-bit value.
+///   `1ooo orrr vvvv vvvv` where
+///   `o`es represent the operation field
+///   `r`es represent the register used
+///   `v`es represent the value used
+///
+/// * *Data*: Has 12-bit value.
+///   `01oo vvvv vvvv vvvv` where
+///   `o`es represent the operation field
+///   `v`es represent the offset value used
+///
+/// * *Triple*: Has 3 registers.
+///   `0000 1ooa aabb bccc` where
+///   `o`es represent the operation field
+///   `a`es represent the first register
+///   `b`es represent the second register
+///   `c`es represent the third register
+/// 
+/// * *Double*: Has 2 registers.
+///   `0000 01oo ooaa abbb` where
+///   `o`es represent the operation field
+///   `a`es represent the first register
+///   `b`es represent the second register
+///
+/// * *Single*: Has 1 register.
+///   `0000 001o oooo orrr` where
+///   `o`es represent the operation field
+///   `r`es represent the register used
+/// 
+/// * *Signal*: Tells the machine to do something. Has a 4-bit value.
+///   `0000 0000 0000 ssss` where
+///   `s`es represent the signal field
+/// 
+/// * *Reserved*: Unused instructions.
+///   `001x xxxx xxxx xxxx`
+///   `0001 xxxx xxxx xxxx`
+///   `0000 0001 xxxx xxxx`
+///   `0000 0000 1xxx xxxx`
+///   `0000 0000 01xx xxxx`
+///   `0000 0000 001x xxxx`
+///   `0000 0000 0001 xxxx`
 
 #[derive(Debug)]
 pub enum Op {
@@ -45,12 +94,14 @@ pub enum Op {
 	
 	CSwap(Reg, Reg, Reg),
 	
-	GoTo(Addr),
-	ComeFrom(Addr),
-	/*
-	BrGEZ(Reg, u8),
 	
-	BrLZ(Reg, u8),
+	
+	GoTo(Offset),
+	ComeFrom(Offset),
+	/*
+	BranchGEZ(Reg, Offset),
+	
+	BranchLZ(Reg, Offset),
 	
 	SwapBr(Reg),
 	
@@ -115,186 +166,267 @@ impl Op {
 			Op::ComeFrom(off) => Op::GoTo(off),
 		
 			/*
-			Op::BrLZ(reg, off) => 
+			Op::BranchLZ(reg, off) => 
 		
-			Op::BrGEZ(reg, off) => 
+			Op::BranchGEZ(reg, off) => 
 		
-			Op::SwapBr(reg) => 
+			Op::SwapBr(reg) => Op::RevSwapBr(reg),
 		
-			Op::RevSwapBr(reg) => 
+			Op::RevSwapBr(reg) => Op::SwapBr(reg),
 			*/
 		}
 	}
+	/*
+	pub fn op_type(&self) -> OpType {
+		match *self {
+			Op::Halt => OpType::Signal,
+			
+			Op::Not(..)
+			| Op::RotateLeft(..)
+			| Op::RotateRight(..)
+			| Op::Increment(..)
+			| Op::Decrement(..)
+			| Op::Push(..)
+			| Op::Pop(..) =>
+				OpType::Single,
+			
+			Op::Swap(..)
+			| Op::CNot(..)
+			| Op::CAdd(..)
+			| Op::CSub(..)
+			| Op::Exchange(..) =>
+				OpType::Double,
+			
+			Op::CCNot(..)
+			| Op::CSwap(..) =>
+				OpType::Triple,
+			
+			Op::GoTo(..)
+			| Op::ComeFrom(..) =>
+				OpType::Data,
+			
+			Op::Immediate(..) =>
+				OpType::Pair,
+		}
+	}
+	*/
 }
 
 pub fn encode(op: Op) -> u16 {
 	// TODO: decide if I want to have assertions for values.
 	match op {
-		Op::Halt => 0x0000,
+		Op::Halt => 0,
 		
 		
 		
-		Op::Not(reg) => 0x0010
+		Op::Not(reg) => 0b_0000001_000000_000
 			| reg as u16,
 		
 		
-		Op::RotateLeft(reg) => 0x0020
+		Op::RotateLeft(reg) => 0b_0000001_000001_000
 			| reg as u16,
 		
-		Op::RotateRight(reg) => 0x0030
-			| reg as u16,
-		
-		
-		Op::Increment(reg) => 0x0040
-			| reg as u16,
-		
-		Op::Decrement(reg) => 0x0050
+		Op::RotateRight(reg) => 0b_0000001_000010_000
 			| reg as u16,
 		
 		
-		Op::Push(reg) => 0x0060
+		Op::Increment(reg) => 0b_0000001_000011_000
 			| reg as u16,
 		
-		Op::Pop(reg) => 0x0070
+		Op::Decrement(reg) => 0b_0000001_000100_000
+			| reg as u16,
+		
+		
+		Op::Push(reg) => 0b_0000001_000101_000
+			| reg as u16,
+		
+		Op::Pop(reg) => 0b_0000001_000110_000
 			| reg as u16,
 		
 		
 		
-		Op::Swap(rl, rr) => 0x0100
-			| (rl as u16) << 4
+		Op::Swap(rl, rr) => 0b_000001_0000_000_000
+			| (rl as u16) << 3
 			| rr as u16,
 		
-		Op::CNot(rc, rn) => 0x0200
-			| (rc as u16) << 4
+		Op::CNot(rc, rn) => 0b_000001_0001_000_000
+			| (rc as u16) << 3
 			| rn as u16,
 		
-		Op::CAdd(rc, ra) => 0x0300
-			| (rc as u16) << 4
+		Op::CAdd(rc, ra) => 0b_000001_0010_000_000
+			| (rc as u16) << 3
 			| ra as u16,
 		
-		Op::CSub(rc, rs) => 0x0400
-			| (rc as u16) << 4
+		Op::CSub(rc, rs) => 0b_000001_0011_000_000
+			| (rc as u16) << 3
 			| rs as u16,
 		
-		Op::Exchange(r, ra) => 0x0500
-			| (r as u16) << 4
+		Op::Exchange(r, ra) => 0b_000001_0100_000_000
+			| (r as u16) << 3
 			| ra as u16,
 		
 		
 		
-		Op::CCNot(rc0, rc1, rn) => 0x1000
-			| (rc0 as u16) << 8
-			| (rc1 as u16) << 4
+		Op::CCNot(rc0, rc1, rn) => 0b_00001_00_000_000_000
+			| (rc0 as u16) << 6
+			| (rc1 as u16) << 3
 			| rn as u16,
 		
-		Op::CSwap(rc, rs0, rs1) => 0x2000
-			| (rc as u16) << 8
-			| (rs0 as u16) << 4
+		Op::CSwap(rc, rs0, rs1) => 0b_00001_01_000_000_000
+			| (rc as u16) << 6
+			| (rs0 as u16) << 3
 			| rs1 as u16,
 		
 		
 		
-		Op::Immediate(reg, val) => 0x3000
+		Op::Immediate(reg, val) => 0b_1_0000_000_00000000
 			| (reg as u16) << 8
 			| val as u16,
 		
 		
 		// control flow
 		
-		Op::GoTo(off) => 0x5000
+		Op::GoTo(off) => 0b_01_00_000000000000
 			| off as u16,
 		
-		Op::ComeFrom(off) => 0x6000
+		Op::ComeFrom(off) => 0b_01_01_000000000000
 			| off as u16,
 		
 		/*
-		Op::BrLZ(reg, off) => 0x8000
+		Op::BranchLZ(reg, off) => 0b_1_0001_000_00000000
 			| (reg as u16) << 8
 			| off as u16,
 		
-		Op::BrGEZ(reg, off) => 0x9000
+		Op::BranchGEZ(reg, off) => 0b_1_0010_000_00000000
 			| (reg as u16) << 8
 			| off as u16,
 		
-		Op::SwapBr(reg) => 0x0080 | reg as u16,
+		Op::SwapBr(reg) => 0b_0000001_000111_000
+			| reg as u16,
 		
-		Op::RevSwapBr(reg) => 0x0090 | reg as u16,
+		Op::RevSwapBr(reg) => 0b_0000001_001000_000
+			| reg as u16,
 		*/
 	}
 }
 
 #[allow(unused_variables)]
 pub fn decode(instr: u16) -> Op {
-	let opcode = (instr & 0xF000) >> 12;
-	let data = instr & 0x0FFF;
-	let a = (data & 0xF00) >> 8;
-	let b = (data & 0x0F0) >> 4;
-	let c = data & 0x00F;
-	let ab = (data & 0xFF0) >> 4;
-	let bc = data & 0x0FF;
 	
-	match opcode {
-		0x0 => match a {
-			0x0 => match b {
-				// signals
-				0x0 => match c {
-					0x0 => Op::Halt,
-					
-					c if c < 0x10 => panic!("Invalid signal ({}): {:04X}", c, instr),
-					_ => unreachable!()
-				},
-				
-				0x1 => Op::Not(c as usize),
-				
-				0x2 => Op::RotateLeft(c as usize),
-				0x3 => Op::RotateRight(c as usize),
-				
-				0x4 => Op::Increment(c as usize),
-				0x5 => Op::Decrement(c as usize),
-				
-				0x6 => Op::Push(c as usize),
-				0x7 => Op::Pop(c as usize),
-				
-				/*
-				0x8 => Op::SwapBr(c as usize),
-				
-				0x9 => Op::RevSwapBr(c as usize),
-				*/
-				
-				//4 => Read(c as usize),
-				//5 => Write(c as usize),
-				
-				b if b < 0x10 => panic!("Invalid 1-arg opcode ({}): {:04X}", b, instr),
-				_ => unreachable!()
-			},
+	match instr.leading_zeros() {
+		// pair type
+		0 => {
+			let o = (0b_0_1111_000_00000000 & instr) >> 3 + 8;
+			let r = (0b_0_0000_111_00000000 & instr) >> 8;
+			let v = 0b_0_0000_000_11111111 & instr;
 			
-			0x1 => Op::Swap(b as usize, c as usize),
+			match o {
+				0b_0000 => Op::Immediate(r as usize, v as u8),
+				
+				o if o <= 0b_1111 =>
+					panic!("Invalid Pair-type instruction: o={:b} r{} 0x{:02x}", o, r, v),
+				
+				_ => unreachable!(),
+			}
+		}
+		
+		// data type
+		1 => {
+			let o = (0b_00_11_000000000000 & instr) >> 12;
+			let v = 0b_00_00_111111111111 & instr;
 			
-			0x2 => Op::CNot(b as usize, c as usize),
+			match o {
+				0b_00 => Op::GoTo(v as u16),
+				0b_01 => Op::ComeFrom(v as u16),
+				
+				o if o <= 0b_11 =>
+					panic!("Invalid Data-type instruction: o={:b} 0x{:03x}", o, v),
+				
+				_ => unreachable!(),
+			}
+		}
+		
+		// unused
+		2...3 =>
+			panic!("Reserved/unused instruction: 0x{:x}", instr),
+		
+		// triple type
+		4 => {
+			let o = (0b_00000_11_000_000_000 & instr) >> 3 + 3 + 3;
+			let ra = (0b_00000_00_111_000_000 & instr) >> 3 + 3;
+			let rb = (0b_00000_00_000_111_000 & instr) >> 3;
+			let rc = 0b_00000_00_000_000_111 & instr;
 			
-			0x3 => Op::CAdd(b as usize, c as usize),
-			0x4 => Op::CSub(b as usize, c as usize),
+			match o {
+				0b_00 => Op::CCNot(ra as usize, rb as usize, rc as usize),
+				0b_01 => Op::CSwap(ra as usize, rb as usize, rc as usize),
+				
+				o if o <= 0b_11 =>
+					panic!("Invalid Triple-type instruction: o={:b} r{} r{} r{}", o, ra, rb, rc),
+				
+				_ => unreachable!(),
+			}
+		}
+		
+		// double type
+		5 => {
+			let o = (0b_000000_1111_000_000 & instr) >> 3 + 3;
+			let ra = (0b_000000_0000_111_000 & instr) >> 3;
+			let rb = 0b_000000_0000_000_111 & instr;
 			
-			0x5 => Op::Exchange(b as usize, c as usize),
+			match o {
+				0b_0000 => Op::Swap(ra as usize, rb as usize),
+				0b_0001 => Op::CNot(ra as usize, rb as usize),
+				0b_0010 => Op::CAdd(ra as usize, rb as usize),
+				0b_0011 => Op::CSub(ra as usize, rb as usize),
+				0b_0100 => Op::Exchange(ra as usize, rb as usize),
+				
+				o if o <= 0b_1111 =>
+					panic!("Invalid Double-type instruction: o={:b} r{} r{}", o, ra, rb),
+				
+				_ => unreachable!(),
+			}
+		}
+		
+		// single type
+		6 => {
+			let o = (0b_0000000_111111_000 & instr) >> 3;
+			let r = 0b_0000000_000000_111 & instr;
 			
-			a if a < 0x10 => panic!("Invalid 2-arg opcode ({}): {:04X}", a, instr),
-			_ => unreachable!()
+			match o {
+				
+				0b_000000 => Op::Not(r as usize),
+			
+				0b_000001 => Op::RotateLeft(r as usize),
+				0b_000010 => Op::RotateRight(r as usize),
+			
+				0b_000011 => Op::Increment(r as usize),
+				0b_000100 => Op::Decrement(r as usize),
+	
+				0b_000101 => Op::Push(r as usize),
+				0b_000110 => Op::Pop(r as usize),
+				
+				o if o <= 0b_111111 =>
+					panic!("Invalid Single-type instruction: o={:b} r{}", o, r),
+				
+				_ => unreachable!(),
+			}
+		}
+		
+		// reserved
+		7...11 =>
+			panic!("Reserved/unused instruction: {:x}", instr),
+		
+		// signal type
+		12...16 => match instr {
+			0b_0000 => Op::Halt,
+			
+			s if s <= 0b1111 =>
+				panic!("Invalid Signal-type instruction: {}", s),
+			
+			_ => unreachable!(),
 		},
 		
-		0x1 => Op::CCNot(a as usize, b as usize, c as usize),
-		
-		0x2 => Op::CSwap(a as usize, b as usize, c as usize),
-		
-		0x3 => Op::Immediate(a as usize, bc as u8),
-		
-		0x5 => Op::GoTo(data as u16),
-		0x6 => Op::ComeFrom(data as u16),
-		/*
-		0x8 => Op::BrLZ(a as usize, bc as u8),
-		
-		0x9 => Op::BrGEZ(a as usize, bc as u8),
-		*/
-		opcode if opcode < 0x10 => panic!("Invalid opcode ({}): 0x{:04X}", opcode, instr),
-		_ => unreachable!()
+		_ => unreachable!(),
 	}
 }

@@ -28,11 +28,11 @@ pub fn vm(file_path: &Path) {
 	let mut pc: u16 = 0;
 	
 	let mut ir: u16;
-	let mut reg = [0_u16; 16];
+	let mut reg = [0_u16; 8];
 	let mut data_mem = [0_u16; DMEM_LEN];
 	let mut program_mem = Vec::with_capacity(PMEM_LEN);
 	
-	reg[15] = 0xFFFF; // use r15 as stack pointer
+	reg[7] = 0xFFFF; // use r7 as stack pointer
 	
 	// read file contents into mem
 	let mut buffer = [0_u8; 2];
@@ -99,17 +99,17 @@ pub fn vm(file_path: &Path) {
 			Op::Decrement(a) => reg[a] = reg[a].wrapping_sub(1),
 			
 			Op::Push(r) => {
-				let mut sp = reg[15] as usize;
+				let mut sp = reg[7] as usize;
 				sp -= 1;
 				swap(&mut reg[r], &mut data_mem[sp]);
-				reg[15] = sp as u16;
+				reg[7] = sp as u16;
 			}
 			
 			Op::Pop(r) => {
-				let mut sp = reg[15] as usize;
+				let mut sp = reg[7] as usize;
 				swap(&mut reg[r], &mut data_mem[sp]);
 				sp += 1;
-				reg[15] = sp as u16;
+				reg[7] = sp as u16;
 			}
 			/*
 			Op::SwapBr(r) => swap(&mut br, &mut reg[r]),
@@ -177,13 +177,13 @@ pub fn vm(file_path: &Path) {
 		println!("{:<17}", format!("{:?}", op));
 		
 		// print contents of stack
-		print!("SP = {:04X}: ", reg[15]);
+		print!("SP = {:04X}: ", reg[7]);
 		
-		if reg[15] as usize == DMEM_LEN - 1 {
+		if reg[7] as usize == DMEM_LEN - 1 {
 			println!("nil");
 		}
 		else {
-			let sp = reg[15] as usize;
+			let sp = reg[7] as usize;
 			
 			print!("<");
 			

@@ -32,7 +32,7 @@ fn parse_byte(s: &str) -> Result<u8, String> {
 fn parse_reglit(s: &str) -> Result<usize, String> {
 	if s.starts_with('r') {
 		match parse_byte(&s[1..]) {
-			Ok(byte) if byte < 16 =>
+			Ok(byte) if byte < 8 =>
 				Ok(byte as usize),
 			
 			Ok(_) =>
@@ -199,7 +199,6 @@ pub fn assemble(in_path: &Path) {
 			
 			"exch" => {
 				let reg = get_register(tokens.next());
-				
 				let raddr = get_register(tokens.next());
 				
 				match (reg, raddr) {
