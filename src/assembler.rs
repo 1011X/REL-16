@@ -1,5 +1,4 @@
 use instr::Op;
-use instr::encode;
 
 use std::fs;
 use std::fs::File;
@@ -74,7 +73,7 @@ pub fn assemble(in_path: &Path) {
 			Some(op) => op,
 		};
 		
-		let instr = match opcode {
+		let result = match opcode {
 			"halt" => Ok(Op::Halt),
 			
 			"not" => {
@@ -210,7 +209,7 @@ pub fn assemble(in_path: &Path) {
 				}
 			}
 			
-			"toff" | "ccnot" => {
+			"ccnot" | "ccn" => {
 				let rega = get_register(tokens.next());
 				let regb = get_register(tokens.next());
 				let regc = get_register(tokens.next());
@@ -227,7 +226,7 @@ pub fn assemble(in_path: &Path) {
 				}
 			}
 			
-			"fredk" | "cswp" => {
+			"cswp" => {
 				let rega = get_register(tokens.next());
 				let regb = get_register(tokens.next());
 				let regc = get_register(tokens.next());
@@ -337,11 +336,11 @@ pub fn assemble(in_path: &Path) {
 				println_err!("Error (line {}): expected comment or line break, found '{}'", line_number, t),
 		}
 		
-		match instr {
+		match result {
 			// finally, write instruction if there was no error
-			Ok(instr) => {
-				let op = encode(instr);
-				let data = [(op >> 8) as u8, op as u8];
+			Ok(op) => {
+				let instr = op.encode();
+				let data = [(instr >> 8) as u8, instr as u8];
 				
 				match output.write(&data) {
 					Ok(2) => {}
@@ -367,7 +366,8 @@ pub fn assemble(in_path: &Path) {
 			
 			// if there was an error, write line number, description, and code line
 			Err(e) => {
-				println_err!("Error (line {}): {}\n{}", line_number, e, line);
+				println_err!("Error (line {}): {}", line_number, e);
+				println_err!("{}", line);
 				
 				if fs::remove_file(out_path).is_err() {
 					println_err!("Could not delete incomplete file.");

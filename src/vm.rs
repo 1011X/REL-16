@@ -1,4 +1,4 @@
-use instr::{self, Op};
+use instr::Op;
 
 use std::mem::swap;
 use std::fs::File;
@@ -74,7 +74,7 @@ pub fn vm(file_path: &Path) {
 		// fetch
 		ir = program_mem.get(pc as usize).cloned().unwrap_or(0);
 		
-		let mut op = instr::decode(ir);
+		let mut op = Op::decode(ir);
 		
 		if dir { op = op.invert() }
 		
@@ -164,53 +164,56 @@ pub fn vm(file_path: &Path) {
 			*/
 		}
 		
+		// debugging code
+		{
+			println!("PC = {:04x}: {}", pc, op);
+		
+			// print contents of registers
+			print!("Registers: [");
+		
+			for (i, &r) in reg[..reg.len() - 1].iter().enumerate() {
+				print!("{:04x}", r);
+			
+				// is not last item
+				if i != reg.len() - 2 {
+					print!(", ");
+				}
+			}
+		
+			println!("]");
+		
+			// print contents of stack
+			print!("SP = {:04x}: ", reg[7]);
+		
+			if reg[7] as usize == DMEM_LEN - 1 {
+				println!("nil");
+			}
+			else {
+				let sp = reg[7] as usize;
+			
+				print!("<");
+			
+				for (i, &val) in data_mem[sp..DMEM_LEN - 1].iter().enumerate() {
+					print!("{:04x}", val);
+				
+					// is not last item; excludes zero at bottom of stack
+					if sp + i < DMEM_LEN - 2 {
+						print!(", ");
+					}
+				}
+			
+				println!("]");
+			}
+			
+			print!("\n");
+		}
+		
+		
 		// next instruction
 		if dir {
 			pc -= br;
 		} else {
 			pc += br;
 		}
-		
-		// debugging code
-		print!("PC = {:04X}: ", pc);
-		
-		println!("{:<17}", format!("{:?}", op));
-		
-		// print contents of stack
-		print!("SP = {:04X}: ", reg[7]);
-		
-		if reg[7] as usize == DMEM_LEN - 1 {
-			println!("nil");
-		}
-		else {
-			let sp = reg[7] as usize;
-			
-			print!("<");
-			
-			for (i, &val) in data_mem[sp..DMEM_LEN - 1].iter().enumerate() {
-				print!("{:04X}", val);
-				
-				// is not last item; excludes zero at bottom of stack
-				if sp + i < DMEM_LEN - 2 {
-					print!(", ");
-				}
-			}
-			
-			println!("]");
-		}
-		
-		// print contents of registers
-		print!("Registers: [");
-		
-		for (i, &r) in reg[..reg.len() - 1].iter().enumerate() {
-			print!("{:04X}", r);
-			
-			// is not last item
-			if i != reg.len() - 2 {
-				print!(", ");
-			}
-		}
-		
-		println!("]\n");
 	}
 }
