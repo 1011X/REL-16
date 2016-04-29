@@ -1,15 +1,11 @@
 use instr::Op;
 
-use std::fs;
-use std::fs::File;
-use std::error::Error;
-use std::path::Path;
-use std::path::PathBuf;
+use std::fs::{self, File};
+use std::path::{Path, PathBuf};
 use std::io::{
 	BufReader, BufWriter,
 	BufRead, Write
 };
-
 
 macro_rules! println_err(
     ($($arg: tt)*) => {{
@@ -22,10 +18,23 @@ macro_rules! println_err(
     }}
 );
 
+macro_rules! try_err(
+	($e: expr) => {{
+		match $e {
+			Ok(val) => val,
+			
+			Err(e) => {
+				println_err!("Error: {}", e);
+				return;
+			}
+		}
+	}}
+);
+
 
 fn parse_byte(s: &str) -> Result<u8, String> {
 	s.parse::<u8>()
-		.map_err(|e| e.description().to_owned())
+		.map_err(|e| format!("{}", e))
 }
 
 fn parse_reglit(s: &str) -> Result<usize, String> {
@@ -37,9 +46,11 @@ fn parse_reglit(s: &str) -> Result<usize, String> {
 			Ok(_) =>
 				Err("index for register too big!".to_owned()),
 			
-			Err(e) => Err(e),
+			Err(e) =>
+				Err(e),
 		}
-	} else {
+	}
+	else {
 		Err(format!("expected register literal, found {}", s))
 	}
 }
@@ -48,75 +59,60 @@ pub fn assemble(in_path: &Path) {
 	let mut out_path = PathBuf::from(in_path.file_stem().unwrap());
 	out_path.set_extension("o");
 	
-	let input = BufReader::new(match File::open(in_path) {
-		Ok(file) => file,
-		
-		Err(e) => {
-			println_err!("Error: {}", e.description());
-			return;
-		}
-	});
-	let mut output = BufWriter::new(File::create(&out_path).unwrap());
+	let input = BufReader::new(try_err!(File::open(in_path)));
+	let mut output = BufWriter::new(try_err!(File::create(&out_path)));
 	
 	// replace mnemonics with actual instructions
 	for (line_number, result) in input.lines().enumerate() {
-		let line = result.unwrap();
+		let line = try_err!(result);
+		let mut line = line.trim();
+		
+		// check if line has a comment marker
+		for (i, c) in line.char_indices() {
+			// found marker; ignore everything after it
+			if c == '#' || c == ';' {
+				line = line[..i].trim_right();
+				break;
+			}
+		}
+		
+		// non-empty line assumed after this
+		if line.is_empty() { continue }
+		
 		let mut tokens = line.split_whitespace();
 		
-		let get_register = |token| match token {
-			Some(t) => parse_reglit(t),
-			_ => Err("register argument not found".to_owned()),
-		};
+		// Can't just include `tokens.next()` here because
+		// then there would be a mutable reference to `tokens`
+		// in `get_register()` *and* in match block below that
+		// determines instruction used.
+		let get_register = |token: Option<&str>| token
+			.ok_or("register argument not found".to_owned())
+			.and_then(parse_reglit);
 		
-		let opcode = match tokens.next() {
-			None | Some("#") | Some(";") => continue,
-			Some(op) => op,
-		};
-		
-		let result = match opcode {
+		// we can unwrap once because line should not be empty
+		let result = match tokens.next().unwrap() {
 			"halt" => Ok(Op::Halt),
 			
-			"not" => {
-				let reg = get_register(tokens.next());
-				
-				reg.map(Op::Not)
-			}
+			"not" => get_register(tokens.next())
+				.map(Op::Not),
 			
-			"rotl" => {
-				let reg = get_register(tokens.next());
-				
-				reg.map(Op::RotateLeft)
-			}
+			"rotl" => get_register(tokens.next())
+				.map(Op::RotateLeft),
 			
-			"rotr" => {
-				let reg = get_register(tokens.next());
-				
-				reg.map(Op::RotateRight)
-			}
+			"rotr" => get_register(tokens.next())
+				.map(Op::RotateRight),
 			
-			"inc" => {
-				let reg = get_register(tokens.next());
-				
-				reg.map(Op::Increment)
-			}
+			"inc" => get_register(tokens.next())
+				.map(Op::Increment),
 			
-			"dec" => {
-				let reg = get_register(tokens.next());
-				
-				reg.map(Op::Decrement)
-			}
+			"dec" => get_register(tokens.next())
+				.map(Op::Decrement),
 			
-			"push" => {
-				let reg = get_register(tokens.next());
-				
-				reg.map(Op::Push)
-			}
+			"push" => get_register(tokens.next())
+				.map(Op::Push),
 			
-			"pop" => {
-				let reg = get_register(tokens.next());
-				
-				reg.map(Op::Pop)
-			}
+			"pop" => get_register(tokens.next())
+				.map(Op::Pop),
 			
 			"swp" => {
 				let regl = get_register(tokens.next());
@@ -182,10 +178,9 @@ pub fn assemble(in_path: &Path) {
 			"imm" => {
 				let reg = get_register(tokens.next());
 				
-				let value = match tokens.next() {
-					Some(t) => parse_byte(t),
-					_ => Err("no value for lit instruction given".to_owned()),
-				};
+				let value = tokens.next()
+					.ok_or("no value for imm instruction given".to_owned())
+					.and_then(parse_byte);
 				
 				match (reg, value) {
 					(Ok(reg), Ok(value)) =>
@@ -209,7 +204,7 @@ pub fn assemble(in_path: &Path) {
 				}
 			}
 			
-			"ccnot" | "ccn" => {
+			"ccn" => {
 				let rega = get_register(tokens.next());
 				let regb = get_register(tokens.next());
 				let regc = get_register(tokens.next());
@@ -243,33 +238,23 @@ pub fn assemble(in_path: &Path) {
 				}
 			}
 			
-			"goto" => {
-				let addr = if let Some(s) = tokens.next() {
-					match s.parse::<u16>() {
-						Ok(v) if v < 0x1000 => Ok(v),
-						Ok(_) => Err("value for argument too big!".to_owned()),
-						Err(e) => Err(e.description().to_owned()),
-					}
-				} else {
-					Err("address argument not found".to_owned())
-				};
-				
-				addr.map(Op::GoTo)
-			}
+			"goto" => tokens.next()
+				.ok_or("address argument not found".to_owned())
+				.and_then(|s| match s.parse::<u16>() {
+					Ok(v) if v < 0x1000 => Ok(v),
+					Ok(_) => Err("value for argument too big!".to_owned()),
+					Err(e) => Err(format!("{}", e)),
+				})
+				.map(Op::GoTo),
 			
-			"cmfr" => {
-				let addr = if let Some(s) = tokens.next() {
-					match s.parse::<u16>() {
-						Ok(v) if v < 0x1000 => Ok(v),
-						Ok(_) => Err("value for argument too big!".to_owned()),
-						Err(e) => Err(e.description().to_owned()),
-					}
-				} else {
-					Err("address argument not found".to_owned())
-				};
-				
-				addr.map(Op::ComeFrom)
-			}
+			"cmfr" => tokens.next()
+				.ok_or("address argument not found".to_owned())
+				.and_then(|s| match s.parse::<u16>() {
+					Ok(v) if v < 0x1000 => Ok(v),
+					Ok(_) => Err("value for argument too big!".to_owned()),
+					Err(e) => Err(format!("{}", e)),
+				})
+				.map(Op::ComeFrom),
 			/*
 			"blz" => {
 				let reg = get_register(tokens.next());
@@ -325,42 +310,26 @@ pub fn assemble(in_path: &Path) {
 			other => Err(format!("unknown opcode mneumonic: {}", other)),
 		};
 		
-		// handle comments
-		match tokens.next() {
-			// no comment, or some other comment marker.
-			// don't do anything, because we'll just go to the next line directly
-			None | Some("#") | Some(";") => {}
-			
-			// something that's not a comment marker
-			Some(t) =>
-				println_err!("Error (line {}): expected comment or line break, found '{}'", line_number, t),
-		}
-		
 		match result {
 			// finally, write instruction if there was no error
 			Ok(op) => {
 				let instr = op.encode();
 				let data = [(instr >> 8) as u8, instr as u8];
 				
-				match output.write(&data) {
-					Ok(2) => {}
+				match try_err!(output.write(&data)) {
+					2 => {}
 				
-					Ok(1) => {
+					1 => {
 						println_err!("Error: could not write complete instruction");
 						return;
 					}
 				
-					Ok(0) => {
+					0 => {
 						println_err!("Error: no more space in file to write");
 						return;
 					}
 				
-					Ok(_) => unreachable!(),
-				
-					Err(e) => {
-						println_err!("Error: {}", e.description());
-						return;
-					}
+					_ => unreachable!(),
 				}
 			}
 			

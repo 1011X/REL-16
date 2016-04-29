@@ -249,7 +249,7 @@ impl Op {
 			0 => {
 				let o = (0b_0_1111_000_00000000 & instr) >> 3 + 8;
 				let r = (0b_0_0000_111_00000000 & instr) >> 8;
-				let v = 0b_0_0000_000_11111111 & instr;
+				let v =  0b_0_0000_000_11111111 & instr;
 			
 				match o {
 					0b_0000 => Op::Immediate(r as usize, v as u8),
@@ -282,10 +282,10 @@ impl Op {
 		
 			// triple type
 			4 => {
-				let o = (0b_00000_11_000_000_000 & instr) >> 3 + 3 + 3;
+				let o  = (0b_00000_11_000_000_000 & instr) >> 3 + 3 + 3;
 				let ra = (0b_00000_00_111_000_000 & instr) >> 3 + 3;
 				let rb = (0b_00000_00_000_111_000 & instr) >> 3;
-				let rc = 0b_00000_00_000_000_111 & instr;
+				let rc =  0b_00000_00_000_000_111 & instr;
 			
 				match o {
 					0b_00 => Op::CCNot(ra as usize, rb as usize, rc as usize),
@@ -300,9 +300,9 @@ impl Op {
 		
 			// double type
 			5 => {
-				let o = (0b_000000_1111_000_000 & instr) >> 3 + 3;
+				let o  = (0b_000000_1111_000_000 & instr) >> 3 + 3;
 				let ra = (0b_000000_0000_111_000 & instr) >> 3;
-				let rb = 0b_000000_0000_000_111 & instr;
+				let rb =  0b_000000_0000_000_111 & instr;
 			
 				match o {
 					0b_0000 => Op::Swap(ra as usize, rb as usize),
@@ -321,7 +321,7 @@ impl Op {
 			// single type
 			6 => {
 				let o = (0b_0000000_111111_000 & instr) >> 3;
-				let r = 0b_0000000_000000_111 & instr;
+				let r =  0b_0000000_000000_111 & instr;
 			
 				match o {
 				
