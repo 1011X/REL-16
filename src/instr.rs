@@ -264,7 +264,7 @@ impl Op {
 			// data type
 			1 => {
 				let o = (0b_00_11_000000000000 & instr) >> 12;
-				let v = 0b_00_00_111111111111 & instr;
+				let v =  0b_00_00_111111111111 & instr;
 			
 				match o {
 					0b_00 => Op::GoTo(v as u16),

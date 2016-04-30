@@ -8,19 +8,8 @@ use std::path::Path;
 const DMEM_LEN: usize = 65536;
 const PMEM_LEN: usize = 65536;
 
-macro_rules! println_err(
-    ($($arg: tt)*) => {{
-    	use std::io::Write;
-        let result = writeln!(&mut ::std::io::stderr(), $($arg)*);
-        
-        if let Err(e) = result {
-        	panic!("failed printing to stderr: {}", e);
-        }
-    }}
-);
-
 pub fn vm(file_path: &Path) {
-	let mut input = File::open(file_path).unwrap();
+	let mut input = try_err!(File::open(file_path));
 	
 	// when dir is true, it is in backwards mode
 	let mut dir = false;
@@ -37,18 +26,18 @@ pub fn vm(file_path: &Path) {
 	// read file contents into mem
 	let mut buffer = [0_u8; 2];
 	for i in 0.. {
-		match input.read(&mut buffer) {
-			Ok(0) => {
+		match try_err!(input.read(&mut buffer)) {
+			0 => {
 				program_mem.shrink_to_fit();
 				break;
 			}
 			
-			Ok(1) => {
+			1 => {
 				println_err!("Got incomplete instruction.");
 				return;
 			}
 			
-			Ok(2) => if i < program_mem.capacity() {
+			2 => if i < program_mem.capacity() {
 				let instr = (buffer[0] as u16) << 8 | buffer[1] as u16;
 				
 				program_mem.push(instr);
@@ -58,12 +47,7 @@ pub fn vm(file_path: &Path) {
 				return;
 			},
 			
-			Ok(_) => unreachable!(),
-			
-			Err(e) => {
-				println_err!("{}", e);
-				return;
-			}
+			_ => unreachable!(),
 		}
 	}
 	
@@ -132,7 +116,7 @@ pub fn vm(file_path: &Path) {
 			Op::CCNot(a, b, c) => if a != c && b != c {
 				reg[c] ^= reg[a] & reg[b];
 			} else {
-				panic!("ERROR (line {}): Control register in CCNot instruction used again in last parameter.", pc - 1);
+				panic!("Error (line {}): Control register in CCNot instruction used again in last parameter.", pc - 1);
 			},
 			
 			Op::CSwap(a, b, c) => if a != c && a != b {
@@ -140,7 +124,7 @@ pub fn vm(file_path: &Path) {
 				reg[b] ^= s;
 				reg[c] ^= s;
 			} else {
-				panic!("ERROR (line {}): Control register in CSwap instruction used again in second or last parameter.", pc - 1);
+				panic!("Error (line {}): Control register in CSwap instruction used again in second or last parameter.", pc - 1);
 			},
 			
 			Op::GoTo(off)     => br = br.wrapping_add(off),
@@ -166,6 +150,7 @@ pub fn vm(file_path: &Path) {
 		
 		// debugging code
 		{
+			// address in pc and the instruction it's pointing to
 			println!("PC = {:04x}: {}", pc, op);
 		
 			// print contents of registers

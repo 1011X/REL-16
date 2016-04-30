@@ -1,21 +1,11 @@
-mod instr;
-
+#[macro_use]
+mod macros;
 mod vm;
 mod assembler;
+mod instr;
 
 use std::env;
 use std::path::PathBuf;
-
-macro_rules! println_err(
-    ($($arg: tt)*) => {{
-    	use std::io::Write;
-        let result = writeln!(&mut ::std::io::stderr(), $($arg)*);
-        
-        if let Err(e) = result {
-        	panic!("failed printing to stderr: {}", e);
-        }
-    }}
-);
 
 enum Command {
 	Run,
@@ -26,34 +16,20 @@ fn main() {
 	let mut args = env::args().skip(1);
 	
 	let command = {
-		let c = match args.next() {
-			Some(c) => c,
-			
-			None => {
-				println_err!("missing command argument");
-				return;
-			}
-		};
+		let c = try_err!(args.next().ok_or("missing command argument"));
 		
 		match &*c {
 			"run" => Command::Run,
 			"build" => Command::Build,
 		
 			other => {
-				println!("No such subcommand: {}", other);
+				println_err!("No such subcommand: {}", other);
 				return;
 			}
 		}
 	};
 	
-	let file_path = PathBuf::from(match args.next() {
-		Some(path) => path,
-		
-		None => {
-			println_err!("no file path given");
-			return;
-		}
-	});
+	let file_path = PathBuf::from(try_err!(args.next().ok_or("no file path given")));
 	
 	match command {
 		Command::Run => {

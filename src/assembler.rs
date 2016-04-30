@@ -7,34 +7,11 @@ use std::io::{
 	BufRead, Write
 };
 
-macro_rules! println_err(
-    ($($arg: tt)*) => {{
-    	use std::io::Write;
-        let result = writeln!(&mut ::std::io::stderr(), $($arg)*);
-        
-        if let Err(e) = result {
-        	panic!("failed printing to stderr: {}", e);
-        }
-    }}
-);
-
-macro_rules! try_err(
-	($e: expr) => {{
-		match $e {
-			Ok(val) => val,
-			
-			Err(e) => {
-				println_err!("Error: {}", e);
-				return;
-			}
-		}
-	}}
-);
 
 
 fn parse_byte(s: &str) -> Result<u8, String> {
 	s.parse::<u8>()
-		.map_err(|e| format!("{}", e))
+		.map_err(|e| e.to_string())
 }
 
 fn parse_reglit(s: &str) -> Result<usize, String> {
