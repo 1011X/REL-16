@@ -1,20 +1,79 @@
 use std::fmt;
 use std::str;
+use std::error::Error;
+use std::num;
 
 pub type Reg = usize; // always in range [0-7]
 
-/*
-pub enum OpType {
-	Signal,
-	Single,
-	Double,
-	Triple,
-	Data,
-	Pair,
-	
-	Unused,
+#[derive(Debug)]
+pub enum DeserialError {
+	SameRegister,
+	MissingArg,
+	UnknownMneumonic,
+	ValueTooLarge,
+	ExpectedRegister,
+	Parsing(num::ParseIntError),
+	Other(Box<DeserialError>),
 }
-*/
+
+impl fmt::Display for DeserialError {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "{}", self.description()) // Should I do this?
+	}
+}
+
+impl Error for DeserialError {
+	fn description(&self) -> &str {
+		match *self {
+			DeserialError::SameRegister =>
+				"same argument used in both a controlled and mutable context",
+			DeserialError::MissingArg =>
+				"missing argument for instruction",
+			DeserialError::UnknownMneumonic =>
+				"unknown opcode mneumonic",
+			DeserialError::ValueTooLarge =>
+				"value for argument is too big",
+			DeserialError::ExpectedRegister =>
+				"expected register literal",
+			DeserialError::Parsing(ref e) =>
+				e.description(),
+			DeserialError::Other(ref e) =>
+				e.description(),
+		}
+	}
+	
+	fn cause(&self) -> Option<&Error> {
+		match *self {
+			DeserialError::Parsing(ref e) => Some(e),
+			DeserialError::Other(ref e) => Some(e),
+			_ => None,
+		}
+	}
+}
+
+
+#[derive(Debug)]
+pub enum DecodeError {
+	Unused,
+	Invalid,
+}
+
+impl fmt::Display for DecodeError {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "{}", self.description()) // Should I do this?
+	}
+}
+
+impl Error for DecodeError {
+	fn description(&self) -> &str {
+		match *self {
+			DecodeError::Unused =>
+				"unused instruction value",
+			DecodeError::Invalid =>
+				"invalid instruction",
+		}
+	}
+}
 
 /// Types of instructions:
 ///
@@ -121,40 +180,6 @@ impl Op {
 			*/
 		}
 	}
-	/*
-	pub fn op_type(&self) -> OpType {
-		match *self {
-			Op::Halt => OpType::Signal,
-			
-			Op::Not(..)
-			| Op::RotateLeft(..)
-			| Op::RotateRight(..)
-			| Op::Increment(..)
-			| Op::Decrement(..)
-			| Op::Push(..)
-			| Op::Pop(..) =>
-				OpType::Single,
-			
-			Op::Swap(..)
-			| Op::CNot(..)
-			| Op::CAdd(..)
-			| Op::CSub(..)
-			| Op::Exchange(..) =>
-				OpType::Double,
-			
-			Op::CCNot(..)
-			| Op::CSwap(..) =>
-				OpType::Triple,
-			
-			Op::GoTo(..)
-			| Op::ComeFrom(..) =>
-				OpType::Data,
-			
-			Op::Immediate(..) =>
-				OpType::Pair,
-		}
-	}
-	*/
 
 	pub fn encode(&self) -> u16 {
 		// TODO: decide if I want to have assertions for values.
@@ -242,20 +267,19 @@ impl Op {
 		}
 	}
 	
-	pub fn decode(instr: u16) -> Op {
+	pub fn decode(instr: u16) -> Result<Op, DecodeError> {
 	
 		match instr.leading_zeros() {
 			// pair type
 			0 => {
-				let o = (0b_0_1111_000_00000000 & instr) >> 3 + 8;
-				let r = (0b_0_0000_111_00000000 & instr) >> 8;
-				let v =  0b_0_0000_000_11111111 & instr;
+				let o = (instr >> 3 + 8) & 0b_1111;
+				let r = (instr >> 8) & 0b_111;
+				let v = instr & 0b_1111_1111;
 			
 				match o {
-					0b_0000 => Op::Immediate(r as usize, v as u8),
+					0b_0000 => Ok(Op::Immediate(r as usize, v as u8)),
 				
-					o if o <= 0b_1111 =>
-						panic!("Invalid Pair-type instruction: o={:04b} r{} 0x{:02x}", o, r, v),
+					o if o <= 0b_1111 => Err(DecodeError::Invalid),
 				
 					_ => unreachable!(),
 				}
@@ -263,36 +287,34 @@ impl Op {
 		
 			// data type
 			1 => {
-				let o = (0b_00_11_000000000000 & instr) >> 12;
-				let v =  0b_00_00_111111111111 & instr;
+				let o = (instr >> 12) & 0b_11;
+				let v = instr & 0b_1111_1111_1111;
 			
 				match o {
-					0b_00 => Op::GoTo(v as u16),
-					0b_01 => Op::ComeFrom(v as u16),
+					0b_00 => Ok(Op::GoTo(v as u16)),
+					0b_01 => Ok(Op::ComeFrom(v as u16)),
 				
-					o if o <= 0b_11 =>
-						panic!("Invalid Data-type instruction: o={:02b} 0x{:03x}", o, v),
+					o if o <= 0b_11 => Err(DecodeError::Invalid),
 				
 					_ => unreachable!(),
 				}
 			}
 		
 			// unused
-			2...3 => panic!("Reserved/unused instruction: 0x{:x}", instr),
+			2...3 => Err(DecodeError::Unused),
 		
 			// triple type
 			4 => {
-				let o  = (0b_00000_11_000_000_000 & instr) >> 3 + 3 + 3;
-				let ra = (0b_00000_00_111_000_000 & instr) >> 3 + 3;
-				let rb = (0b_00000_00_000_111_000 & instr) >> 3;
-				let rc =  0b_00000_00_000_000_111 & instr;
+				let o  = (instr >> 3 + 3 + 3) & 0b_11;
+				let ra = (instr >> 3 + 3) & 0b_111;
+				let rb = (instr >> 3) & 0b_111;
+				let rc = instr & 0b_111;
 			
 				match o {
-					0b_00 => Op::CCNot(ra as usize, rb as usize, rc as usize),
-					0b_01 => Op::CSwap(ra as usize, rb as usize, rc as usize),
+					0b_00 => Ok(Op::CCNot(ra as usize, rb as usize, rc as usize)),
+					0b_01 => Ok(Op::CSwap(ra as usize, rb as usize, rc as usize)),
 				
-					o if o <= 0b_11 =>
-						panic!("Invalid Triple-type instruction: o={:02b} r{} r{} r{}", o, ra, rb, rc),
+					o if o <= 0b_11 => Err(DecodeError::Invalid),
 				
 					_ => unreachable!(),
 				}
@@ -300,19 +322,18 @@ impl Op {
 		
 			// double type
 			5 => {
-				let o  = (0b_000000_1111_000_000 & instr) >> 3 + 3;
-				let ra = (0b_000000_0000_111_000 & instr) >> 3;
-				let rb =  0b_000000_0000_000_111 & instr;
+				let o  = (instr >> 3 + 3) & 0b_1111;
+				let ra = (instr >> 3) & 0b_111;
+				let rb = instr & 0b_111;
 			
 				match o {
-					0b_0000 => Op::Swap(ra as usize, rb as usize),
-					0b_0001 => Op::CNot(ra as usize, rb as usize),
-					0b_0010 => Op::CAdd(ra as usize, rb as usize),
-					0b_0011 => Op::CSub(ra as usize, rb as usize),
-					0b_0100 => Op::Exchange(ra as usize, rb as usize),
+					0b_0000 => Ok(Op::Swap(ra as usize, rb as usize)),
+					0b_0001 => Ok(Op::CNot(ra as usize, rb as usize)),
+					0b_0010 => Ok(Op::CAdd(ra as usize, rb as usize)),
+					0b_0011 => Ok(Op::CSub(ra as usize, rb as usize)),
+					0b_0100 => Ok(Op::Exchange(ra as usize, rb as usize)),
 				
-					o if o <= 0b_1111 =>
-						panic!("Invalid Double-type instruction: o={:04b} r{} r{}", o, ra, rb),
+					o if o <= 0b_1111 => Err(DecodeError::Invalid),
 				
 					_ => unreachable!(),
 				}
@@ -320,38 +341,35 @@ impl Op {
 		
 			// single type
 			6 => {
-				let o = (0b_0000000_111111_000 & instr) >> 3;
-				let r =  0b_0000000_000000_111 & instr;
+				let o = (instr >> 3) & 0b_111111;
+				let r = instr & 0b_111;
 			
 				match o {
-				
-					0b_000000 => Op::Not(r as usize),
+					0b_000000 => Ok(Op::Not(r as usize)),
 			
-					0b_000001 => Op::RotateLeft(r as usize),
-					0b_000010 => Op::RotateRight(r as usize),
+					0b_000001 => Ok(Op::RotateLeft(r as usize)),
+					0b_000010 => Ok(Op::RotateRight(r as usize)),
 			
-					0b_000011 => Op::Increment(r as usize),
-					0b_000100 => Op::Decrement(r as usize),
+					0b_000011 => Ok(Op::Increment(r as usize)),
+					0b_000100 => Ok(Op::Decrement(r as usize)),
 	
-					0b_000101 => Op::Push(r as usize),
-					0b_000110 => Op::Pop(r as usize),
+					0b_000101 => Ok(Op::Push(r as usize)),
+					0b_000110 => Ok(Op::Pop(r as usize)),
 				
-					o if o <= 0b_111111 =>
-						panic!("Invalid Single-type instruction: o={:06b} r{}", o, r),
+					o if o <= 0b_111111 => Err(DecodeError::Invalid),
 				
 					_ => unreachable!(),
 				}
 			}
 		
 			// reserved
-			7...9 => panic!("Reserved/unused instruction: {:x}", instr),
+			7...9 => Err(DecodeError::Unused),
 		
 			// signal type
 			10...16 => match instr {
-				0b_000000 => Op::Halt,
+				0b_000000 => Ok(Op::Halt),
 			
-				s if s <= 0b111111 =>
-					panic!("Invalid Signal-type instruction: {}", s),
+				s if s <= 0b_111111 => Err(DecodeError::Invalid),
 			
 				_ => unreachable!(),
 			},
@@ -364,33 +382,276 @@ impl Op {
 impl fmt::Display for Op {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match *self {
-			Op::Halt                => f.write_str("halt"),
-			Op::Not(r)              => f.write_fmt(format_args!("not r{}", r)),
-			Op::RotateLeft(r)       => f.write_fmt(format_args!("rotl r{}", r)),
-			Op::RotateRight(r)      => f.write_fmt(format_args!("rotr r{}", r)),
-			Op::Increment(r)        => f.write_fmt(format_args!("inc r{}", r)),
-			Op::Decrement(r)        => f.write_fmt(format_args!("dec r{}", r)),
-			Op::Push(r)             => f.write_fmt(format_args!("push r{}", r)),
-			Op::Pop(r)              => f.write_fmt(format_args!("pop r{}", r)),
-			Op::Swap(rl, rr)        => f.write_fmt(format_args!("swp r{} r{}", rl, rr)),
-			Op::CNot(rc, rn)        => f.write_fmt(format_args!("cnot r{} r{}", rc, rn)),
-			Op::CAdd(rc, ra)        => f.write_fmt(format_args!("cadd r{} r{}", rc, ra)),
-			Op::CSub(rc, rs)        => f.write_fmt(format_args!("csub r{} r{}", rc, rs)),
-			Op::Exchange(rr, ra)    => f.write_fmt(format_args!("exch r{} r{}", rr, ra)),
-			Op::Immediate(r, v)     => f.write_fmt(format_args!("imm r{} {}", r, v)),
-			Op::CCNot(rc0, rc1, rn) => f.write_fmt(format_args!("ccn r{} r{} r{}", rc0, rc1, rn)),
-			Op::CSwap(rc, rs0, rs1) => f.write_fmt(format_args!("cswp r{} r{} r{}", rc, rs0, rs1)),
-			Op::GoTo(off)           => f.write_fmt(format_args!("goto {}", off)),
-			Op::ComeFrom(off)       => f.write_fmt(format_args!("cmfr {}", off)),
+			Op::Halt                => write!(f, "halt"),
+			Op::Not(r)              => write!(f, "not r{}", r),
+			Op::RotateLeft(r)       => write!(f, "rotl r{}", r),
+			Op::RotateRight(r)      => write!(f, "rotr r{}", r),
+			Op::Increment(r)        => write!(f, "inc r{}", r),
+			Op::Decrement(r)        => write!(f, "dec r{}", r),
+			Op::Push(r)             => write!(f, "push r{}", r),
+			Op::Pop(r)              => write!(f, "pop r{}", r),
+			Op::Swap(rl, rr)        => write!(f, "swp r{} r{}", rl, rr),
+			Op::CNot(rc, rn)        => write!(f, "cnot r{} r{}", rc, rn),
+			Op::CAdd(rc, ra)        => write!(f, "cadd r{} r{}", rc, ra),
+			Op::CSub(rc, rs)        => write!(f, "csub r{} r{}", rc, rs),
+			Op::Exchange(rr, ra)    => write!(f, "exch r{} r{}", rr, ra),
+			Op::Immediate(r, v)     => write!(f, "imm r{} {}", r, v),
+			Op::CCNot(rc0, rc1, rn) => write!(f, "ccn r{} r{} r{}", rc0, rc1, rn),
+			Op::CSwap(rc, rs0, rs1) => write!(f, "cswp r{} r{} r{}", rc, rs0, rs1),
+			Op::GoTo(off)           => write!(f, "goto {}", off),
+			Op::ComeFrom(off)       => write!(f, "cmfr {}", off),
 		}
 	}
 }
-/*
+
 impl str::FromStr for Op {
-	type Err = String;
+	type Err = DeserialError;
 	
 	fn from_str(s: &str) -> Result<Self, Self::Err> {
 		
+		// Must be `fn` because it's used by `parse_reglit`, which
+		// is also a(n) `fn`.
+		fn parse_byte(s: &str) -> Result<u8, DeserialError> {
+			s.parse()
+				.map_err(DeserialError::Parsing)
+		}
+		
+		// Can't be a closure because `get_register` uses it.
+		fn parse_reglit(s: &str) -> Result<usize, DeserialError> {
+			if s.starts_with('r') {
+				match parse_byte(&s[1..]) {
+					Ok(byte) if byte < 8 =>
+						Ok(byte as usize),
+			
+					Ok(_) =>
+						Err(DeserialError::ValueTooLarge),
+			
+					Err(e) =>
+						Err(DeserialError::Other(Box::new(e))),
+				}
+			}
+			else {
+				Err(DeserialError::ExpectedRegister)
+			}
+		}
+		
+		let mut tokens = s.split_whitespace();
+		
+		// Can't just include `tokens.next()` here because
+		// then there would be a mutable reference to `tokens`
+		// in `get_register()` *and* in match block below that
+		// determines instruction used.
+		let get_register = |token: Option<&str>| token
+			.ok_or(DeserialError::MissingArg)
+			.and_then(parse_reglit);
+		
+		// we can unwrap once because line should not be empty
+		match tokens.next().unwrap() {
+			"halt" => Ok(Op::Halt),
+			
+			"not" => get_register(tokens.next())
+				.map(Op::Not),
+			
+			"rotl" => get_register(tokens.next())
+				.map(Op::RotateLeft),
+			
+			"rotr" => get_register(tokens.next())
+				.map(Op::RotateRight),
+			
+			"inc" => get_register(tokens.next())
+				.map(Op::Increment),
+			
+			"dec" => get_register(tokens.next())
+				.map(Op::Decrement),
+			
+			"push" => get_register(tokens.next())
+				.map(Op::Push),
+			
+			"pop" => get_register(tokens.next())
+				.map(Op::Pop),
+			
+			"swp" => {
+				let regl = get_register(tokens.next());
+				let regr = get_register(tokens.next());
+				
+				match (regl, regr) {
+					(Ok(regl), Ok(regr)) =>
+						Ok(Op::Swap(regl, regr)),
+					
+					(Err(e), _) | (_, Err(e)) =>
+						Err(DeserialError::Other(Box::new(e))),
+				}
+			}
+			
+			"cnot" => {
+				let regc = get_register(tokens.next());
+				let regn = get_register(tokens.next());
+				
+				match (regc, regn) {
+					(Ok(regc), Ok(regn)) if regn != regc =>
+						Ok(Op::CNot(regc, regn)),
+					
+					(Ok(_), Ok(_)) =>
+						Err(DeserialError::SameRegister),
+					
+					(Err(e), _) | (_, Err(e)) =>
+						Err(DeserialError::Other(Box::new(e))),
+				}
+			}
+			
+			"cadd" => {
+				let rctrl = get_register(tokens.next());
+				let radd = get_register(tokens.next());
+				
+				match (rctrl, radd) {
+					(Ok(rctrl), Ok(radd)) if radd != rctrl =>
+						Ok(Op::CAdd(rctrl, radd)),
+					
+					(Ok(_), Ok(_)) =>
+						Err(DeserialError::SameRegister),
+					
+					(Err(e), _) | (_, Err(e)) =>
+						Err(DeserialError::Other(Box::new(e))),
+				}
+			}
+			
+			"csub" => {
+				let rctrl = get_register(tokens.next());
+				let radd = get_register(tokens.next());
+				
+				match (rctrl, radd) {
+					(Ok(rctrl), Ok(rsub)) if rsub != rctrl =>
+						Ok(Op::CSub(rctrl, rsub)),
+					
+					(Ok(_), Ok(_)) =>
+						Err(DeserialError::SameRegister),
+					
+					(Err(e), _) | (_, Err(e)) =>
+						Err(DeserialError::Other(Box::new(e))),
+				}
+			}
+			
+			"imm" => {
+				let reg = get_register(tokens.next());
+				
+				let value = tokens.next()
+					.ok_or(DeserialError::MissingArg)
+					.and_then(parse_byte);
+				
+				match (reg, value) {
+					(Ok(reg), Ok(value)) =>
+						Ok(Op::Immediate(reg, value)),
+					
+					(Err(e), _) | (_, Err(e)) =>
+						Err(DeserialError::Other(Box::new(e)))
+				}
+			}
+			
+			"exch" => {
+				let reg = get_register(tokens.next());
+				let raddr = get_register(tokens.next());
+				
+				match (reg, raddr) {
+					(Ok(reg), Ok(raddr)) =>
+						Ok(Op::Exchange(reg, raddr)),
+					
+					(Err(e), _) | (_, Err(e)) =>
+						Err(DeserialError::Other(Box::new(e))),
+				}
+			}
+			
+			"ccn" => {
+				let rega = get_register(tokens.next());
+				let regb = get_register(tokens.next());
+				let regc = get_register(tokens.next());
+				
+				match (rega, regb, regc) {
+					(Ok(a), Ok(b), Ok(c)) if c != a && c != b =>
+						Ok(Op::CCNot(a, b, c)),
+					
+					(Ok(_), Ok(_), Ok(_)) =>
+						Err(DeserialError::SameRegister),
+					
+					(Err(e), _, _) | (_, Err(e), _) | (_, _, Err(e)) =>
+						Err(DeserialError::Other(Box::new(e))),
+				}
+			}
+			
+			"cswp" => {
+				let rega = get_register(tokens.next());
+				let regb = get_register(tokens.next());
+				let regc = get_register(tokens.next());
+				
+				match (rega, regb, regc) {
+					(Ok(a), Ok(b), Ok(c)) if b != a && c != a =>
+						Ok(Op::CSwap(a, b, c)),
+					
+					(Ok(_), Ok(_), Ok(_)) =>
+						Err(DeserialError::SameRegister),
+					
+					(Err(e), _, _) | (_, Err(e), _) | (_, _, Err(e)) =>
+						Err(DeserialError::Other(Box::new(e))),
+				}
+			}
+			
+			"goto" => tokens.next()
+				.ok_or(DeserialError::MissingArg)
+				.and_then(|s| match s.parse::<u16>() {
+					Ok(v) if v < 0x1000 => Ok(v),
+					Ok(_) => Err(DeserialError::ValueTooLarge),
+					Err(e) => Err(DeserialError::Parsing(e)),
+				})
+				.map(Op::GoTo),
+			
+			"cmfr" => tokens.next()
+				.ok_or(DeserialError::MissingArg)
+				.and_then(|s| match s.parse::<u16>() {
+					Ok(v) if v < 0x1000 => Ok(v),
+					Ok(_) => Err(DeserialError::ValueTooLarge),
+					Err(e) => Err(DeserialError::Parsing(e)),
+				})
+				.map(Op::ComeFrom),
+			/*
+			"blz" => {
+				let reg = get_register(tokens.next());
+				
+				let off = tokens.next()
+					.ok_or(DeserialError::MissingArg)
+					.and_then(parse_byte);
+				
+				match (reg, off) {
+					(Ok(reg), Ok(off)) =>
+						Ok(Op::BrLZ(reg, off)),
+					
+					(Err(e), _) | (_, Err(e)) =>
+						Err(DeserialError::Other(Box::new(e))),
+				}
+			}
+			
+			"bgez" => {
+				let reg = get_register(tokens.next());
+				
+				let off = tokens.next()
+					.ok_or(DeserialError::MissingArg)
+					.and_then(parse_byte);
+				
+				match (reg, off) {
+					(Ok(reg), Ok(off)) =>
+						Ok(Op::BrGEZ(reg, off)),
+					
+					(Err(e), _) | (_, Err(e)) =>
+						Err(DeserialError::Other(Box::new(e))),
+				}
+			}
+			
+			"swb" => get_register(tokens.next())
+				.map(Op::SwapBr),
+			
+			"rswb" => get_register(tokens.next())
+				.map(Op::RevSwapBr),
+			*/
+			
+			_ => Err(DeserialError::UnknownMneumonic),
+		}
 	}
 }
-*/

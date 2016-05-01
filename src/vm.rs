@@ -58,7 +58,7 @@ pub fn vm(file_path: &Path) {
 		// fetch
 		ir = program_mem.get(pc as usize).cloned().unwrap_or(0);
 		
-		let mut op = Op::decode(ir);
+		let mut op = try_err!(Op::decode(ir));
 		
 		if dir { op = op.invert() }
 		
