@@ -23,7 +23,7 @@ pub fn vm(file_path: &Path) {
 	
 	reg[7] = 0xFFFF; // use r7 as stack pointer
 	
-	// read file contents into mem
+	// read file contents into program memory
 	let mut buffer = [0_u8; 2];
 	for i in 0.. {
 		match try_err!(input.read(&mut buffer)) {
@@ -56,7 +56,7 @@ pub fn vm(file_path: &Path) {
 	
 	loop {
 		// fetch
-		ir = program_mem.get(pc as usize).cloned().unwrap_or(0);
+		ir = *program_mem.get(pc as usize).unwrap_or(&0x0000);
 		
 		let mut op = try_err!(Op::decode(ir));
 		
@@ -95,14 +95,13 @@ pub fn vm(file_path: &Path) {
 				sp += 1;
 				reg[7] = sp as u16;
 			}
-			/*
-			Op::SwapBr(r) => swap(&mut br, &mut reg[r]),
+			
+			Op::SwapBr(r) => swap(&mut pc, &mut reg[r]),
 			
 			Op::RevSwapBr(r) => {
-				swap(&mut br, &mut reg[r]);
-				dir ^= true;
+				swap(&mut pc, &mut reg[r]);
+				dir = !dir;
 			}
-			*/
 			
 			
 			Op::Swap(a, b) => reg.swap(a, b),
@@ -152,6 +151,8 @@ pub fn vm(file_path: &Path) {
 		{
 			// address in pc and the instruction it's pointing to
 			println!("PC = {:04x}: {}", pc, op);
+			println!("BR = {:04x}", br);
+			println!("DIR = {}", dir);
 		
 			// print contents of registers
 			print!("Registers: [");
@@ -196,9 +197,9 @@ pub fn vm(file_path: &Path) {
 		
 		// next instruction
 		if dir {
-			pc -= br;
+			pc = pc.wrapping_sub(br);
 		} else {
-			pc += br;
+			pc = pc.wrapping_add(br);
 		}
 	}
 }

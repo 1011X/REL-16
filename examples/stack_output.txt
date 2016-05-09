@@ -1,0 +1,24 @@
+PC = 0000: imm r0 255
+Registers: [00ff, 0000, 0000, 0000, 0000, 0000, 0000]
+SP = ffff: nil
+
+PC = 0001: imm r1 3
+Registers: [00ff, 0003, 0000, 0000, 0000, 0000, 0000]
+SP = ffff: nil
+
+PC = 0002: inc r0
+Registers: [0100, 0003, 0000, 0000, 0000, 0000, 0000]
+SP = ffff: nil
+
+PC = 0003: exch r1 r0
+Registers: [0100, 0000, 0000, 0000, 0000, 0000, 0000]
+SP = ffff: nil
+
+PC = 0004: exch r2 r0
+Registers: [0100, 0000, 0003, 0000, 0000, 0000, 0000]
+SP = ffff: nil
+
+PC = 0005: dec r0
+Registers: [00ff, 0000, 0003, 0000, 0000, 0000, 0000]
+SP = ffff: nil
+

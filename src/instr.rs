@@ -141,9 +141,9 @@ pub enum Op {
 	/*
 	BranchGEZ(Reg, u8),
 	BranchLZ(Reg, u8),
+	*/
 	SwapBr(Reg),
 	RevSwapBr(Reg),
-	*/
 }
 
 impl Op {
@@ -175,9 +175,9 @@ impl Op {
 			/*
 			Op::BranchLZ(reg, off) => 
 			Op::BranchGEZ(reg, off) => 
+			*/
 			Op::SwapBr(reg) => Op::RevSwapBr(reg),
 			Op::RevSwapBr(reg) => Op::SwapBr(reg),
-			*/
 		}
 	}
 
@@ -257,13 +257,13 @@ impl Op {
 			Op::BranchGEZ(reg, off) => 0b_1_0010_000_00000000
 				| (reg as u16) << 8
 				| off as u16,
+			*/
 		
 			Op::SwapBr(reg) => 0b_0000001_000111_000
 				| reg as u16,
 		
 			Op::RevSwapBr(reg) => 0b_0000001_001000_000
 				| reg as u16,
-			*/
 		}
 	}
 	
@@ -355,6 +355,9 @@ impl Op {
 	
 					0b_000101 => Ok(Op::Push(r as usize)),
 					0b_000110 => Ok(Op::Pop(r as usize)),
+					
+					0b_000111 => Ok(Op::SwapBr(r as usize)),
+					0b_001000 => Ok(Op::RevSwapBr(r as usize)),
 				
 					o if o <= 0b_111111 => Err(DecodeError::Invalid),
 				
@@ -400,6 +403,8 @@ impl fmt::Display for Op {
 			Op::CSwap(rc, rs0, rs1) => write!(f, "cswp r{} r{} r{}", rc, rs0, rs1),
 			Op::GoTo(off)           => write!(f, "goto {}", off),
 			Op::ComeFrom(off)       => write!(f, "cmfr {}", off),
+			Op::SwapBr(r)           => write!(f, "swb r{}", r),
+			Op::RevSwapBr(r)        => write!(f, "rswb r{}", r),
 		}
 	}
 }
@@ -643,13 +648,13 @@ impl str::FromStr for Op {
 						Err(DeserialError::Other(Box::new(e))),
 				}
 			}
+			*/
 			
 			"swb" => get_register(tokens.next())
 				.map(Op::SwapBr),
 			
 			"rswb" => get_register(tokens.next())
 				.map(Op::RevSwapBr),
-			*/
 			
 			_ => Err(DeserialError::UnknownMneumonic),
 		}
