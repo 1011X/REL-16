@@ -385,19 +385,19 @@ impl Op {
 impl fmt::Display for Op {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match *self {
-			Op::Halt                => write!(f, "halt"),
+			Op::Halt                => write!(f, "hlt"),
 			Op::Not(r)              => write!(f, "not r{}", r),
-			Op::RotateLeft(r)       => write!(f, "rotl r{}", r),
-			Op::RotateRight(r)      => write!(f, "rotr r{}", r),
+			Op::RotateLeft(r)       => write!(f, "rol r{}", r),
+			Op::RotateRight(r)      => write!(f, "ror r{}", r),
 			Op::Increment(r)        => write!(f, "inc r{}", r),
 			Op::Decrement(r)        => write!(f, "dec r{}", r),
 			Op::Push(r)             => write!(f, "push r{}", r),
 			Op::Pop(r)              => write!(f, "pop r{}", r),
 			Op::Swap(rl, rr)        => write!(f, "swp r{} r{}", rl, rr),
 			Op::CNot(rc, rn)        => write!(f, "cnot r{} r{}", rc, rn),
-			Op::CAdd(rc, ra)        => write!(f, "cadd r{} r{}", rc, ra),
-			Op::CSub(rc, rs)        => write!(f, "csub r{} r{}", rc, rs),
-			Op::Exchange(rr, ra)    => write!(f, "exch r{} r{}", rr, ra),
+			Op::CAdd(rc, ra)        => write!(f, "add r{} r{}", rc, ra),
+			Op::CSub(rc, rs)        => write!(f, "sub r{} r{}", rc, rs),
+			Op::Exchange(rr, ra)    => write!(f, "xchg r{} [r{}]", rr, ra),
 			Op::Immediate(r, v)     => write!(f, "imm r{} {}", r, v),
 			Op::CCNot(rc0, rc1, rn) => write!(f, "ccn r{} r{} r{}", rc0, rc1, rn),
 			Op::CSwap(rc, rs0, rs1) => write!(f, "cswp r{} r{} r{}", rc, rs0, rs1),
@@ -452,15 +452,15 @@ impl str::FromStr for Op {
 		
 		// we can unwrap once because line should not be empty
 		match tokens.next().unwrap() {
-			"halt" => Ok(Op::Halt),
+			"hlt" => Ok(Op::Halt),
 			
 			"not" => get_register(tokens.next())
 				.map(Op::Not),
 			
-			"rotl" => get_register(tokens.next())
+			"rol" => get_register(tokens.next())
 				.map(Op::RotateLeft),
 			
-			"rotr" => get_register(tokens.next())
+			"ror" => get_register(tokens.next())
 				.map(Op::RotateRight),
 			
 			"inc" => get_register(tokens.next())
@@ -504,7 +504,7 @@ impl str::FromStr for Op {
 				}
 			}
 			
-			"cadd" => {
+			"add" => {
 				let rctrl = get_register(tokens.next());
 				let radd = get_register(tokens.next());
 				
@@ -520,7 +520,7 @@ impl str::FromStr for Op {
 				}
 			}
 			
-			"csub" => {
+			"sub" => {
 				let rctrl = get_register(tokens.next());
 				let radd = get_register(tokens.next());
 				
@@ -552,7 +552,7 @@ impl str::FromStr for Op {
 				}
 			}
 			
-			"exch" => {
+			"xchg" => {
 				let reg = get_register(tokens.next());
 				let raddr = get_register(tokens.next());
 				

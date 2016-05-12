@@ -11,7 +11,7 @@ const PMEM_LEN: usize = 65536;
 pub fn vm(file_path: &Path) {
 	let mut input = try_err!(File::open(file_path));
 	
-	// when dir is true, it is in backwards mode
+	// when dir is true, it is in reverse mode
 	let mut dir = false;
 	let mut br: u16 = 1;
 	let mut pc: u16 = 0;
@@ -21,7 +21,7 @@ pub fn vm(file_path: &Path) {
 	let mut data_mem = [0_u16; DMEM_LEN];
 	let mut program_mem = Vec::with_capacity(PMEM_LEN);
 	
-	reg[7] = 0xFFFF; // use r7 as stack pointer
+	reg[7] = 0xFFFF; // point r7 (stack pointer) to end of memory
 	
 	// read file contents into program memory
 	let mut buffer = [0_u8; 2];
@@ -39,7 +39,6 @@ pub fn vm(file_path: &Path) {
 			
 			2 => if i < program_mem.capacity() {
 				let instr = (buffer[0] as u16) << 8 | buffer[1] as u16;
-				
 				program_mem.push(instr);
 			}
 			else {
@@ -51,19 +50,70 @@ pub fn vm(file_path: &Path) {
 		}
 	}
 	
-	// redeclare so program memory is read-only.
-	let program_mem = program_mem;
+	// redeclare as read-only slice
+	let program_mem = &*program_mem;
 	
 	loop {
+		// debugging code
+		{
+			// address in pc and the instruction it's pointing to
+			println!("PC = {:04x}, BR = {:04x}, DIR = {}", pc, br, dir);
+		
+			// print contents of registers
+			print!("Registers: [");
+		
+			for (i, &r) in reg[..reg.len() - 1].iter().enumerate() {
+				print!("{:04x}", r);
+			
+				// is not last item
+				if i != reg.len() - 2 {
+					print!(", ");
+				}
+			}
+		
+			println!("]");
+		
+			// print contents of stack
+			print!("SP = {:04x}: ", reg[7]);
+		
+			if reg[7] as usize == DMEM_LEN - 1 {
+				println!("nil");
+			}
+			else {
+				let sp = reg[7] as usize;
+			
+				print!("<");
+			
+				for (i, &val) in data_mem[sp..DMEM_LEN - 1].iter().enumerate() {
+					print!("{:04x}", val);
+				
+					// is not last item; excludes zero at bottom of stack
+					if sp + i < DMEM_LEN - 2 {
+						print!(", ");
+					}
+				}
+			
+				println!("]");
+			}
+			
+			print!("\n");
+		}
+		
 		// fetch
 		ir = *program_mem.get(pc as usize).unwrap_or(&0x0000);
 		
-		let mut op = try_err!(Op::decode(ir));
+		// get instruction and invert if in reverse mode
+		let instr = {
+			let instr = try_err!(Op::decode(ir));
+			if dir { instr.invert() }
+			else { instr }
+		};
 		
-		if dir { op = op.invert() }
+		// show which instruction is being executed
+		println!("{}\n", instr);
 		
 		// execute
-		match op {
+		match instr {
 			Op::Immediate(r, v) => reg[r] ^= v as u16,
 			
 			Op::Exchange(r, ra) => {
@@ -145,53 +195,6 @@ pub fn vm(file_path: &Path) {
 			
 			Write(c) => print!("{}", (reg[0] as u8) as char),
 			*/
-		}
-		
-		// debugging code
-		{
-			// address in pc and the instruction it's pointing to
-			println!("PC = {:04x}: {}", pc, op);
-			println!("BR = {:04x}", br);
-			println!("DIR = {}", dir);
-		
-			// print contents of registers
-			print!("Registers: [");
-		
-			for (i, &r) in reg[..reg.len() - 1].iter().enumerate() {
-				print!("{:04x}", r);
-			
-				// is not last item
-				if i != reg.len() - 2 {
-					print!(", ");
-				}
-			}
-		
-			println!("]");
-		
-			// print contents of stack
-			print!("SP = {:04x}: ", reg[7]);
-		
-			if reg[7] as usize == DMEM_LEN - 1 {
-				println!("nil");
-			}
-			else {
-				let sp = reg[7] as usize;
-			
-				print!("<");
-			
-				for (i, &val) in data_mem[sp..DMEM_LEN - 1].iter().enumerate() {
-					print!("{:04x}", val);
-				
-					// is not last item; excludes zero at bottom of stack
-					if sp + i < DMEM_LEN - 2 {
-						print!(", ");
-					}
-				}
-			
-				println!("]");
-			}
-			
-			print!("\n");
 		}
 		
 		

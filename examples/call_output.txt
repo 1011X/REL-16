@@ -1,79 +1,85 @@
-PC = 0000: goto 4
-BR = 0005
-DIR = false
+PC = 0000, BR = 0001, DIR = false
 Registers: [0000, 0000, 0000, 0000, 0000, 0000, 0000]
 SP = ffff: nil
 
-PC = 0005: cmfr 4
-BR = 0001
-DIR = false
+goto 4
+
+PC = 0005, BR = 0005, DIR = false
 Registers: [0000, 0000, 0000, 0000, 0000, 0000, 0000]
 SP = ffff: nil
 
-PC = 0006: imm r0 255
-BR = 0001
-DIR = false
+cmfr 4
+
+PC = 0006, BR = 0001, DIR = false
+Registers: [0000, 0000, 0000, 0000, 0000, 0000, 0000]
+SP = ffff: nil
+
+imm r0 255
+
+PC = 0007, BR = 0001, DIR = false
 Registers: [00ff, 0000, 0000, 0000, 0000, 0000, 0000]
 SP = ffff: nil
 
-PC = 0007: imm r1 3
-BR = 0001
-DIR = false
+imm r1 3
+
+PC = 0008, BR = 0001, DIR = false
 Registers: [00ff, 0003, 0000, 0000, 0000, 0000, 0000]
 SP = ffff: nil
 
-PC = 0008: imm r2 1
-BR = 0001
-DIR = false
+imm r2 1
+
+PC = 0009, BR = 0001, DIR = false
 Registers: [00ff, 0003, 0001, 0000, 0000, 0000, 0000]
 SP = ffff: nil
 
-PC = 0001: swb r2
-BR = 0001
-DIR = false
+swb r2
+
+PC = 0002, BR = 0001, DIR = false
 Registers: [00ff, 0003, 0009, 0000, 0000, 0000, 0000]
 SP = ffff: nil
 
-PC = 0002: inc r0
-BR = 0001
-DIR = false
+inc r0
+
+PC = 0003, BR = 0001, DIR = false
 Registers: [0100, 0003, 0009, 0000, 0000, 0000, 0000]
 SP = ffff: nil
 
-PC = 0003: exch r1 r0
-BR = 0001
-DIR = false
+xchg r1 [r0]
+
+PC = 0004, BR = 0001, DIR = false
 Registers: [0100, 0000, 0009, 0000, 0000, 0000, 0000]
 SP = ffff: nil
 
-PC = 0009: swb r2
-BR = 0001
-DIR = false
+swb r2
+
+PC = 000a, BR = 0001, DIR = false
 Registers: [0100, 0000, 0004, 0000, 0000, 0000, 0000]
 SP = ffff: nil
 
-PC = 0004: rswb r2
-BR = 0001
-DIR = true
+rswb r2
+
+PC = 0003, BR = 0001, DIR = true
 Registers: [0100, 0000, 000a, 0000, 0000, 0000, 0000]
 SP = ffff: nil
 
-PC = 0003: exch r1 r0
-BR = 0001
-DIR = true
+xchg r1 [r0]
+
+PC = 0002, BR = 0001, DIR = true
 Registers: [0100, 0003, 000a, 0000, 0000, 0000, 0000]
 SP = ffff: nil
 
-PC = 0002: dec r0
-BR = 0001
-DIR = true
+dec r0
+
+PC = 0001, BR = 0001, DIR = true
 Registers: [00ff, 0003, 000a, 0000, 0000, 0000, 0000]
 SP = ffff: nil
 
-PC = 000a: rswb r2
-BR = 0001
-DIR = false
+rswb r2
+
+PC = 000b, BR = 0001, DIR = false
 Registers: [00ff, 0003, 0001, 0000, 0000, 0000, 0000]
 SP = ffff: nil
+
+hlt
 
 
