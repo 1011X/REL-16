@@ -1,7 +1,6 @@
 use instr::Op;
 
 use std::str::FromStr;
-
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use std::io::{
@@ -11,9 +10,11 @@ use std::io::{
 
 
 pub fn assemble(in_path: &Path) {
+	// create path to temporary file in current directory
 	let mut out_path = PathBuf::from(in_path.file_stem().unwrap());
-	out_path.set_extension("o");
+	out_path.set_extension("bin.tmp");
 	
+	// open input file and create output file, both buffered
 	let input = BufReader::new(try_err!(File::open(in_path)));
 	let mut output = BufWriter::new(try_err!(File::create(&out_path)));
 	
@@ -40,28 +41,16 @@ pub fn assemble(in_path: &Path) {
 				let instr = op.encode();
 				let data = [(instr >> 8) as u8, instr as u8];
 				
-				match try_err!(output.write(&data)) {
-					2 => {}
-				
-					1 => {
-						println_err!("Error: could not write complete instruction");
-						return;
-					}
-				
-					0 => {
-						println_err!("Error: no more space in file to write");
-						return;
-					}
-				
-					_ => unreachable!(),
-				}
+				try_err!(output.write_all(&data));
 			}
 			
-			// if there was an error, write line number, description, and code line
 			Err(e) => {
+				// if there was an error, write line number, description,
+				// and code line where error came from
 				println_err!("Error (line {}): {}", line_number, e);
 				println_err!("{}", line);
 				
+				// delete intermediate file if possible
 				if fs::remove_file(out_path).is_err() {
 					println_err!("Could not delete incomplete file.");
 				}
@@ -69,5 +58,15 @@ pub fn assemble(in_path: &Path) {
 				return;
 			}
 		}
+	}
+	
+	// if everything went well, we rename the temp file (with
+	// the .tmp extension) to one without the .tmp
+	let tmp_path = out_path.clone();
+	out_path.set_extension("");
+	
+	if let Err(e) = fs::rename(tmp_path, out_path) {
+		println_err!("Could not rename file: {}", e);
+		println_err!("You'll have to remove the .tmp extension manually.");
 	}
 }

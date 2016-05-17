@@ -52,7 +52,7 @@ impl Error for DeserialError {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum DecodeError {
 	Unused,
 	Invalid,
@@ -397,7 +397,7 @@ impl fmt::Display for Op {
 			Op::CNot(rc, rn)        => write!(f, "cnot r{} r{}", rc, rn),
 			Op::CAdd(rc, ra)        => write!(f, "add r{} r{}", rc, ra),
 			Op::CSub(rc, rs)        => write!(f, "sub r{} r{}", rc, rs),
-			Op::Exchange(rr, ra)    => write!(f, "xchg r{} [r{}]", rr, ra),
+			Op::Exchange(rr, ra)    => write!(f, "xchg r{} r{}", rr, ra),
 			Op::Immediate(r, v)     => write!(f, "imm r{} {}", r, v),
 			Op::CCNot(rc0, rc1, rn) => write!(f, "ccn r{} r{} r{}", rc0, rc1, rn),
 			Op::CSwap(rc, rs0, rs1) => write!(f, "cswp r{} r{} r{}", rc, rs0, rs1),

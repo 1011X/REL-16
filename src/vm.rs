@@ -110,7 +110,7 @@ pub fn vm(file_path: &Path) {
 		};
 		
 		// show which instruction is being executed
-		println!("{}\n", instr);
+		println!("IR = {:04x}: {}\n", ir, instr);
 		
 		// execute
 		match instr {

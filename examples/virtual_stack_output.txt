@@ -2,42 +2,42 @@ PC = 0000, BR = 0001, DIR = false
 Registers: [0000, 0000, 0000, 0000, 0000, 0000, 0000]
 SP = ffff: nil
 
-imm r0 255
+IR = 80ff: imm r0 255
 
 PC = 0001, BR = 0001, DIR = false
 Registers: [00ff, 0000, 0000, 0000, 0000, 0000, 0000]
 SP = ffff: nil
 
-imm r1 3
+IR = 8103: imm r1 3
 
 PC = 0002, BR = 0001, DIR = false
 Registers: [00ff, 0003, 0000, 0000, 0000, 0000, 0000]
 SP = ffff: nil
 
-inc r0
+IR = 0218: inc r0
 
 PC = 0003, BR = 0001, DIR = false
 Registers: [0100, 0003, 0000, 0000, 0000, 0000, 0000]
 SP = ffff: nil
 
-xchg r1 [r0]
+IR = 0508: xchg r1 r0
 
 PC = 0004, BR = 0001, DIR = false
 Registers: [0100, 0000, 0000, 0000, 0000, 0000, 0000]
 SP = ffff: nil
 
-xchg r2 [r0]
+IR = 0510: xchg r2 r0
 
 PC = 0005, BR = 0001, DIR = false
 Registers: [0100, 0000, 0003, 0000, 0000, 0000, 0000]
 SP = ffff: nil
 
-dec r0
+IR = 0220: dec r0
 
 PC = 0006, BR = 0001, DIR = false
 Registers: [00ff, 0000, 0003, 0000, 0000, 0000, 0000]
 SP = ffff: nil
 
-hlt
+IR = 0000: hlt
 
 

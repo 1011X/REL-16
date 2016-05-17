@@ -1,15 +1,18 @@
 #[macro_use]
 mod macros;
-mod vm;
-mod assembler;
 mod instr;
+
+mod vm;
+mod asm;
+mod dasm;
 
 use std::env;
 use std::path::PathBuf;
 
 enum Command {
 	Run,
-	Build
+	Assemble,
+	Disassemble,
 }
 
 fn main() {
@@ -20,7 +23,8 @@ fn main() {
 		
 		match &*c {
 			"run" => Command::Run,
-			"build" => Command::Build,
+			"asm" => Command::Assemble,
+			"dasm" => Command::Disassemble,
 		
 			other => {
 				println_err!("No such subcommand: {}", other);
@@ -36,8 +40,12 @@ fn main() {
 			vm::vm(&file_path);
 		}
 		
-		Command::Build => {
-			assembler::assemble(&file_path);
+		Command::Assemble => {
+			asm::assemble(&file_path);
+		}
+		
+		Command::Disassemble => {
+			dasm::disassemble(&file_path);
 		}
 	}
 }
