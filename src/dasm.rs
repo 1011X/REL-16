@@ -1,5 +1,3 @@
-use instr::Op;
-
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use std::io::{
@@ -7,6 +5,9 @@ use std::io::{
 	BufReader, BufWriter,
 	Read, Write
 };
+
+use instr::Op;
+
 
 // here, in_path should have a .bin extension
 pub fn disassemble(in_path: &Path) {

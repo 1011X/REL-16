@@ -1,12 +1,13 @@
-use instr::Op;
-
 use std::mem::swap;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
+use instr::Op;
+
 const DMEM_LEN: usize = 65536;
 const PMEM_LEN: usize = 65536;
+
 
 pub fn vm(file_path: &Path) {
 	let mut input = try_err!(File::open(file_path));

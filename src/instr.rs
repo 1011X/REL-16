@@ -488,13 +488,13 @@ impl str::FromStr for Op {
 				}
 			}
 			
-			"cnot" => {
-				let regc = get_register(tokens.next());
-				let regn = get_register(tokens.next());
+			"xor" => {
+				let rn = get_register(tokens.next());
+				let rc = get_register(tokens.next());
 				
-				match (regc, regn) {
-					(Ok(regc), Ok(regn)) if regn != regc =>
-						Ok(Op::CNot(regc, regn)),
+				match (rc, rn) {
+					(Ok(rc), Ok(rn)) if rn != rc =>
+						Ok(Op::CNot(rc, rn)),
 					
 					(Ok(_), Ok(_)) =>
 						Err(DeserialError::SameRegister),
@@ -505,12 +505,12 @@ impl str::FromStr for Op {
 			}
 			
 			"add" => {
-				let rctrl = get_register(tokens.next());
-				let radd = get_register(tokens.next());
+				let ra = get_register(tokens.next());
+				let rc = get_register(tokens.next());
 				
-				match (rctrl, radd) {
-					(Ok(rctrl), Ok(radd)) if radd != rctrl =>
-						Ok(Op::CAdd(rctrl, radd)),
+				match (rc, ra) {
+					(Ok(rc), Ok(ra)) if ra != rc =>
+						Ok(Op::CAdd(rc, ra)),
 					
 					(Ok(_), Ok(_)) =>
 						Err(DeserialError::SameRegister),
@@ -521,12 +521,12 @@ impl str::FromStr for Op {
 			}
 			
 			"sub" => {
-				let rctrl = get_register(tokens.next());
-				let radd = get_register(tokens.next());
+				let rs = get_register(tokens.next());
+				let rc = get_register(tokens.next());
 				
-				match (rctrl, radd) {
-					(Ok(rctrl), Ok(rsub)) if rsub != rctrl =>
-						Ok(Op::CSub(rctrl, rsub)),
+				match (rc, rs) {
+					(Ok(rc), Ok(rs)) if rs != rc =>
+						Ok(Op::CSub(rc, rs)),
 					
 					(Ok(_), Ok(_)) =>
 						Err(DeserialError::SameRegister),
@@ -566,9 +566,9 @@ impl str::FromStr for Op {
 			}
 			
 			"ccn" => {
+				let regc = get_register(tokens.next());
 				let rega = get_register(tokens.next());
 				let regb = get_register(tokens.next());
-				let regc = get_register(tokens.next());
 				
 				match (rega, regb, regc) {
 					(Ok(a), Ok(b), Ok(c)) if c != a && c != b =>
@@ -599,7 +599,7 @@ impl str::FromStr for Op {
 				}
 			}
 			
-			"goto" => tokens.next()
+			"jmp" => tokens.next()
 				.ok_or(DeserialError::MissingArg)
 				.and_then(|s| match s.parse::<u16>() {
 					Ok(v) if v < 0x1000 => Ok(v),
@@ -608,7 +608,7 @@ impl str::FromStr for Op {
 				})
 				.map(Op::GoTo),
 			
-			"cmfr" => tokens.next()
+			"pmj" => tokens.next()
 				.ok_or(DeserialError::MissingArg)
 				.and_then(|s| match s.parse::<u16>() {
 					Ok(v) if v < 0x1000 => Ok(v),
@@ -617,7 +617,7 @@ impl str::FromStr for Op {
 				})
 				.map(Op::ComeFrom),
 			/*
-			"blz" => {
+			"bltz" => {
 				let reg = get_register(tokens.next());
 				
 				let off = tokens.next()
@@ -633,7 +633,7 @@ impl str::FromStr for Op {
 				}
 			}
 			
-			"bgez" => {
+			"bodd" => {
 				let reg = get_register(tokens.next());
 				
 				let off = tokens.next()
