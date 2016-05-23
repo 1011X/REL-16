@@ -7,13 +7,12 @@ pub type Reg = usize; // always in range [0-7]
 
 #[derive(Debug)]
 pub enum DeserialError {
-	SameRegister,
+	MissingMneumonic,
 	MissingArg,
 	UnknownMneumonic,
 	ValueTooLarge,
 	ExpectedRegister,
 	Parsing(num::ParseIntError),
-	Other(Box<DeserialError>),
 }
 
 impl fmt::Display for DeserialError {
@@ -25,8 +24,8 @@ impl fmt::Display for DeserialError {
 impl Error for DeserialError {
 	fn description(&self) -> &str {
 		match *self {
-			DeserialError::SameRegister =>
-				"same argument used in both a controlled and mutable context",
+			DeserialError::MissingMneumonic =>
+				"missing mneumonic",
 			DeserialError::MissingArg =>
 				"missing argument for instruction",
 			DeserialError::UnknownMneumonic =>
@@ -37,15 +36,12 @@ impl Error for DeserialError {
 				"expected register literal",
 			DeserialError::Parsing(ref e) =>
 				e.description(),
-			DeserialError::Other(ref e) =>
-				e.description(),
 		}
 	}
 	
 	fn cause(&self) -> Option<&Error> {
 		match *self {
 			DeserialError::Parsing(ref e) => Some(e),
-			DeserialError::Other(ref e) => Some(e),
 			_ => None,
 		}
 	}
@@ -138,10 +134,8 @@ pub enum Op {
 	CSwap(Reg, Reg, Reg),
 	GoTo(u16),
 	ComeFrom(u16),
-	/*
-	BranchGEZ(Reg, u8),
-	BranchLZ(Reg, u8),
-	*/
+	//BranchOdd(Reg, u8),
+	//BranchSign(Reg, u8),
 	SwapBr(Reg),
 	RevSwapBr(Reg),
 }
@@ -168,19 +162,15 @@ impl Op {
 			Op::Immediate(..)  => self,
 			Op::CCNot(..)      => self,
 			Op::CSwap(..)      => self,
-			
-			// control flow
-			Op::GoTo(off)        => Op::ComeFrom(off),
-			Op::ComeFrom(off)    => Op::GoTo(off),
-			/*
-			Op::BranchLZ(reg, off) => 
-			Op::BranchGEZ(reg, off) => 
-			*/
-			Op::SwapBr(reg) => Op::RevSwapBr(reg),
+			Op::GoTo(off)      => Op::ComeFrom(off),
+			Op::ComeFrom(off)  => Op::GoTo(off),
+			//Op::BranchLZ(reg, off) => 
+			//Op::BranchGEZ(reg, off) => 
+			Op::SwapBr(reg)    => Op::RevSwapBr(reg),
 			Op::RevSwapBr(reg) => Op::SwapBr(reg),
 		}
 	}
-
+	
 	pub fn encode(&self) -> u16 {
 		// TODO: decide if I want to have assertions for values.
 		match *self {
@@ -250,11 +240,11 @@ impl Op {
 				| off as u16,
 		
 			/*
-			Op::BranchLZ(reg, off) => 0b_1_0001_000_00000000
+			Op::BranchSign(reg, off) => 0b_1_0001_000_00000000
 				| (reg as u16) << 8
 				| off as u16,
 		
-			Op::BranchGEZ(reg, off) => 0b_1_0010_000_00000000
+			Op::BranchOdd(reg, off) => 0b_1_0010_000_00000000
 				| (reg as u16) << 8
 				| off as u16,
 			*/
@@ -394,15 +384,15 @@ impl fmt::Display for Op {
 			Op::Push(r)             => write!(f, "push r{}", r),
 			Op::Pop(r)              => write!(f, "pop r{}", r),
 			Op::Swap(rl, rr)        => write!(f, "swp r{} r{}", rl, rr),
-			Op::CNot(rc, rn)        => write!(f, "cnot r{} r{}", rc, rn),
-			Op::CAdd(rc, ra)        => write!(f, "add r{} r{}", rc, ra),
-			Op::CSub(rc, rs)        => write!(f, "sub r{} r{}", rc, rs),
+			Op::CNot(rc, rn)        => write!(f, "xor r{} r{}", rn, rc),
+			Op::CAdd(rc, ra)        => write!(f, "add r{} r{}", ra, rc),
+			Op::CSub(rc, rs)        => write!(f, "sub r{} r{}", rs, rc),
 			Op::Exchange(rr, ra)    => write!(f, "xchg r{} r{}", rr, ra),
 			Op::Immediate(r, v)     => write!(f, "imm r{} {}", r, v),
 			Op::CCNot(rc0, rc1, rn) => write!(f, "ccn r{} r{} r{}", rc0, rc1, rn),
 			Op::CSwap(rc, rs0, rs1) => write!(f, "cswp r{} r{} r{}", rc, rs0, rs1),
-			Op::GoTo(off)           => write!(f, "goto {}", off),
-			Op::ComeFrom(off)       => write!(f, "cmfr {}", off),
+			Op::GoTo(off)           => write!(f, "jmp {}", off),
+			Op::ComeFrom(off)       => write!(f, "pmj {}", off),
 			Op::SwapBr(r)           => write!(f, "swb r{}", r),
 			Op::RevSwapBr(r)        => write!(f, "rswb r{}", r),
 		}
@@ -432,7 +422,7 @@ impl str::FromStr for Op {
 						Err(DeserialError::ValueTooLarge),
 			
 					Err(e) =>
-						Err(DeserialError::Other(Box::new(e))),
+						Err(e),
 				}
 			}
 			else {
@@ -444,14 +434,12 @@ impl str::FromStr for Op {
 		
 		// Can't just include `tokens.next()` here because
 		// then there would be a mutable reference to `tokens`
-		// in `get_register()` *and* in match block below that
-		// determines instruction used.
+		// in both `get_register()` and in match block below.
 		let get_register = |token: Option<&str>| token
 			.ok_or(DeserialError::MissingArg)
 			.and_then(parse_reglit);
 		
-		// we can unwrap once because line should not be empty
-		match tokens.next().unwrap() {
+		match try!(tokens.next().ok_or(DeserialError::MissingMneumonic)) {
 			"hlt" => Ok(Op::Halt),
 			
 			"not" => get_register(tokens.next())
@@ -484,7 +472,7 @@ impl str::FromStr for Op {
 						Ok(Op::Swap(regl, regr)),
 					
 					(Err(e), _) | (_, Err(e)) =>
-						Err(DeserialError::Other(Box::new(e))),
+						Err(e),
 				}
 			}
 			
@@ -493,14 +481,11 @@ impl str::FromStr for Op {
 				let rc = get_register(tokens.next());
 				
 				match (rc, rn) {
-					(Ok(rc), Ok(rn)) if rn != rc =>
+					(Ok(rc), Ok(rn)) =>
 						Ok(Op::CNot(rc, rn)),
 					
-					(Ok(_), Ok(_)) =>
-						Err(DeserialError::SameRegister),
-					
 					(Err(e), _) | (_, Err(e)) =>
-						Err(DeserialError::Other(Box::new(e))),
+						Err(e),
 				}
 			}
 			
@@ -509,14 +494,11 @@ impl str::FromStr for Op {
 				let rc = get_register(tokens.next());
 				
 				match (rc, ra) {
-					(Ok(rc), Ok(ra)) if ra != rc =>
+					(Ok(rc), Ok(ra)) =>
 						Ok(Op::CAdd(rc, ra)),
 					
-					(Ok(_), Ok(_)) =>
-						Err(DeserialError::SameRegister),
-					
 					(Err(e), _) | (_, Err(e)) =>
-						Err(DeserialError::Other(Box::new(e))),
+						Err(e),
 				}
 			}
 			
@@ -525,14 +507,11 @@ impl str::FromStr for Op {
 				let rc = get_register(tokens.next());
 				
 				match (rc, rs) {
-					(Ok(rc), Ok(rs)) if rs != rc =>
+					(Ok(rc), Ok(rs)) =>
 						Ok(Op::CSub(rc, rs)),
 					
-					(Ok(_), Ok(_)) =>
-						Err(DeserialError::SameRegister),
-					
 					(Err(e), _) | (_, Err(e)) =>
-						Err(DeserialError::Other(Box::new(e))),
+						Err(e),
 				}
 			}
 			
@@ -548,7 +527,7 @@ impl str::FromStr for Op {
 						Ok(Op::Immediate(reg, value)),
 					
 					(Err(e), _) | (_, Err(e)) =>
-						Err(DeserialError::Other(Box::new(e)))
+						Err(e),
 				}
 			}
 			
@@ -561,7 +540,7 @@ impl str::FromStr for Op {
 						Ok(Op::Exchange(reg, raddr)),
 					
 					(Err(e), _) | (_, Err(e)) =>
-						Err(DeserialError::Other(Box::new(e))),
+						Err(e),
 				}
 			}
 			
@@ -571,14 +550,11 @@ impl str::FromStr for Op {
 				let regb = get_register(tokens.next());
 				
 				match (rega, regb, regc) {
-					(Ok(a), Ok(b), Ok(c)) if c != a && c != b =>
+					(Ok(a), Ok(b), Ok(c)) =>
 						Ok(Op::CCNot(a, b, c)),
 					
-					(Ok(_), Ok(_), Ok(_)) =>
-						Err(DeserialError::SameRegister),
-					
 					(Err(e), _, _) | (_, Err(e), _) | (_, _, Err(e)) =>
-						Err(DeserialError::Other(Box::new(e))),
+						Err(e),
 				}
 			}
 			
@@ -588,14 +564,11 @@ impl str::FromStr for Op {
 				let regc = get_register(tokens.next());
 				
 				match (rega, regb, regc) {
-					(Ok(a), Ok(b), Ok(c)) if b != a && c != a =>
+					(Ok(a), Ok(b), Ok(c)) =>
 						Ok(Op::CSwap(a, b, c)),
 					
-					(Ok(_), Ok(_), Ok(_)) =>
-						Err(DeserialError::SameRegister),
-					
 					(Err(e), _, _) | (_, Err(e), _) | (_, _, Err(e)) =>
-						Err(DeserialError::Other(Box::new(e))),
+						Err(e),
 				}
 			}
 			
@@ -629,7 +602,7 @@ impl str::FromStr for Op {
 						Ok(Op::BrLZ(reg, off)),
 					
 					(Err(e), _) | (_, Err(e)) =>
-						Err(DeserialError::Other(Box::new(e))),
+						Err(e),
 				}
 			}
 			
@@ -645,7 +618,7 @@ impl str::FromStr for Op {
 						Ok(Op::BrGEZ(reg, off)),
 					
 					(Err(e), _) | (_, Err(e)) =>
-						Err(DeserialError::Other(Box::new(e))),
+						Err(e),
 				}
 			}
 			*/

@@ -32,3 +32,11 @@ macro_rules! try_err(
 		}
 	}}
 );
+
+macro_rules! swap(
+	($left: expr, $right: expr) => {{
+		use std::mem::swap;
+		
+		swap(&mut $left, &mut $right);
+	}}
+);

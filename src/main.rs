@@ -21,7 +21,7 @@ fn main() {
 	let command = {
 		let c = try_err!(args.next().ok_or("missing command argument"));
 		
-		match &*c {
+		match &c[..] {
 			"run" => Command::Run,
 			"asm" => Command::Assemble,
 			"dasm" => Command::Disassemble,
