@@ -18,12 +18,15 @@ pub fn disassemble(in_path: &Path) {
 	// open input file and create output file, both buffered
 	let mut input = BufReader::new(try_err!(File::open(in_path)));
 	let mut output = BufWriter::new(try_err!(File::create(&out_path)));
-	let mut buf = [0_u8, 0];
 	
 	// replace instructions with mnemonics
 	for i in 0.. {
+		// shouldn't have to be initialized, but apparently Rust
+		// can't figure that one out
+		let ref mut buf = [0; 2];
+		
 		// try to read instruction
-		if let Err(e) = input.read_exact(&mut buf) {
+		if let Err(e) = input.read_exact(buf) {
 			// reached eof, break
 			if e.kind() == ErrorKind::UnexpectedEof { break }
 			
