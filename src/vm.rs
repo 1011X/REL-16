@@ -1,6 +1,4 @@
-use std::fs::File;
-use std::io::Read;
-use std::path::Path;
+use std::io::{Read, BufReader};
 
 use instr::Op;
 
@@ -8,15 +6,16 @@ use instr::Op;
 const MAX_MEM_LEN: usize = 65536;
 
 
-pub fn vm(file_path: &Path) {
-	let mut input = try_err!(File::open(file_path));
+pub fn run<I: Read>(src: I) {
+	let mut input = BufReader::new(src);
 	
 	let mut data_mem = [0_u16; MAX_MEM_LEN];
 	let mut prog_mem = Vec::with_capacity(MAX_MEM_LEN);
 	
 	// read file contents into program memory
-	let mut buffer = [0_u8; 2];
 	for i in 0.. {
+		let mut buffer = [0_u8; 2];
+		
 		match try_err!(input.read(&mut buffer)) {
 			0 => {
 				prog_mem.shrink_to_fit();
@@ -24,7 +23,7 @@ pub fn vm(file_path: &Path) {
 			}
 			
 			1 => {
-				println_err!("Got incomplete instruction.");
+				println_err!("Error: Got incomplete instruction.");
 				return;
 			}
 			
@@ -33,7 +32,7 @@ pub fn vm(file_path: &Path) {
 				prog_mem.push(instr);
 			}
 			else {
-				println_err!("Binary is too big for memory!");
+				println_err!("Error: Binary is too big for memory!");
 				return;
 			},
 			
