@@ -464,112 +464,65 @@ impl str::FromStr for Op {
 				.map(Op::Pop),
 			
 			"swp" => {
-				let regl = get_register(tokens.next());
-				let regr = get_register(tokens.next());
+				let regl = try!(get_register(tokens.next()));
+				let regr = try!(get_register(tokens.next()));
 				
-				match (regl, regr) {
-					(Ok(regl), Ok(regr)) =>
-						Ok(Op::Swap(regl, regr)),
-					
-					(Err(e), _) | (_, Err(e)) =>
-						Err(e),
-				}
+				Ok(Op::Swap(regl, regr))
 			}
 			
 			"xor" => {
-				let rn = get_register(tokens.next());
-				let rc = get_register(tokens.next());
+				let rn = try!(get_register(tokens.next()));
+				let rc = try!(get_register(tokens.next()));
 				
-				match (rc, rn) {
-					(Ok(rc), Ok(rn)) =>
-						Ok(Op::CNot(rc, rn)),
-					
-					(Err(e), _) | (_, Err(e)) =>
-						Err(e),
-				}
+				Ok(Op::CNot(rc, rn))
 			}
 			
 			"add" => {
-				let ra = get_register(tokens.next());
-				let rc = get_register(tokens.next());
+				let ra = try!(get_register(tokens.next()));
+				let rc = try!(get_register(tokens.next()));
 				
-				match (rc, ra) {
-					(Ok(rc), Ok(ra)) =>
-						Ok(Op::CAdd(rc, ra)),
-					
-					(Err(e), _) | (_, Err(e)) =>
-						Err(e),
-				}
+				Ok(Op::CAdd(rc, ra))
 			}
 			
 			"sub" => {
-				let rs = get_register(tokens.next());
-				let rc = get_register(tokens.next());
+				let rs = try!(get_register(tokens.next()));
+				let rc = try!(get_register(tokens.next()));
 				
-				match (rc, rs) {
-					(Ok(rc), Ok(rs)) =>
-						Ok(Op::CSub(rc, rs)),
-					
-					(Err(e), _) | (_, Err(e)) =>
-						Err(e),
-				}
+				Ok(Op::CSub(rc, rs))
 			}
 			
 			"imm" => {
-				let reg = get_register(tokens.next());
+				let reg = try!(get_register(tokens.next()));
 				
-				let value = tokens.next()
+				let value = try!(tokens.next()
 					.ok_or(DeserialError::MissingArg)
-					.and_then(parse_byte);
+					.and_then(parse_byte)
+				);
 				
-				match (reg, value) {
-					(Ok(reg), Ok(value)) =>
-						Ok(Op::Immediate(reg, value)),
-					
-					(Err(e), _) | (_, Err(e)) =>
-						Err(e),
-				}
+				Ok(Op::Immediate(reg, value))
 			}
 			
 			"xchg" => {
-				let reg = get_register(tokens.next());
-				let raddr = get_register(tokens.next());
+				let reg   = try!(get_register(tokens.next()));
+				let raddr = try!(get_register(tokens.next()));
 				
-				match (reg, raddr) {
-					(Ok(reg), Ok(raddr)) =>
-						Ok(Op::Exchange(reg, raddr)),
-					
-					(Err(e), _) | (_, Err(e)) =>
-						Err(e),
-				}
+				Ok(Op::Exchange(reg, raddr))
 			}
 			
 			"ccn" => {
-				let regc = get_register(tokens.next());
-				let rega = get_register(tokens.next());
-				let regb = get_register(tokens.next());
+				let rc0 = try!(get_register(tokens.next()));
+				let rc1 = try!(get_register(tokens.next()));
+				let rn  = try!(get_register(tokens.next()));
 				
-				match (rega, regb, regc) {
-					(Ok(a), Ok(b), Ok(c)) =>
-						Ok(Op::CCNot(a, b, c)),
-					
-					(Err(e), _, _) | (_, Err(e), _) | (_, _, Err(e)) =>
-						Err(e),
-				}
+				Ok(Op::CCNot(rc0, rc1, rn))
 			}
 			
 			"cswp" => {
-				let rega = get_register(tokens.next());
-				let regb = get_register(tokens.next());
-				let regc = get_register(tokens.next());
+				let rc = try!(get_register(tokens.next()));
+				let rs0 = try!(get_register(tokens.next()));
+				let rs1 = try!(get_register(tokens.next()));
 				
-				match (rega, regb, regc) {
-					(Ok(a), Ok(b), Ok(c)) =>
-						Ok(Op::CSwap(a, b, c)),
-					
-					(Err(e), _, _) | (_, Err(e), _) | (_, _, Err(e)) =>
-						Err(e),
-				}
+				Ok(Op::CSwap(rc, rs0, rs1))
 			}
 			
 			"jmp" => tokens.next()
