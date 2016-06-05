@@ -432,9 +432,9 @@ impl str::FromStr for Op {
 		
 		let mut tokens = s.split_whitespace();
 		
-		// Can't just include `tokens.next()` here because
-		// then there would be a mutable reference to `tokens`
-		// in both `get_register()` and in match block below.
+		// Can't include `tokens.next()` here because then
+		// there would be a mutable reference to `tokens` in
+		// both `get_register()` and in match block below.
 		let get_register = |token: Option<&str>| token
 			.ok_or(DeserialError::MissingArg)
 			.and_then(parse_reglit);
@@ -544,35 +544,25 @@ impl str::FromStr for Op {
 				.map(Op::ComeFrom),
 			/*
 			"bltz" => {
-				let reg = get_register(tokens.next());
+				let reg = try!(get_register(tokens.next()));
 				
-				let off = tokens.next()
+				let off = try!(tokens.next()
 					.ok_or(DeserialError::MissingArg)
-					.and_then(parse_byte);
+					.and_then(parse_byte)
+				);
 				
-				match (reg, off) {
-					(Ok(reg), Ok(off)) =>
-						Ok(Op::BrLZ(reg, off)),
-					
-					(Err(e), _) | (_, Err(e)) =>
-						Err(e),
-				}
+				Ok(Op::BrLZ(reg, off))
 			}
 			
 			"bodd" => {
-				let reg = get_register(tokens.next());
+				let reg = try!(get_register(tokens.next()));
 				
-				let off = tokens.next()
+				let off = try!(tokens.next()
 					.ok_or(DeserialError::MissingArg)
-					.and_then(parse_byte);
+					.and_then(parse_byte)
+				);
 				
-				match (reg, off) {
-					(Ok(reg), Ok(off)) =>
-						Ok(Op::BrGEZ(reg, off)),
-					
-					(Err(e), _) | (_, Err(e)) =>
-						Err(e),
-				}
+				Ok(Op::BrGEZ(reg, off)),
 			}
 			*/
 			
