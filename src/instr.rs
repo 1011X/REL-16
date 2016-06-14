@@ -114,29 +114,57 @@ impl Error for DecodeError {
 ///   `0000 0000 01xx xxxx`
 
 pub enum Op {
+	/// Stops the VM.
 	Halt,
+	/// Flips every bit in the given register.
 	Not(Reg),
+	/// Rotates value left by 1.
 	RotateLeft(Reg),
+	/// Rotates value right by 1.
 	RotateRight(Reg),
+	/// Adds 1 to the current value.
 	Increment(Reg),
+	/// Subtracts 1 from the current value.
 	Decrement(Reg),
+	/// Swaps value in given register with the value pointed to
+	/// by the stack pointer (`r6`). Register will be zero.
 	Push(Reg),
+	/// Swaps value pointed by stack pointer (`r6`) with value
+	/// in register. Register value should be zero before this
+	/// operation is performed.
 	Pop(Reg),
 	//Read(Reg),
 	//Write(Reg),
+	/// Swaps value in given registers.
 	Swap(Reg, Reg),
+	/// Xors first register with value in second register.
 	CNot(Reg, Reg),
+	/// Adds first register with value in second register.
 	CAdd(Reg, Reg),
+	/// Subtracts first register with value in second register.
 	CSub(Reg, Reg),
+	/// Swaps value pointed to by the second register with value
+	/// in the first register.
 	Exchange(Reg, Reg),
+	/// Xors an immediate value with the value in the current
+	/// register. Usually the register will be zero.
 	Immediate(Reg, u8),
+	/// Toffoli gate. Ands first and second registers and flips
+	/// bits in third register based on the result.
 	CCNot(Reg, Reg, Reg),
+	/// Fredkin gate. Swaps bits in second and third registers
+	/// based on bits in first register.
 	CSwap(Reg, Reg, Reg),
+	/// Increments `br` register by the given value.
 	GoTo(u16),
+	/// Decrements `br` register by the given value.
 	ComeFrom(u16),
 	//BranchOdd(Reg, u8),
 	//BranchSign(Reg, u8),
+	/// Swaps values in `br` and given register.
 	SwapBr(Reg),
+	/// Flips `dir` bit (putting machine in reverse mode) and
+	/// swaps values in `br` and given register.
 	RevSwapBr(Reg),
 }
 
