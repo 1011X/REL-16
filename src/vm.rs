@@ -121,24 +121,13 @@ pub fn run<I: Read>(src: I) {
 		
 		// execute
 		match instr {
-			Op::Immediate(r, v) => reg[r] ^= v as u16,
-			
-			Op::Exchange(r, ra) => {
-				let raddr = reg[ra];
-				swap!(reg[r], data_mem[raddr as usize]);
-			}
-			
 			Op::Halt => break,
+			Op::Reverse => dir = !dir,
 			
 			
-			Op::Not(a) => reg[a] = !reg[a],
-			
-			Op::RotateLeft(a)  => reg[a] = reg[a].rotate_left(1),
-			Op::RotateRight(a) => reg[a] = reg[a].rotate_right(1),
-			
+			Op::Not(a)       => reg[a] = !reg[a],
 			Op::Increment(a) => reg[a] = reg[a].wrapping_add(1),
 			Op::Decrement(a) => reg[a] = reg[a].wrapping_sub(1),
-			
 			Op::Push(r) => {
 				let sp = reg[6].wrapping_sub(1);
 				swap!(reg[r], data_mem[sp as usize]);
@@ -151,113 +140,116 @@ pub fn run<I: Read>(src: I) {
 				reg[6] = sp.wrapping_add(1);
 			}
 			
-			Op::SwapBr(r) => swap!(pc, reg[r]),
-			
-			Op::RevSwapBr(r) => {
+			Op::SwapPc(r)    => swap!(pc, reg[r]),
+			Op::RevSwapPc(r) => {
 				swap!(pc, reg[r]);
 				dir = !dir;
 			}
 			
-			
-			Op::Swap(a, b) => reg.swap(a, b),
-			
-			Op::CNot(a, b) => {
-				let mut rc = 0;
-				let mut rn = 0;
-				
-				swap!(rc, reg[a]);
-				swap!(rn, reg[b]);
-				
-				rn ^= rc;
-				
-				swap!(rc, reg[a]);
-				swap!(rn, reg[b]);
-			}
-			
-			Op::CAdd(a, b) => {
-				use std::num::Wrapping;
-				
-				let mut rc = Wrapping(0);
-				let mut ra = Wrapping(0);
-				
-				swap!(rc.0, reg[a]);
-				swap!(ra.0, reg[b]);
-				
-				ra += rc;
-				
-				swap!(rc.0, reg[a]);
-				swap!(ra.0, reg[b]);
-			}
-			
-			Op::CSub(a, b) => {
-				use std::num::Wrapping;
-				
-				let mut rc = Wrapping(0);
-				let mut rs = Wrapping(0);
-				
-				swap!(rc.0, reg[a]);
-				swap!(rs.0, reg[b]);
-				
-				rs -= rc;
-				
-				swap!(rc.0, reg[a]);
-				swap!(rs.0, reg[b]);
+			Op::Exchange(r, ra) => {
+				let raddr = reg[ra];
+				swap!(reg[r], data_mem[raddr as usize]);
 			}
 			
 			
-			Op::CCNot(a, b, c) => {
-				let mut rc0 = 0;
-				let mut rc1 = 0;
-				let mut rn  = 0;
+			Op::RotLeftImm(r, v)  => reg[r] = reg[r].rotate_left(v as u32),
+			Op::RotRightImm(r, v) => reg[r] = reg[r].rotate_right(v as u32),
+			
+			
+			Op::Swap(a, b) => reg.swap(a, b),			
+			Op::CNot(rc, rn) => {
+				let c = reg[rc];
 				
-				swap!(rc0, reg[a]);
-				swap!(rc1, reg[b]);
-				swap!(rn,  reg[c]);
-				
-				rn ^= rc0 & rc1;
-				
-				swap!(rc0, reg[a]);
-				swap!(rc1, reg[b]);
-				swap!(rn,  reg[c]);
+				reg[rn] ^= c;
 			}
 			
-			Op::CSwap(a, b, c) => {
-				let mut rc = 0;
-				let mut rl = 0;
-				let mut rr = 0;
+			Op::CAdd(rc, ra) => {
+				let c = reg[rc];
+				let a = reg[ra];
 				
-				swap!(rc, reg[a]);
-				swap!(rl, reg[b]);
-				swap!(rr, reg[c]);
-				
-				let s = (rl ^ rr) & rc;
-				rl ^= s;
-				rr ^= s;
-				
-				swap!(rc, reg[a]);
-				swap!(rl, reg[b]);
-				swap!(rr, reg[c]);
+				reg[ra] = a.wrapping_add(c);
 			}
 			
-			Op::GoTo(off)     => br = br.wrapping_add(off),
-			Op::ComeFrom(off) => br = br.wrapping_sub(off),
-			/*
+			Op::CSub(rc, rs) => {
+				let c = reg[rc];
+				let s = reg[rs];
+				
+				reg[rs] = s.wrapping_sub(c);
+			}
+			
+			Op::RotLeft(rr, ro) => {
+				let bits = reg[ro];
+				
+				reg[rr] = reg[rr].rotate_left(bits as u32);
+			}
+			
+			Op::RotRight(rr, ro) => {
+				let bits = reg[ro];
+				
+				reg[rr] = reg[rr].rotate_right(bits as u32);
+			}
+			
+			
+			Op::CCNot(rc0, rc1, rn) => {
+				let     c0 = reg[rc0];
+				let     c1 = reg[rc1];
+				
+				reg[rn] ^= c0 & c1;
+			}
+			
+			Op::CSwap(rc, rs0, rs1) => {
+				let     c  = reg[rc];
+				let mut s0 = reg[rs0];
+				let mut s1 = reg[rs1];
+				
+				let t = (s0 ^ s1) & c;
+				s0 ^= t;
+				s1 ^= t;
+				
+				reg[rs0] = s0;
+				reg[rs1] = s1;
+			}
+			
+			
+			
 			Op::BranchOdd(r, off) => if reg[r] % 2 == 1 {
 				br = br.wrapping_add(off as u16);
 			},
 			
-			Op::BranchSign(r, off) => if (reg[r] as i16) < 0 {
+			Op::AssertEven(r, off) => if reg[r] % 2 == 0 {
+				br = br.wrapping_sub(off as u16);
+			},
+			
+			Op::BranchEven(r, off) => if reg[r] % 2 == 0 {
 				br = br.wrapping_add(off as u16);
 			},
 			
-			Op::Read(c) => {
-				let mut buf = [0_u8, 0];
-				std::io::stdin().read(&mut buf).expect("Couldn't read from stdin.");
-				reg[0] = ((buf[0] as u16) << 8) | buf[1] as u16;
-			}
+			Op::AssertOdd(r, off) => if reg[r] % 2 == 1 {
+				br = br.wrapping_sub(off as u16);
+			},
 			
-			Op::Write(c) => print!("{}", (reg[0] as u8) as char),
-			*/
+			Op::BranchNeg(r, off) => if (reg[r] as i16) < 0 {
+				br = br.wrapping_add(off as u16);
+			},
+			
+			Op::AssertNonneg(r, off) => if (reg[r] as i16) >= 0 {
+				br = br.wrapping_sub(off as u16);
+			},
+			
+			Op::BranchNonneg(r, off) => if (reg[r] as i16) >= 0 {
+				br = br.wrapping_add(off as u16);
+			},
+			
+			Op::AssertNeg(r, off) => if (reg[r] as i16) < 0 {
+				br = br.wrapping_sub(off as u16);
+			},
+			
+			Op::Immediate(r, v) => reg[r] ^= v as u16,
+			
+			
+			
+			Op::GoTo(off)     => br = br.wrapping_add(off),
+			Op::ComeFrom(off) => br = br.wrapping_sub(off),
 		}
 		
 		

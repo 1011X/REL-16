@@ -19,11 +19,11 @@ pub enum Action {
 pub fn assembler<I: Read>(dir: Action, out_path: &Path, src: I) {
 	// create path to temporary file
 	let mut tmp_path = PathBuf::from(out_path);
-	tmp_path.push(".tmp");
+	tmp_path.set_extension("tmp");
 	
 	// open input source and create output file, both buffered
 	let mut input = BufReader::new(src);
-	let mut output = BufWriter::new(try_err!(File::create(&tmp_path)));
+	let mut output = BufWriter::new(File::create(&tmp_path).expect("Could not create file."));
 	
 	// choose assemble or disassemble based on dir
 	let result = match dir {
@@ -31,19 +31,20 @@ pub fn assembler<I: Read>(dir: Action, out_path: &Path, src: I) {
 		Action::Disassemble => disassemble(&mut output, &mut input),
 	};
 	
-	// everything went well
 	if result.is_ok() {
 		// try to drop the .tmp from the file.
-		if fs::rename(out_path, tmp_path).is_err() {
+		if let Err(e) = fs::rename(tmp_path, out_path) {
 			println_err!("Could not remove .tmp extension from file.");
-			println_err!("You'll have to remove it manually.");
+			println_err!("You'll have to replace it with .bin manually.");
+			println_err!("{}", e);
 		}
 	}
 	else {
 		// delete intermediate file if possible
-		if fs::remove_file(tmp_path).is_err() {
+		if let Err(e) = fs::remove_file(tmp_path) {
 			println_err!("Could not delete incomplete file.");
 			println_err!("Please delete it if you can.");
+			println_err!("{}", e);
 		}
 	}
 }
