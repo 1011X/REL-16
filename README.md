@@ -26,7 +26,7 @@ You can add the `--release` flag at the end to optimize it.
 
 You can compile an assembly file from the terminal using
 
-	rel16 build FILE
+	rel16 asm FILE -o OUTPUT_FILE
 
 To run a compiled file, just type
 
@@ -34,7 +34,11 @@ To run a compiled file, just type
 
 in the terminal, where FILE is the path to the input file. The program will generate the output file on the current directory with the same name as the input file.
 
-When using the `run` command, the VM will show the raw instruction being executed, contents of the registers at each step of the program, and the value of the program counter (pc) register.
+When using the `run` command, the VM will show the raw and pretty-printed instruction being executed, and the contents of the registers and stack at each step of the program.
+
+You can also disassemble built files using
+
+	rel16 dasm FILE -o OUTPUT_FILE
 
 ## License
 
