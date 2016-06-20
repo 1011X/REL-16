@@ -47,7 +47,7 @@ pub struct InvalidInstr;
 
 impl fmt::Display for InvalidInstr {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "Invalid instruction found while parsing.");
+		write!(f, "Invalid instruction found while parsing.")
 	}
 }
 
@@ -82,6 +82,7 @@ impl Error for InvalidInstr {
 /// * `_____________1xx`
 /// * `______________1x`
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum Op {
 	/// Stops the machine.
 	Halt,
@@ -428,7 +429,7 @@ impl Op {
 			// _____1orrrRRRrrr
 			// Toffoli, Fredkin
 			5 => {
-				let o  = ((instr >> 3 + 3 + 3) & 0b_1) == 0;
+				let o  = ((instr >> 3 + 3 + 3) & 0b_1) == 1;
 				let ra =  (instr >> 3 + 3)     & 0b_111;
 				let rb =  (instr >> 3)         & 0b_111;
 				let rc =   instr               & 0b_111;
@@ -499,7 +500,7 @@ impl Op {
 			15 => Ok(Op::Reverse),
 			16 => Ok(Op::Halt),
 			
-			_ => Err(InvalidInstr),
+			_ => unreachable!()
 		}
 	}
 }
@@ -642,5 +643,56 @@ impl str::FromStr for Op {
 			// `return` because this `match` block is surrounded by an `Ok()`
 			_ => return Err(DeserialError::UnknownMneu),
 		})
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::Op;
+	
+	#[test]
+	fn instruction_encoding() {
+		let ops = vec![
+			Op::Halt,
+			Op::Reverse,
+			Op::Not(0b_111),
+			Op::Increment(0b_111),
+			Op::Decrement(0b_111),
+			Op::Push(0b_111),
+			Op::Pop(0b_111),
+			Op::SwapPc(0b_111),
+			Op::RevSwapPc(0b_111),
+			Op::RotLeftImm(0b_111, 0b_1111),
+			Op::RotRightImm(0b_111, 0b_1111),
+			Op::Swap(0b_111, 0b_111),
+			Op::CNot(0b_111, 0b_111),
+			Op::CAdd(0b_111, 0b_111),
+			Op::CSub(0b_111, 0b_111),
+			Op::Exchange(0b_111, 0b_111),
+			Op::RotLeft(0b_111, 0b_111),
+			Op::RotRight(0b_111, 0b_111),
+			Op::CCNot(0b_111, 0b_111, 0b_111),
+			Op::CSwap(0b_111, 0b_111, 0b_111),
+			Op::Immediate(0b_111, 0b_1111_1111),
+			Op::BranchOdd(0b_111, 0b_1111_1111),
+			Op::BranchEven(0b_111, 0b_1111_1111),
+			Op::BranchNeg(0b_111, 0b_1111_1111),
+			Op::BranchNonneg(0b_111, 0b_1111_1111),
+			Op::AssertOdd(0b_111, 0b_1111_1111),
+			Op::AssertEven(0b_111, 0b_1111_1111),
+			Op::AssertNeg(0b_111, 0b_1111_1111),
+			Op::AssertNonneg(0b_111, 0b_1111_1111),
+			Op::GoTo(0b_11_1111_1111_1111),
+			Op::ComeFrom(0b_11_1111_1111_1111),
+			// I'm starting to feel like there's a better way of going
+			// about this...
+		];
+		
+		for op in ops {
+			// `Op::decode` shouldn't error when decoding a valid instruction,
+			// so just unwrap it.
+			let test = Op::decode(op.encode()).unwrap();
+			assert_eq!(op, test);
+		}
 	}
 }
