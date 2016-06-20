@@ -7,8 +7,8 @@ pub type Reg = usize; // always in range [0-7]
 
 #[derive(Debug)]
 pub enum DeserialError {
-	NoMneu,
-	NoArg,
+	NoMneumonic,
+	NoArgument,
 	UnknownMneu,
 	ValueTooLarge,
 	NoRegister,
@@ -24,10 +24,10 @@ impl fmt::Display for DeserialError {
 impl Error for DeserialError {
 	fn description(&self) -> &str {
 		match *self {
-			DeserialError::NoMneu         => "missing mneumonic",
-			DeserialError::NoArg          => "missing argument",
-			DeserialError::UnknownMneu    => "unknown opcode mneumonic",
-			DeserialError::ValueTooLarge  => "value for argument is too big",
+			DeserialError::NoMneumonic    => "missing mneumonic",
+			DeserialError::NoArgument     => "missing argument",
+			DeserialError::UnknownMneu    => "unknown mneumonic",
+			DeserialError::ValueTooLarge  => "argument value is too big",
 			DeserialError::NoRegister     => "expected register literal",
 			DeserialError::Parsing(ref e) => e.description(),
 		}
@@ -42,18 +42,16 @@ impl Error for DeserialError {
 }
 
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum DecodeError {
-	Invalid,
-}
+#[derive(Debug)]
+pub struct InvalidInstr;
 
-impl fmt::Display for DecodeError {
+impl fmt::Display for InvalidInstr {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "{}", self.description()) // ???
+		write!(f, "Invalid instruction found while parsing.");
 	}
 }
 
-impl Error for DecodeError {
+impl Error for InvalidInstr {
 	fn description(&self) -> &str { "invalid instruction" }
 }
 
@@ -262,37 +260,37 @@ impl Op {
 	// Involutory instructions (which are their own inverse) return self.
 	pub fn invert(self) -> Op {
 		match self {
-			Op::Halt                 => self,
-			Op::Reverse              => self,
-			Op::Not(..)              => self,
-			Op::Increment(r)         => Op::Decrement(r),
-			Op::Decrement(r)         => Op::Increment(r),
-			Op::Push(r)              => Op::Pop(r),
-			Op::Pop(r)               => Op::Push(r),
-			Op::SwapPc(r)            => Op::RevSwapPc(r),
-			Op::RevSwapPc(r)         => Op::SwapPc(r),
-			Op::RotLeftImm(r, v)     => Op::RotRightImm(r, v),
-			Op::RotRightImm(r, v)    => Op::RotLeftImm(r, v),
-			Op::Swap(..)             => self,
-			Op::CNot(..)             => self,
-			Op::CAdd(rc, ra)         => Op::CSub(rc, ra),
-			Op::CSub(rc, rs)         => Op::CAdd(rc, rs),
-			Op::Exchange(..)         => self,
-			Op::RotLeft(rr, rv)      => Op::RotRight(rr, rv),
-			Op::RotRight(rr, rv)     => Op::RotLeft(rr, rv),
-			Op::CCNot(..)            => self,
-			Op::CSwap(..)            => self,
-			Op::Immediate(..)        => self,
-			Op::BranchOdd(r, o)      => Op::AssertOdd(r, o),
-			Op::BranchEven(r, o)     => Op::AssertEven(r, o),
-			Op::BranchNeg(r, o)      => Op::AssertNeg(r, o),
-			Op::BranchNonneg(r, o)   => Op::AssertNonneg(r, o),
-			Op::AssertOdd(r, o)      => Op::BranchOdd(r, o),
-			Op::AssertEven(r, o)     => Op::BranchEven(r, o),
-			Op::AssertNeg(r, o)      => Op::BranchNeg(r, o),
-			Op::AssertNonneg(r, o)   => Op::BranchNonneg(r, o),
-			Op::GoTo(off)            => Op::ComeFrom(off),
-			Op::ComeFrom(off)        => Op::GoTo(off),
+			Op::Halt               => self,
+			Op::Reverse            => self,
+			Op::Not(..)            => self,
+			Op::Increment(r)       => Op::Decrement(r),
+			Op::Decrement(r)       => Op::Increment(r),
+			Op::Push(r)            => Op::Pop(r),
+			Op::Pop(r)             => Op::Push(r),
+			Op::SwapPc(r)          => Op::RevSwapPc(r),
+			Op::RevSwapPc(r)       => Op::SwapPc(r),
+			Op::RotLeftImm(r, v)   => Op::RotRightImm(r, v),
+			Op::RotRightImm(r, v)  => Op::RotLeftImm(r, v),
+			Op::Swap(..)           => self,
+			Op::CNot(..)           => self,
+			Op::CAdd(rc, ra)       => Op::CSub(rc, ra),
+			Op::CSub(rc, rs)       => Op::CAdd(rc, rs),
+			Op::Exchange(..)       => self,
+			Op::RotLeft(rr, rv)    => Op::RotRight(rr, rv),
+			Op::RotRight(rr, rv)   => Op::RotLeft(rr, rv),
+			Op::CCNot(..)          => self,
+			Op::CSwap(..)          => self,
+			Op::Immediate(..)      => self,
+			Op::BranchOdd(r, o)    => Op::AssertOdd(r, o),
+			Op::BranchEven(r, o)   => Op::AssertEven(r, o),
+			Op::BranchNeg(r, o)    => Op::AssertNeg(r, o),
+			Op::BranchNonneg(r, o) => Op::AssertNonneg(r, o),
+			Op::AssertOdd(r, o)    => Op::BranchOdd(r, o),
+			Op::AssertEven(r, o)   => Op::BranchEven(r, o),
+			Op::AssertNeg(r, o)    => Op::BranchNeg(r, o),
+			Op::AssertNonneg(r, o) => Op::BranchNonneg(r, o),
+			Op::GoTo(off)          => Op::ComeFrom(off),
+			Op::ComeFrom(off)      => Op::GoTo(off),
 		}
 	}
 	
@@ -422,7 +420,7 @@ impl Op {
 		}
 	}
 	
-	pub fn decode(instr: u16) -> Result<Op, DecodeError> {
+	pub fn decode(instr: u16) -> Result<Op, InvalidInstr> {
 	
 		match instr.leading_zeros() {
 			// 1ovvvvvvvvvvvvvv
@@ -446,22 +444,17 @@ impl Op {
 				let r = (instr >>     8) & 0b_111;
 				let v =  instr           & 0b_1111_1111;
 				
-				match o {
-					0b_000 => Ok(Op::BranchOdd(r as Reg, v as u8)),
-					0b_001 => Ok(Op::AssertEven(r as Reg, v as u8)),
-					0b_010 => Ok(Op::BranchEven(r as Reg, v as u8)),
-					0b_011 => Ok(Op::AssertOdd(r as Reg, v as u8)),
-					0b_100 => Ok(Op::BranchNeg(r as Reg, v as u8)),
-					0b_101 => Ok(Op::AssertNonneg(r as Reg, v as u8)),
-					0b_110 => Ok(Op::BranchNonneg(r as Reg, v as u8)),
-					0b_111 => Ok(Op::AssertNeg(r as Reg, v as u8)),
-					
-					// At this point, it's an invalid op value. We don't store
-					// the value because it doesn't really matter what it is.
-					// Since anything above 0b_111 is unreachable anyways, we
-					// just return the error.
-					_ => Err(DecodeError::Invalid),
-				}
+				Ok(match o {
+					0b_000 => Op::BranchOdd(r as Reg, v as u8),
+					0b_001 => Op::AssertEven(r as Reg, v as u8),
+					0b_010 => Op::BranchEven(r as Reg, v as u8),
+					0b_011 => Op::AssertOdd(r as Reg, v as u8),
+					0b_100 => Op::BranchNeg(r as Reg, v as u8),
+					0b_101 => Op::AssertNonneg(r as Reg, v as u8),
+					0b_110 => Op::BranchNonneg(r as Reg, v as u8),
+					0b_111 => Op::AssertNeg(r as Reg, v as u8),
+					_ => unreachable!()
+				})
 			}
 			
 			// ____1rrrvvvvvvvv
@@ -504,7 +497,11 @@ impl Op {
 					0b_101 => Ok(Op::RotLeft(ra as Reg, rb as Reg)),
 					0b_110 => Ok(Op::RotRight(ra as Reg, rb as Reg)),
 				
-					_ => Err(DecodeError::Invalid),
+					// At this point, it's an invalid op value. We don't store
+					// the value because it doesn't really matter what it is.
+					// Since anything above 0b_111 is unreachable anyways, we
+					// just return the error.
+					_ => Err(InvalidInstr),
 				}
 			}
 			
@@ -515,12 +512,8 @@ impl Op {
 				let r =  (instr >> 3    ) & 0b_111;
 				let v =   instr           & 0b_1111;
 				
-				if o {
-					Ok(Op::RotRightImm(r as Reg, v as u8))
-				}
-				else {
-					Ok(Op::RotLeftImm(r as Reg, v as u8))
-				}
+				Ok(if o { Op::RotRightImm(r as Reg, v as u8) }
+				else { Op::RotLeftImm(r as Reg, v as u8) })
 			}
 			
 			// _________1ooorrr
@@ -538,7 +531,7 @@ impl Op {
 					0b_101 => Ok(Op::SwapPc(r as Reg)),
 					0b_110 => Ok(Op::RevSwapPc(r as Reg)),
 					
-					_ => Err(DecodeError::Invalid),
+					_ => Err(InvalidInstr),
 				}
 			}
 			
@@ -546,7 +539,7 @@ impl Op {
 			15 => Ok(Op::Reverse),
 			16 => Ok(Op::Halt),
 			
-			_ => Err(DecodeError::Invalid),
+			_ => Err(InvalidInstr),
 		}
 	}
 }
@@ -600,224 +593,94 @@ impl str::FromStr for Op {
 	type Err = DeserialError;
 	
 	fn from_str(s: &str) -> Result<Self, Self::Err> {
-		
-		// Must be `fn` because it's used by `parse_reglit`, which
-		// is also a(n) `fn`.
-		fn parse_byte(s: &str) -> Result<u8, DeserialError> {
-			s.parse().map_err(DeserialError::Parsing)
-		}
-		
-		// Can't be a closure because `get_register` uses it.
-		fn parse_reglit(s: &str) -> Result<usize, DeserialError> {
-			if s.starts_with('r') {
-				match parse_byte(&s[1..]) {
-					Ok(byte) if byte < 8 =>
-						Ok(byte as usize),
-			
-					Ok(_)  => Err(DeserialError::ValueTooLarge),
-					Err(e) => Err(e),
-				}
-			}
-			else {
-				Err(DeserialError::NoRegister)
-			}
-		}
-		
 		let mut tokens = s.split_whitespace();
 		
-		// Can't include `tokens.next()` here because then
-		// there would be a mutable reference to `tokens` in
-		// both `get_register()` and in match block below.
-		let get_register = |token: Option<&str>| token
-			.ok_or(DeserialError::NoArg)
-			.and_then(parse_reglit);
+		// Parses string $string as type $from with a max value of
+		// $max (inclusive), then converts it to type $to.
+		macro_rules! parse_value(
+			($string:expr, $from:ty => $to:ty, $max:expr) => {
+				match $string.parse::<$from>() {
+					Ok(value) if value <= $max => Ok(value as $to),
 		
-		macro_rules! reg(() => { get_register(tokens.next()) });
-		macro_rules! try_reg(() => { try!(reg!()) });
-		
-		match try!(tokens.next().ok_or(DeserialError::NoMneu)) {
-			"hlt" => Ok(Op::Halt),
-			"rev" => Ok(Op::Reverse),
-			
-			
-			"not"  => reg!().map(Op::Not),
-			"inc"  => reg!().map(Op::Increment),
-			"dec"  => reg!().map(Op::Decrement),
-			"push" => reg!().map(Op::Push),
-			"pop"  => reg!().map(Op::Pop),
-			"sp"  => reg!().map(Op::SwapPc),
-			"rsp" => reg!().map(Op::RevSwapPc),
-			
-			
-			"roli" => {
-				let r = try_reg!();
-				let i = try!(tokens.next()
-					.ok_or(DeserialError::NoArg)
-					.and_then(|s| match s.parse::<u8>() {
-						Ok(v) if v <= 0b_1111 => Ok(v),
-						Ok(_)  => Err(DeserialError::ValueTooLarge),
-						Err(e) => Err(DeserialError::Parsing(e)),
-					})
-				);
-				
-				Ok(Op::RotLeftImm(r, i))
-			}
-			
-			"rori" => {
-				let r = try_reg!();
-				let i = try!(tokens.next()
-					.ok_or(DeserialError::NoArg)
-					.and_then(|s| match s.parse::<u8>() {
-						Ok(v) if v <= 0b_1111 => Ok(v),
-						Ok(_)  => Err(DeserialError::ValueTooLarge),
-						Err(e) => Err(DeserialError::Parsing(e)),
-					})
-				);
-				
-				Ok(Op::RotRightImm(r, i))
-			}
-			
-			
-			
-			"swp" => Ok(Op::Swap(try_reg!(), try_reg!())),
-			
-			"xor" => {
-				let rn = try_reg!();
-				let rc = try_reg!();
-				
-				Ok(Op::CNot(rc, rn))
-			}
-			
-			"add" => {
-				let ra = try_reg!();
-				let rc = try_reg!();
-				
-				Ok(Op::CAdd(rc, ra))
-			}
-			
-			"sub" => {
-				let rs = try_reg!();
-				let rc = try_reg!();
-				
-				Ok(Op::CSub(rc, rs))
-			}
-			
-			"imm" => {
-				let reg = try_reg!();
-				let value = try!(tokens.next()
-					.ok_or(DeserialError::NoArg)
-					.and_then(parse_byte)
-				);
-				
-				Ok(Op::Immediate(reg, value))
-			}
-			
-			"xchg" => Ok(Op::Exchange(try_reg!(), try_reg!())),
-			"rol"  => Ok(Op::RotLeft (try_reg!(), try_reg!())),
-			"ror"  => Ok(Op::RotRight(try_reg!(), try_reg!())),
-			
-			"ccn"  => Ok(Op::CCNot(try_reg!(), try_reg!(), try_reg!())),
-			"cswp" => Ok(Op::CSwap(try_reg!(), try_reg!(), try_reg!())),
-			
-			"jpo" => {
-				let r = try_reg!();
-				let off = try!(tokens.next()
-					.ok_or(DeserialError::NoArg)
-					.and_then(parse_byte)
-				);
-				
-				Ok(Op::BranchOdd(r, off))
-			}
-			
-			"ape" => {
-				let r = try_reg!();
-				let off = try!(tokens.next()
-					.ok_or(DeserialError::NoArg)
-					.and_then(parse_byte)
-				);
-				
-				Ok(Op::AssertEven(r, off))
-			}
-			
-			"jpe" => {
-				let r = try_reg!();
-				let off = try!(tokens.next()
-					.ok_or(DeserialError::NoArg)
-					.and_then(parse_byte)
-				);
-				
-				Ok(Op::BranchEven(r, off))
-			}
-			
-			"apo" => {
-				let r = try_reg!();
-				let off = try!(tokens.next()
-					.ok_or(DeserialError::NoArg)
-					.and_then(parse_byte)
-				);
-				
-				Ok(Op::AssertOdd(r, off))
-			}
-			
-			"js" => {
-				let r = try_reg!();
-				let off = try!(tokens.next()
-					.ok_or(DeserialError::NoArg)
-					.and_then(parse_byte)
-				);
-				
-				Ok(Op::BranchNeg(r, off))
-			}
-			
-			"ans" => {
-				let r = try_reg!();
-				let off = try!(tokens.next()
-					.ok_or(DeserialError::NoArg)
-					.and_then(parse_byte)
-				);
-				
-				Ok(Op::AssertNonneg(r, off))
-			}
-			
-			"jns" => {
-				let r = try_reg!();
-				let off = try!(tokens.next()
-					.ok_or(DeserialError::NoArg)
-					.and_then(parse_byte)
-				);
-				
-				Ok(Op::BranchNonneg(r, off))
-			}
-			
-			"as" => {
-				let r = try_reg!();
-				let off = try!(tokens.next()
-					.ok_or(DeserialError::NoArg)
-					.and_then(parse_byte)
-				);
-				
-				Ok(Op::AssertNeg(r, off))
-			}
-			
-			"jmp" => tokens.next()
-				.ok_or(DeserialError::NoArg)
-				.and_then(|s| match s.parse::<u16>() {
-					Ok(v) if v <= 0b_11_1111_1111_1111 => Ok(v),
 					Ok(_)  => Err(DeserialError::ValueTooLarge),
 					Err(e) => Err(DeserialError::Parsing(e)),
+				}
+			}
+		);
+		
+		// Parses a register literal. Returns early if an error is found.
+		macro_rules! reg(() => {
+			try!(tokens.next()
+				.ok_or(DeserialError::NoArgument)
+				.and_then(|s| {
+					if s.starts_with('r') {
+						parse_value!(s[1..], u8 => usize, 0b_111)
+					}
+					else {
+						Err(DeserialError::NoRegister)
+					}
 				})
-				.map(Op::GoTo),
+			)
+		});
+		
+		// Parses a token of max value $max. Returns early if an error is found.
+		macro_rules! value(
+			// Parse as type $from, convert to type $to.
+			($from:ty => $to:ty, $max:expr) => {
+				try!(tokens.next()
+					.ok_or(DeserialError::NoArgument)
+					.and_then(|token| parse_value!(token, $from => $to, $max))
+				)
+			};
 			
-			"pmj" => tokens.next()
-				.ok_or(DeserialError::NoArg)
-				.and_then(|s| match s.parse::<u16>() {
-					Ok(v) if v <= 0b_11_1111_1111_1111 => Ok(v),
-					Ok(_)  => Err(DeserialError::ValueTooLarge),
-					Err(e) => Err(DeserialError::Parsing(e)),
-				})
-				.map(Op::ComeFrom),
+			// Parse and keep as type $t.
+			($t:ty, $max:expr) => (value!($t => $t, $max));
+		);
+		
+		use std::u8;
+		
+		Ok(match try!(tokens.next().ok_or(DeserialError::NoMneumonic)) {
+			"hlt" => Op::Halt,
+			"rev" => Op::Reverse,
 			
-			_ => Err(DeserialError::UnknownMneu),
-		}
+			"not"  => Op::Not(reg!()),
+			"inc"  => Op::Increment(reg!()),
+			"dec"  => Op::Decrement(reg!()),
+			"push" => Op::Push(reg!()),
+			"pop"  => Op::Pop(reg!()),
+			"sp"   => Op::SwapPc(reg!()),
+			"rsp"  => Op::RevSwapPc(reg!()),
+			
+			"roli" => Op::RotLeftImm(reg!(), value!(u8, 0b_1111)),
+			"rori" => Op::RotRightImm(reg!(), value!(u8, 0b_1111)),
+			
+			"swp"  => Op::Swap(reg!(), reg!()),
+			"xor"  => Op::CNot(reg!(), reg!()),
+			"add"  => Op::CAdd(reg!(), reg!()),
+			"sub"  => Op::CSub(reg!(), reg!()),
+			"xchg" => Op::Exchange(reg!(), reg!()),
+			"rol"  => Op::RotLeft(reg!(), reg!()),
+			"ror"  => Op::RotRight(reg!(), reg!()),
+			
+			"ccn"  => Op::CCNot(reg!(), reg!(), reg!()),
+			"cswp" => Op::CSwap(reg!(), reg!(), reg!()),
+			
+			"imm" => Op::Immediate(reg!(), value!(u8, u8::MAX)),
+			
+			"jpo" => Op::BranchOdd(reg!(), value!(u8, u8::MAX)),
+			"ape" => Op::AssertEven(reg!(), value!(u8, u8::MAX)),
+			"jpe" => Op::BranchEven(reg!(), value!(u8, u8::MAX)),
+			"apo" => Op::AssertOdd(reg!(), value!(u8, u8::MAX)),
+			"js"  => Op::BranchNeg(reg!(), value!(u8, u8::MAX)),
+			"ans" => Op::AssertNonneg(reg!(), value!(u8, u8::MAX)),
+			"jns" => Op::BranchNonneg(reg!(), value!(u8, u8::MAX)),
+			"as" => Op::AssertNeg(reg!(), value!(u8, u8::MAX)),
+			
+			"jmp" => Op::GoTo(value!(u16, 0b_11_1111_1111_1111)),
+			"pmj" => Op::ComeFrom(value!(u16, 0b_11_1111_1111_1111)),
+			
+			// `return` because this `match` block is surrounded by an `Ok()`
+			_ => return Err(DeserialError::UnknownMneu),
+		})
 	}
 }

@@ -157,20 +157,20 @@ pub fn run<I: Read>(src: I) {
 			
 			
 			Op::Swap(a, b) => reg.swap(a, b),			
-			Op::CNot(rc, rn) => {
+			Op::CNot(rn, rc) => {
 				let c = reg[rc];
 				
 				reg[rn] ^= c;
 			}
 			
-			Op::CAdd(rc, ra) => {
+			Op::CAdd(ra, rc) => {
 				let c = reg[rc];
 				let a = reg[ra];
 				
 				reg[ra] = a.wrapping_add(c);
 			}
 			
-			Op::CSub(rc, rs) => {
+			Op::CSub(rs, rc) => {
 				let c = reg[rc];
 				let s = reg[rs];
 				
