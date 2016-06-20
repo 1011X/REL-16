@@ -63,64 +63,24 @@ impl Error for InvalidInstr {
 /// * `v`: address field
 /// 
 /// Types of instructions (**subject to change**):
-/// 
-/// `_______________o`:
-/// 	* Halt
-/// 	* Reverse
-/// 
-/// `_________1ooorrr`:
-/// 	* Not
-/// 	* Increment
-/// 	* Decrement
-/// 	* Push
-/// 	* Pop
-/// 	* SwapPc
-/// 	* RevSwapPc
-/// 
-/// `_______1orrrvvvv`:
-/// 	* RotLeftImm
-/// 	* RotRightImm
-/// 
-/// `______1oooRRRrrr`:
-/// 	* Swap
-/// 	* CNot
-/// 	* CAdd
-/// 	* CSub
-/// 	* Exchange
-/// 	* RotLeft
-/// 	* RotRight
-/// 
-/// `_____1orrrRRRrrr`:
-/// 	* CCNot
-/// 	* CSwap
-/// 
-/// `____1rrrvvvvvvvv`:
-/// 	* Immediate
-/// 
-/// `_1ooorrrvvvvvvvv`:
-/// 	* BranchOdd
-/// 	* AssertEven
-/// 	* BranchEven
-/// 	* AssertOdd
-/// 	* BranchNeg
-/// 	* AssertNonneg
-/// 	* BranchNonneg
-/// 	* AssertNeg
-/// 
-/// `1ovvvvvvvvvvvvvv`:
-/// 	* Goto
-/// 	* ComeFrom
+/// * Signal: `_______________o`
+/// * Single register: `_________1ooorrr`
+/// * Single register, 4-bit immediate: `_______1orrrvvvv`
+/// * Double register: `______1oooRRRrrr`
+/// * Triple register: `_____1orrrRRRrrr`
+/// * Immediate: `____1rrrvvvvvvvv`
+/// * Branches and assertions: `_1ooorrrvvvvvvvv`
+/// * Jumps: `1ovvvvvvvvvvvvvv`
 /// 
 /// Invalid values:
 /// * `__1xxxxxxxxxxxxx`
 /// * `___1xxxxxxxxxxxx`
-/// * `______1xxxxxxxxx`
-/// * `_______1xxxxxxxx`
-/// * `_________1xxxxxx`
+/// * `________1xxxxxxx`
 /// * `__________1xxxxx`
 /// * `___________1xxxx`
 /// * `____________1xxx`
 /// * `_____________1xx`
+/// * `______________1x`
 
 pub enum Op {
 	/// Stops the machine.
@@ -128,8 +88,8 @@ pub enum Op {
 	
 	/// Flips direction bit.
 	/// 
-	/// This will usually result in the VM reversing all forward work until it
-	/// hits a halt instruction or another reverse instruction.
+	/// This will reverse the VM until it reverses again with the same
+	/// instruction, or halts.
 	Reverse,
 	
 	/// Flips every bit in the register.
