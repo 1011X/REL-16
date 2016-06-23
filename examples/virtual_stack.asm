@@ -3,10 +3,10 @@
 # but I want to implement it manually as an exercise and to
 # see if it's possible.
 
-imm r0 255; stack pointer in r0 pointing to 0x00FF
+xori r0 255; stack pointer in r0 pointing to 0x00FF
 
 # pushing a value (in this case, 3) to the stack
-imm r1 3
+xori r1 3
 
 inc r0; increment pointer value, stack base should always be 0
 xchg r1 r0; exchange value of r1 for value at r0

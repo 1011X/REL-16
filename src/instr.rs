@@ -568,7 +568,7 @@ impl fmt::Display for Op {
 			Op::CCNot(rc0, rc1, rn) => write!(f, "ccn {} {} {}", rc0, rc1, rn),
 			Op::CSwap(rc, rs0, rs1) => write!(f, "cswp {} {} {}", rc, rs0, rs1),
 			
-			Op::Immediate(r, v)    => write!(f, "imm {} {}", r, v),
+			Op::Immediate(r, v)    => write!(f, "xori {} {}", r, v),
 			
 			Op::BranchParity(r, v) => write!(f, "jp {} {}", r, v),
 			Op::AssertParity(r, v) => write!(f, "ap {} {}", r, v),
@@ -652,7 +652,7 @@ impl str::FromStr for Op {
 			"ccn"  => Op::CCNot(reg!(), reg!(), reg!()),
 			"cswp" => Op::CSwap(reg!(), reg!(), reg!()),
 			
-			"imm" => Op::Immediate(reg!(), value!(u8, u8::MAX)),
+			"xori" => Op::Immediate(reg!(), value!(u8, u8::MAX)),
 			
 			"jp" => Op::BranchParity(reg!(), value!(u8, u8::MAX)),
 			"ap" => Op::AssertParity(reg!(), value!(u8, u8::MAX)),
