@@ -209,37 +209,21 @@ pub enum Op {
 	/// it out.
 	Immediate(Reg, u8),
 	
-	/// Adds an immediate byte value to the branch register if the given
-	/// register is odd.
-	BranchOdd(Reg, u8),
+	/// Adds an immediate byte offset to the branch register if the register
+	/// is an odd number.
+	BranchParity(Reg, u8),
 	
-	/// Subtracts an immediate byte value from the branch register if the given
-	/// register is even.
-	AssertEven(Reg, u8),
+	/// Subtracts an immediate byte offset from the branch register if the
+	/// the register is an odd number.
+	AssertParity(Reg, u8),
 	
-	/// Adds an immediate byte value to the branch register if the given
-	/// register is even.
-	BranchEven(Reg, u8),
+	/// Adds an immediate byte offset to the branch register if the register
+	/// is below zero.
+	BranchSign(Reg, u8),
 	
-	/// Subtracts an immediate byte value from the branch register if the given
-	/// register is odd.
-	AssertOdd(Reg, u8),
-	
-	/// Adds an immediate byte value to the branch register if the given
+	/// Subtracts an immediate byte offset from the branch register if the
 	/// register is below zero.
-	BranchNeg(Reg, u8),
-	
-	/// Subtracts an immediate byte value from the branch register if the given
-	/// register is zero or above.
-	AssertNonneg(Reg, u8),
-	
-	/// Adds an immediate byte value to the branch register if the given
-	/// register is zero or above.
-	BranchNonneg(Reg, u8),
-	
-	/// Subtracts an immediate byte value from the branch register if the given
-	/// register is below zero.
-	AssertNeg(Reg, u8),
+	AssertSign(Reg, u8),
 	
 	/// Adds a value to the branch register.
 	GoTo(u16),
@@ -274,14 +258,10 @@ impl Op {
 			Op::CCNot(..)          => self,
 			Op::CSwap(..)          => self,
 			Op::Immediate(..)      => self,
-			Op::BranchOdd(r, o)    => Op::AssertOdd(r, o),
-			Op::BranchEven(r, o)   => Op::AssertEven(r, o),
-			Op::BranchNeg(r, o)    => Op::AssertNeg(r, o),
-			Op::BranchNonneg(r, o) => Op::AssertNonneg(r, o),
-			Op::AssertOdd(r, o)    => Op::BranchOdd(r, o),
-			Op::AssertEven(r, o)   => Op::BranchEven(r, o),
-			Op::AssertNeg(r, o)    => Op::BranchNeg(r, o),
-			Op::AssertNonneg(r, o) => Op::BranchNonneg(r, o),
+			Op::BranchParity(r, o) => Op::AssertParity(r, o),
+			Op::BranchSign(r, o)   => Op::AssertSign(r, o),
+			Op::AssertParity(r, o) => Op::BranchParity(r, o),
+			Op::AssertSign(r, o)   => Op::BranchSign(r, o),
 			Op::GoTo(off)          => Op::ComeFrom(off),
 			Op::ComeFrom(off)      => Op::GoTo(off),
 		}
@@ -296,119 +276,103 @@ impl Op {
 			Op::Reverse => 1,
 			
 			// _________1ooorrr
-			Op::Not(reg)       => 0b1_000_000
+			Op::Not(reg)       => 0b1_000 << 3
 				| reg as u16,
 			
-			Op::Increment(reg) => 0b1_001_000
+			Op::Increment(reg) => 0b1_001 << 3
 				| reg as u16,
 			
-			Op::Decrement(reg) => 0b1_010_000
+			Op::Decrement(reg) => 0b1_010 << 3
 				| reg as u16,
 			
-			Op::Push(reg)      => 0b1_011_000
+			Op::Push(reg)      => 0b1_011 << 3
 				| reg as u16,
 			
-			Op::Pop(reg)       => 0b1_100_000
+			Op::Pop(reg)       => 0b1_100 << 3
 				| reg as u16,
 			
-			Op::SwapPc(reg)    => 0b1_101_000
+			Op::SwapPc(reg)    => 0b1_101 << 3
 				| reg as u16,
 			
-			Op::RevSwapPc(reg) => 0b1_110_000
+			Op::RevSwapPc(reg) => 0b1_110 << 3
 				| reg as u16,
 			
 			// _______1orrrvvvv
-			Op::RotLeftImm(r, off)  => 0b1_0_000_0000
+			Op::RotLeftImm(r, off)  => 0b1_0 << 3 + 4
 				| (r as u16) << 3
 				| off as u16,
 			
-			Op::RotRightImm(r, off) => 0b1_1_000_0000
+			Op::RotRightImm(r, off) => 0b1_1 << 3 + 4
 				| (r as u16) << 3
 				| off as u16,
 			
 			// ______1oooRRRrrr
-			Op::Swap(rl, rr)     => 0b1_000_000_000
+			Op::Swap(rl, rr)     => 0b1_000 << 3 + 3
 				| (rl as u16) << 3
 				| rr as u16,
 			
-			Op::CNot(rc, rn)     => 0b1_001_000_000
+			Op::CNot(rc, rn)     => 0b1_001 << 3 + 3
 				| (rc as u16) << 3
 				| rn as u16,
 			
-			Op::CAdd(rc, ra)     => 0b1_010_000_000
+			Op::CAdd(rc, ra)     => 0b1_010 << 3 + 3
 				| (rc as u16) << 3
 				| ra as u16,
 			
-			Op::CSub(rc, rs)     => 0b1_011_000_000
+			Op::CSub(rc, rs)     => 0b1_011 << 3 + 3
 				| (rc as u16) << 3
 				| rs as u16,
 			
-			Op::Exchange(r, ra)  => 0b1_100_000_000
+			Op::Exchange(r, ra)  => 0b1_100 << 3 + 3
 				| (r as u16) << 3
 				| ra as u16,
 			
-			Op::RotLeft(rr, ro)  => 0b1_101_000_000
+			Op::RotLeft(rr, ro)  => 0b1_101 << 3 + 3
 				| (rr as u16) << 3
 				| ro as u16,
 			
-			Op::RotRight(rr, ro) => 0b1_110_000_000
+			Op::RotRight(rr, ro) => 0b1_110 << 3 + 3
 				| (rr as u16) << 3
 				| ro as u16,
 			
 			// _____1orrrRRRrrr
-			Op::CCNot(rc0, rc1, rn) => 0b1_0_000_000_000
+			Op::CCNot(rc0, rc1, rn) => 0b1_0 << 3 + 3 + 3
 				| (rc0 as u16) << 6
 				| (rc1 as u16) << 3
 				| rn as u16,
 			
-			Op::CSwap(rc, rs0, rs1) => 0b1_1_000_000_000
+			Op::CSwap(rc, rs0, rs1) => 0b1_1 << 3 + 3 + 3
 				| (rc as u16) << 6
 				| (rs0 as u16) << 3
 				| rs1 as u16,
 			
 			// ____1rrrvvvvvvvv
-			Op::Immediate(r, val) => 0b1_000_00000000
+			Op::Immediate(r, val) => 0b1 << 3 + 8
 				| (r as u16) << 8
 				| val as u16,
 			
 			// _1ooorrrvvvvvvvv
-			Op::BranchOdd(r, off)    => 0b1_000_000_00000000
+			Op::BranchParity(r, off)    => 0b1_000 << 3 + 8
 				| (r as u16) << 8
 				| off as u16,
 			
-			Op::AssertEven(r, off)   => 0b1_001_000_00000000
+			Op::AssertParity(r, off)   => 0b1_001 << 3 + 8
 				| (r as u16) << 8
 				| off as u16,
 			
-			Op::BranchEven(r, off)   => 0b1_010_000_00000000
+			Op::BranchSign(r, off)   => 0b1_010 << 3 + 8
 				| (r as u16) << 8
 				| off as u16,
 			
-			Op::AssertOdd(r, off)    => 0b1_011_000_00000000
-				| (r as u16) << 8
-				| off as u16,
-			
-			Op::BranchNeg(r, off)    => 0b1_100_000_00000000
-				| (r as u16) << 8
-				| off as u16,
-			
-			Op::AssertNonneg(r, off) => 0b1_101_000_00000000
-				| (r as u16) << 8
-				| off as u16,
-			
-			Op::BranchNonneg(r, off) => 0b1_110_000_00000000
-				| (r as u16) << 8
-				| off as u16,
-			
-			Op::AssertNeg(r, off)    => 0b1_111_000_00000000
+			Op::AssertSign(r, off)    => 0b1_011 << 3 + 8
 				| (r as u16) << 8
 				| off as u16,
 			
 			// 1ovvvvvvvvvvvvvv
-			Op::GoTo(off)     => 0b1_0_00000000000000
+			Op::GoTo(off)     => 0b1_0 << 14
 				| off as u16,
 			
-			Op::ComeFrom(off) => 0b1_1_00000000000000
+			Op::ComeFrom(off) => 0b1_1 << 14
 				| off as u16,
 		}
 	}
@@ -485,18 +449,17 @@ impl Op {
 				let v = instr.bits(8..);
 				
 				Ok(match o {
-					0b_000 => Op::BranchOdd(r, v as u8),
-					0b_001 => Op::AssertEven(r, v as u8),
+					0b_000 => Op::BranchParity(r, v as u8),
+					0b_001 => Op::AssertParity(r, v as u8),
 					
-					0b_010 => Op::BranchEven(r, v as u8),
-					0b_011 => Op::AssertOdd(r, v as u8),
-					
-					0b_100 => Op::BranchNeg(r, v as u8),
-					0b_101 => Op::AssertNonneg(r, v as u8),
-					
-					0b_110 => Op::BranchNonneg(r, v as u8),
-					0b_111 => Op::AssertNeg(r, v as u8),
-					_ => unreachable!()
+					0b_010 => Op::BranchSign(r, v as u8),
+					0b_011 => Op::AssertSign(r, v as u8),
+				
+					// At this point, it's an invalid op value. We don't store
+					// the value because it doesn't really matter what it is.
+					// Since anything above 0b_111 is unreachable anyways, we
+					// just return the error.
+					_ => Err(InvalidInstr)
 				})
 			}
 			
@@ -535,11 +498,7 @@ impl Op {
 					0b_100 => Ok(Op::Exchange(ra, rb)),
 					0b_101 => Ok(Op::RotLeft(ra, rb)),
 					0b_110 => Ok(Op::RotRight(ra, rb)),
-				
-					// At this point, it's an invalid op value. We don't store
-					// the value because it doesn't really matter what it is.
-					// Since anything above 0b_111 is unreachable anyways, we
-					// just return the error.
+					
 					_ => Err(InvalidInstr)
 				}
 			}
@@ -611,14 +570,10 @@ impl fmt::Display for Op {
 			
 			Op::Immediate(r, v)    => write!(f, "imm {} {}", r, v),
 			
-			Op::BranchOdd(r, v)    => write!(f, "jpo {} {}", r, v),
-			Op::AssertEven(r, v)   => write!(f, "ape {} {}", r, v),
-			Op::BranchEven(r, v)   => write!(f, "jpe {} {}", r, v),
-			Op::AssertOdd(r, v)    => write!(f, "apo {} {}", r, v),
-			Op::BranchNeg(r, v)    => write!(f, "js {} {}", r, v),
-			Op::AssertNonneg(r, v) => write!(f, "ans {} {}", r, v),
-			Op::BranchNonneg(r, v) => write!(f, "jns {} {}", r, v),
-			Op::AssertNeg(r, v)    => write!(f, "as {} {}", r, v),
+			Op::BranchParity(r, v) => write!(f, "jp {} {}", r, v),
+			Op::AssertParity(r, v) => write!(f, "ap {} {}", r, v),
+			Op::BranchSign(r, v)   => write!(f, "js {} {}", r, v),
+			Op::AssertSign(r, v)   => write!(f, "as {} {}", r, v),
 			
 			Op::GoTo(off)     => write!(f, "jmp {}", off),
 			Op::ComeFrom(off) => write!(f, "pmj {}", off),
@@ -699,14 +654,10 @@ impl str::FromStr for Op {
 			
 			"imm" => Op::Immediate(reg!(), value!(u8, u8::MAX)),
 			
-			"jpo" => Op::BranchOdd(reg!(), value!(u8, u8::MAX)),
-			"ape" => Op::AssertEven(reg!(), value!(u8, u8::MAX)),
-			"jpe" => Op::BranchEven(reg!(), value!(u8, u8::MAX)),
-			"apo" => Op::AssertOdd(reg!(), value!(u8, u8::MAX)),
-			"js"  => Op::BranchNeg(reg!(), value!(u8, u8::MAX)),
-			"ans" => Op::AssertNonneg(reg!(), value!(u8, u8::MAX)),
-			"jns" => Op::BranchNonneg(reg!(), value!(u8, u8::MAX)),
-			"as" => Op::AssertNeg(reg!(), value!(u8, u8::MAX)),
+			"jp" => Op::BranchParity(reg!(), value!(u8, u8::MAX)),
+			"ap" => Op::AssertParity(reg!(), value!(u8, u8::MAX)),
+			"js" => Op::BranchSign(reg!(), value!(u8, u8::MAX)),
+			"as" => Op::AssertSign(reg!(), value!(u8, u8::MAX)),
 			
 			"jmp" => Op::GoTo(value!(u16, 0b_11_1111_1111_1111)),
 			"pmj" => Op::ComeFrom(value!(u16, 0b_11_1111_1111_1111)),
@@ -746,14 +697,10 @@ mod tests {
 			Op::CCNot(Reg::R7, Reg::R7, Reg::R7),
 			Op::CSwap(Reg::R7, Reg::R7, Reg::R7),
 			Op::Immediate(Reg::R7, 0xFF),
-			Op::BranchOdd(Reg::R7, 0xFF),
-			Op::BranchEven(Reg::R7, 0xFF),
-			Op::BranchNeg(Reg::R7, 0xFF),
-			Op::BranchNonneg(Reg::R7, 0xFF),
-			Op::AssertOdd(Reg::R7, 0xFF),
-			Op::AssertEven(Reg::R7, 0xFF),
-			Op::AssertNeg(Reg::R7, 0xFF),
-			Op::AssertNonneg(Reg::R7, 0xFF),
+			Op::BranchParity(Reg::R7, 0xFF),
+			Op::AssertParity(Reg::R7, 0xFF),
+			Op::BranchSign(Reg::R7, 0xFF),
+			Op::AssertSign(Reg::R7, 0xFF),
 			Op::GoTo(0x3FFF),
 			Op::ComeFrom(0x3FFF),
 		];

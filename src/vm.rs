@@ -214,35 +214,19 @@ pub fn run<I: Read>(src: I) {
 			
 			
 			
-			Op::BranchOdd(r, off) => if reg[r as usize] % 2 == 1 {
+			Op::BranchParity(r, off) => if reg[r as usize] % 2 == 1 {
 				br = br.wrapping_add(off as u16);
 			},
 			
-			Op::AssertEven(r, off) => if reg[r as usize] % 2 == 0 {
+			Op::AssertParity(r, off) => if reg[r as usize] % 2 == 1 {
 				br = br.wrapping_sub(off as u16);
 			},
 			
-			Op::BranchEven(r, off) => if reg[r as usize] % 2 == 0 {
+			Op::BranchSign(r, off) => if (reg[r as usize] as i16) < 0 {
 				br = br.wrapping_add(off as u16);
 			},
 			
-			Op::AssertOdd(r, off) => if reg[r as usize] % 2 == 1 {
-				br = br.wrapping_sub(off as u16);
-			},
-			
-			Op::BranchNeg(r, off) => if (reg[r as usize] as i16) < 0 {
-				br = br.wrapping_add(off as u16);
-			},
-			
-			Op::AssertNonneg(r, off) => if (reg[r as usize] as i16) >= 0 {
-				br = br.wrapping_sub(off as u16);
-			},
-			
-			Op::BranchNonneg(r, off) => if (reg[r as usize] as i16) >= 0 {
-				br = br.wrapping_add(off as u16);
-			},
-			
-			Op::AssertNeg(r, off) => if (reg[r as usize] as i16) < 0 {
+			Op::AssertSign(r, off) => if (reg[r as usize] as i16) < 0 {
 				br = br.wrapping_sub(off as u16);
 			},
 			
