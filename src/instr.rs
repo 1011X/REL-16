@@ -448,19 +448,19 @@ impl Op {
 				let r = Reg::from(instr.bits(5..8));
 				let v = instr.bits(8..);
 				
-				Ok(match o {
-					0b_000 => Op::BranchParity(r, v as u8),
-					0b_001 => Op::AssertParity(r, v as u8),
+				match o {
+					0b_000 => Ok(Op::BranchParity(r, v as u8)),
+					0b_001 => Ok(Op::AssertParity(r, v as u8)),
 					
-					0b_010 => Op::BranchSign(r, v as u8),
-					0b_011 => Op::AssertSign(r, v as u8),
+					0b_010 => Ok(Op::BranchSign(r, v as u8)),
+					0b_011 => Ok(Op::AssertSign(r, v as u8)),
 				
 					// At this point, it's an invalid op value. We don't store
 					// the value because it doesn't really matter what it is.
 					// Since anything above 0b_111 is unreachable anyways, we
 					// just return the error.
 					_ => Err(InvalidInstr)
-				})
+				}
 			}
 			
 			// ____1rrrvvvvvvvv
