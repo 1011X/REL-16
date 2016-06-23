@@ -213,7 +213,6 @@ pub fn run<I: Read>(src: I) {
 			}
 			
 			
-			
 			Op::BranchParity(r, off) => if reg[r as usize] % 2 == 1 {
 				br = br.wrapping_add(off as u16);
 			},

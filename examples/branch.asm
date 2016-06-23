@@ -10,7 +10,9 @@ add r0 r1
 xori r1 2
 
 ap 3
-xori r0 1
+xori r0 1; flip parity bit
+# upon flipping, the following jump will only happen
+# if the number was even, and not if it was odd.
 jp 3
 
 # here, r0 is odd. to ensure it stays
