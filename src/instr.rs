@@ -1,9 +1,7 @@
 use std::fmt;
 use std::str;
 use std::error::Error;
-use std::num;
-
-pub type Reg = usize; // always in range [0-7]
+use std::num::ParseIntError;
 
 #[derive(Debug)]
 pub enum DeserialError {
@@ -12,7 +10,7 @@ pub enum DeserialError {
 	UnknownMneu,
 	ValueTooLarge,
 	NoRegister,
-	Parsing(num::ParseIntError),
+	Parsing(ParseIntError),
 }
 
 impl fmt::Display for DeserialError {
@@ -53,6 +51,40 @@ impl fmt::Display for InvalidInstr {
 
 impl Error for InvalidInstr {
 	fn description(&self) -> &str { "invalid instruction" }
+}
+
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Reg { R0 = 0, R1, R2, R3, R4, R5, R6, R7 }
+
+impl fmt::Display for Reg {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "r{}", *self as u8)
+	}
+}
+
+impl From<usize> for Reg {
+	fn from(val: usize) -> Self {
+		match val {
+			0 => Reg::R0,
+			1 => Reg::R1,
+			2 => Reg::R2,
+			3 => Reg::R3,
+			4 => Reg::R4,
+			5 => Reg::R5,
+			6 => Reg::R6,
+			7 => Reg::R7,
+			v => panic!("Invalid register value given: {}", v)
+		}
+	}
+}
+
+impl From<u8> for Reg {
+	fn from(val: u8) -> Self { Reg::from(val as usize) }
+}
+
+impl From<u16> for Reg {
+	fn from(val: u16) -> Self { Reg::from(val as usize) }
 }
 
 /// Bit-field key:
@@ -381,118 +413,162 @@ impl Op {
 		}
 	}
 	
-	pub fn decode(instr: u16) -> Result<Op, InvalidInstr> {
-	
-		match instr.leading_zeros() {
-			// 1ovvvvvvvvvvvvvv
-			// Goto/ComeFrom
-			0 => {
-				let o = ((instr >> 14) & 0b_1) == 1;
-				let v = instr & 0b_11_1111_1111_1111;
+	pub fn decode(val: u16) -> Result<Op, InvalidInstr> {
+		
+		// All this code is totally worth it.
+		// ...or so I tell myself.
+		
+		use std::ops::{Range, RangeFrom};
+		
+		trait RangeArg {
+			fn start(&self) -> usize;
+			fn end(&self) -> Option<usize>;
+		}
+		
+		impl RangeArg for Range<usize> {
+			fn start(&self) -> usize { self.start }
+			fn end(&self) -> Option<usize> { Some(self.start) }
+		}
+		
+		impl RangeArg for RangeFrom<usize> {
+			fn start(&self) -> usize { self.start }
+			fn end(&self) -> Option<usize> { None }
+		}
+		
+		struct Instr(u16);
+		
+		impl Instr {
+			fn bit(&self, idx: usize) -> bool {
+				if idx >= 16 {
+					panic!("index out of bounds: the len is 16 but the index is {}", idx);
+				}
 				
-				if o {
-					Ok(Op::ComeFrom(v as u16))
+				(self.0 >> (16 - idx)) % 2 == 1
+			}
+			
+			fn bits<T: RangeArg>(&self, idx: T) -> u16 {
+				let start = idx.start();
+				let end = idx.end().unwrap_or(16);
+				
+				if start > end {
+					panic!("slice index starts at {} but ends at {}", start, end);
 				}
-				else {
-					Ok(Op::GoTo(v as u16))
+				
+				let shifted = self.0 >> (16 - end);
+				
+				if end > 16 {
+					panic!("index {} out of range for slice of length 16", end);
 				}
+				
+				let mask = (1 << (end - start)) - 1;
+				shifted & mask
+			}
+		}
+		
+		
+		let instr = Instr(val);
+		
+		match val.leading_zeros() {
+			// 1ovvvvvvvvvvvvvv
+			0 => {
+				let o = instr.bit(1);
+				let v = instr.bits(2..);
+				
+				if o { Ok(Op::ComeFrom(v as u16)) }
+				else { Ok(Op::GoTo(v as u16)) }
 			}
 			
 			// _1ooorrrvvvvvvvv
-			// Assert*, Branch*
 			1 => {
-				let o = (instr >> 3 + 8) & 0b_111;
-				let r = (instr >>     8) & 0b_111;
-				let v =  instr           & 0b_1111_1111;
+				let o = instr.bits(2..5);
+				let r = Reg::from(instr.bits(5..8));
+				let v = instr.bits(8..);
 				
 				Ok(match o {
-					0b_000 => Op::BranchOdd(r as Reg, v as u8),
-					0b_001 => Op::AssertEven(r as Reg, v as u8),
-					0b_010 => Op::BranchEven(r as Reg, v as u8),
-					0b_011 => Op::AssertOdd(r as Reg, v as u8),
-					0b_100 => Op::BranchNeg(r as Reg, v as u8),
-					0b_101 => Op::AssertNonneg(r as Reg, v as u8),
-					0b_110 => Op::BranchNonneg(r as Reg, v as u8),
-					0b_111 => Op::AssertNeg(r as Reg, v as u8),
+					0b_000 => Op::BranchOdd(r, v as u8),
+					0b_001 => Op::AssertEven(r, v as u8),
+					
+					0b_010 => Op::BranchEven(r, v as u8),
+					0b_011 => Op::AssertOdd(r, v as u8),
+					
+					0b_100 => Op::BranchNeg(r, v as u8),
+					0b_101 => Op::AssertNonneg(r, v as u8),
+					
+					0b_110 => Op::BranchNonneg(r, v as u8),
+					0b_111 => Op::AssertNeg(r, v as u8),
 					_ => unreachable!()
 				})
 			}
 			
 			// ____1rrrvvvvvvvv
 			4 => {
-				let r = (instr >> 8) & 0b_111;
-				let v =  instr       & 0b_1111_1111;
+				let r = Reg::from(instr.bits(5..8));
+				let v = instr.bits(8..);
 				
-				Ok(Op::Immediate(r as Reg, v as u8))
+				Ok(Op::Immediate(r, v as u8))
 			}
 		
 			// _____1orrrRRRrrr
-			// Toffoli, Fredkin
 			5 => {
-				let o  = ((instr >> 3 + 3 + 3) & 0b_1) == 1;
-				let ra =  (instr >> 3 + 3)     & 0b_111;
-				let rb =  (instr >> 3)         & 0b_111;
-				let rc =   instr               & 0b_111;
+				let o = instr.bit(6);
 				
-				if o {
-					Ok(Op::CSwap(ra as Reg, rb as Reg, rc as Reg))
-				}
-				else {
-					Ok(Op::CCNot(ra as Reg, rb as Reg, rc as Reg))
-				}
+				let ra = Reg::from(instr.bits(7..10));
+				let rb = Reg::from(instr.bits(10..13));
+				let rc = Reg::from(instr.bits(13..));
+				
+				if o { Ok(Op::CSwap(ra, rb, rc)) }
+				else { Ok(Op::CCNot(ra, rb, rc)) }
 			}
 			
 			// ______1oooRRRrrr
-			// Swap, C{Not, Add, Sub}, Rot{Left, Right}, Exchange
 			6 => {
-				let o  = (instr >> 3 + 3) & 0b_111;
-				let ra = (instr >> 3)     & 0b_111;
-				let rb =  instr           & 0b_111;
+				let o = instr.bits(7..10);
+				
+				let ra = Reg::from(instr.bits(10..13));
+				let rb = Reg::from(instr.bits(13..));
 				
 				match o {
-					0b_000 => Ok(Op::Swap(ra as Reg, rb as Reg)),
-					0b_001 => Ok(Op::CNot(ra as Reg, rb as Reg)),
-					0b_010 => Ok(Op::CAdd(ra as Reg, rb as Reg)),
-					0b_011 => Ok(Op::CSub(ra as Reg, rb as Reg)),
-					0b_100 => Ok(Op::Exchange(ra as Reg, rb as Reg)),
-					0b_101 => Ok(Op::RotLeft(ra as Reg, rb as Reg)),
-					0b_110 => Ok(Op::RotRight(ra as Reg, rb as Reg)),
+					0b_000 => Ok(Op::Swap(ra, rb)),
+					0b_001 => Ok(Op::CNot(ra, rb)),
+					0b_010 => Ok(Op::CAdd(ra, rb)),
+					0b_011 => Ok(Op::CSub(ra, rb)),
+					0b_100 => Ok(Op::Exchange(ra, rb)),
+					0b_101 => Ok(Op::RotLeft(ra, rb)),
+					0b_110 => Ok(Op::RotRight(ra, rb)),
 				
 					// At this point, it's an invalid op value. We don't store
 					// the value because it doesn't really matter what it is.
 					// Since anything above 0b_111 is unreachable anyways, we
 					// just return the error.
-					_ => Err(InvalidInstr),
+					_ => Err(InvalidInstr)
 				}
 			}
 			
 			// _______1orrrvvvv
-			// Rot{Left, Right}Imm
 			7 => {
-				let o = ((instr >> 3 + 4) & 0b_1) == 1;
-				let r =  (instr >> 3    ) & 0b_111;
-				let v =   instr           & 0b_1111;
+				let o = instr.bit(8);
+				let r = Reg::from(instr.bits(9..12));
+				let v = instr.bits(13..);
 				
-				Ok(if o { Op::RotRightImm(r as Reg, v as u8) }
-				else { Op::RotLeftImm(r as Reg, v as u8) })
+				if o { Ok(Op::RotRightImm(r, v as u8)) }
+				else { Ok(Op::RotLeftImm(r, v as u8)) }
 			}
 			
 			// _________1ooorrr
-			// Not, Inc/Dec, Push/Pop, [Rev]SwapPc
 			9 => {
-				let o = (instr >> 3) & 0b_111;
-				let r =  instr       & 0b_111;
+				let o = instr.bits(10..13);
+				let r = Reg::from(instr.bits(13..));
 				
 				match o {
-					0b_000 => Ok(Op::Not(r as Reg)),
-					0b_001 => Ok(Op::Increment(r as Reg)),
-					0b_010 => Ok(Op::Decrement(r as Reg)),
-					0b_011 => Ok(Op::Push(r as Reg)),
-					0b_100 => Ok(Op::Pop(r as Reg)),
-					0b_101 => Ok(Op::SwapPc(r as Reg)),
-					0b_110 => Ok(Op::RevSwapPc(r as Reg)),
+					0b_000 => Ok(Op::Not(r)),
+					0b_001 => Ok(Op::Increment(r)),
+					0b_010 => Ok(Op::Decrement(r)),
+					0b_011 => Ok(Op::Push(r)),
+					0b_100 => Ok(Op::Pop(r)),
+					0b_101 => Ok(Op::SwapPc(r)),
+					0b_110 => Ok(Op::RevSwapPc(r)),
 					
-					_ => Err(InvalidInstr),
+					_ => Err(InvalidInstr)
 				}
 			}
 			
@@ -511,38 +587,38 @@ impl fmt::Display for Op {
 			Op::Halt    => write!(f, "hlt"),
 			Op::Reverse => write!(f, "rev"),
 			
-			Op::Not(r)       => write!(f, "not r{}", r),
-			Op::Increment(r) => write!(f, "inc r{}", r),
-			Op::Decrement(r) => write!(f, "dec r{}", r),
-			Op::Push(r)      => write!(f, "push r{}", r),
-			Op::Pop(r)       => write!(f, "pop r{}", r),
-			Op::SwapPc(r)    => write!(f, "sp r{}", r),
-			Op::RevSwapPc(r) => write!(f, "rsp r{}", r),
+			Op::Not(r)       => write!(f, "not {}", r),
+			Op::Increment(r) => write!(f, "inc {}", r),
+			Op::Decrement(r) => write!(f, "dec {}", r),
+			Op::Push(r)      => write!(f, "push {}", r),
+			Op::Pop(r)       => write!(f, "pop {}", r),
+			Op::SwapPc(r)    => write!(f, "sp {}", r),
+			Op::RevSwapPc(r) => write!(f, "rsp {}", r),
 			
-			Op::RotLeftImm(r, v)  => write!(f, "roli r{} {}", r, v),
-			Op::RotRightImm(r, v) => write!(f, "rori r{} {}", r, v),
+			Op::RotLeftImm(r, v)  => write!(f, "roli {} {}", r, v),
+			Op::RotRightImm(r, v) => write!(f, "rori {} {}", r, v),
 			
-			Op::Swap(rl, rr)     => write!(f, "swp r{} r{}", rl, rr),
-			Op::CNot(rc, rn)     => write!(f, "xor r{} r{}", rn, rc),
-			Op::CAdd(rc, ra)     => write!(f, "add r{} r{}", ra, rc),
-			Op::CSub(rc, rs)     => write!(f, "sub r{} r{}", rs, rc),
-			Op::Exchange(rr, ra) => write!(f, "xchg r{} r{}", rr, ra),
-			Op::RotLeft(rr, ro)  => write!(f, "rol r{} r{}", rr, ro),
-			Op::RotRight(rr, ro) => write!(f, "ror r{} r{}", rr, ro),
+			Op::Swap(rl, rr)     => write!(f, "swp {} {}", rl, rr),
+			Op::CNot(rc, rn)     => write!(f, "xor {} {}", rn, rc),
+			Op::CAdd(rc, ra)     => write!(f, "add {} {}", ra, rc),
+			Op::CSub(rc, rs)     => write!(f, "sub {} {}", rs, rc),
+			Op::Exchange(rr, ra) => write!(f, "xchg {} {}", rr, ra),
+			Op::RotLeft(rr, ro)  => write!(f, "rol {} {}", rr, ro),
+			Op::RotRight(rr, ro) => write!(f, "ror {} {}", rr, ro),
 			
-			Op::CCNot(rc0, rc1, rn) => write!(f, "ccn r{} r{} r{}", rc0, rc1, rn),
-			Op::CSwap(rc, rs0, rs1) => write!(f, "cswp r{} r{} r{}", rc, rs0, rs1),
+			Op::CCNot(rc0, rc1, rn) => write!(f, "ccn {} {} {}", rc0, rc1, rn),
+			Op::CSwap(rc, rs0, rs1) => write!(f, "cswp {} {} {}", rc, rs0, rs1),
 			
-			Op::Immediate(r, v)    => write!(f, "imm r{} {}", r, v),
+			Op::Immediate(r, v)    => write!(f, "imm {} {}", r, v),
 			
-			Op::BranchOdd(r, v)    => write!(f, "jpo r{} {}", r, v),
-			Op::AssertEven(r, v)   => write!(f, "ape r{} {}", r, v),
-			Op::BranchEven(r, v)   => write!(f, "jpe r{} {}", r, v),
-			Op::AssertOdd(r, v)    => write!(f, "apo r{} {}", r, v),
-			Op::BranchNeg(r, v)    => write!(f, "js r{} {}", r, v),
-			Op::AssertNonneg(r, v) => write!(f, "ans r{} {}", r, v),
-			Op::BranchNonneg(r, v) => write!(f, "jns r{} {}", r, v),
-			Op::AssertNeg(r, v)    => write!(f, "as r{} {}", r, v),
+			Op::BranchOdd(r, v)    => write!(f, "jpo {} {}", r, v),
+			Op::AssertEven(r, v)   => write!(f, "ape {} {}", r, v),
+			Op::BranchEven(r, v)   => write!(f, "jpe {} {}", r, v),
+			Op::AssertOdd(r, v)    => write!(f, "apo {} {}", r, v),
+			Op::BranchNeg(r, v)    => write!(f, "js {} {}", r, v),
+			Op::AssertNonneg(r, v) => write!(f, "ans {} {}", r, v),
+			Op::BranchNonneg(r, v) => write!(f, "jns {} {}", r, v),
+			Op::AssertNeg(r, v)    => write!(f, "as {} {}", r, v),
 			
 			Op::GoTo(off)     => write!(f, "jmp {}", off),
 			Op::ComeFrom(off) => write!(f, "pmj {}", off),
@@ -556,12 +632,11 @@ impl str::FromStr for Op {
 	fn from_str(s: &str) -> Result<Self, Self::Err> {
 		let mut tokens = s.split_whitespace();
 		
-		// Parses string $string as type $from with a max value of
-		// $max (inclusive), then converts it to type $to.
+		// Parses string $s as type $t with a max value of $max (inclusive).
 		macro_rules! parse_value(
-			($string:expr, $from:ty => $to:ty, $max:expr) => {
-				match $string.parse::<$from>() {
-					Ok(value) if value <= $max => Ok(value as $to),
+			($s:expr, $t:ty, $max:expr) => {
+				match $s.parse::<$t>() {
+					Ok(value) if value <= $max => Ok(value),
 		
 					Ok(_)  => Err(DeserialError::ValueTooLarge),
 					Err(e) => Err(DeserialError::Parsing(e)),
@@ -575,7 +650,7 @@ impl str::FromStr for Op {
 				.ok_or(DeserialError::NoArgument)
 				.and_then(|s| {
 					if s.starts_with('r') {
-						parse_value!(s[1..], u8 => usize, 0b_111)
+						parse_value!(s[1..], u8, 0b_111).map(Reg::from)
 					}
 					else {
 						Err(DeserialError::NoRegister)
@@ -586,16 +661,12 @@ impl str::FromStr for Op {
 		
 		// Parses a token of max value $max. Returns early if an error is found.
 		macro_rules! value(
-			// Parse as type $from, convert to type $to.
-			($from:ty => $to:ty, $max:expr) => {
+			($t:ty, $max:expr) => {
 				try!(tokens.next()
 					.ok_or(DeserialError::NoArgument)
-					.and_then(|token| parse_value!(token, $from => $to, $max))
+					.and_then(|token| parse_value!(token, $t, $max))
 				)
 			};
-			
-			// Parse and keep as type $t.
-			($t:ty, $max:expr) => (value!($t => $t, $max));
 		);
 		
 		use std::u8;
@@ -652,42 +723,42 @@ mod tests {
 	
 	#[test]
 	fn instruction_encoding() {
+		// Make a vector with everything initialized to 1s
 		let ops = vec![
 			Op::Halt,
 			Op::Reverse,
-			Op::Not(0b_111),
-			Op::Increment(0b_111),
-			Op::Decrement(0b_111),
-			Op::Push(0b_111),
-			Op::Pop(0b_111),
-			Op::SwapPc(0b_111),
-			Op::RevSwapPc(0b_111),
-			Op::RotLeftImm(0b_111, 0b_1111),
-			Op::RotRightImm(0b_111, 0b_1111),
-			Op::Swap(0b_111, 0b_111),
-			Op::CNot(0b_111, 0b_111),
-			Op::CAdd(0b_111, 0b_111),
-			Op::CSub(0b_111, 0b_111),
-			Op::Exchange(0b_111, 0b_111),
-			Op::RotLeft(0b_111, 0b_111),
-			Op::RotRight(0b_111, 0b_111),
-			Op::CCNot(0b_111, 0b_111, 0b_111),
-			Op::CSwap(0b_111, 0b_111, 0b_111),
-			Op::Immediate(0b_111, 0b_1111_1111),
-			Op::BranchOdd(0b_111, 0b_1111_1111),
-			Op::BranchEven(0b_111, 0b_1111_1111),
-			Op::BranchNeg(0b_111, 0b_1111_1111),
-			Op::BranchNonneg(0b_111, 0b_1111_1111),
-			Op::AssertOdd(0b_111, 0b_1111_1111),
-			Op::AssertEven(0b_111, 0b_1111_1111),
-			Op::AssertNeg(0b_111, 0b_1111_1111),
-			Op::AssertNonneg(0b_111, 0b_1111_1111),
-			Op::GoTo(0b_11_1111_1111_1111),
-			Op::ComeFrom(0b_11_1111_1111_1111),
-			// I'm starting to feel like there's a better way of going
-			// about this...
+			Op::Not(Reg::R7),
+			Op::Increment(Reg::R7),
+			Op::Decrement(Reg::R7),
+			Op::Push(Reg::R7),
+			Op::Pop(Reg::R7),
+			Op::SwapPc(Reg::R7),
+			Op::RevSwapPc(Reg::R7),
+			Op::RotLeftImm(Reg::R7, 0xF),
+			Op::RotRightImm(Reg::R7, 0xF),
+			Op::Swap(Reg::R7, Reg::R7),
+			Op::CNot(Reg::R7, Reg::R7),
+			Op::CAdd(Reg::R7, Reg::R7),
+			Op::CSub(Reg::R7, Reg::R7),
+			Op::Exchange(Reg::R7, Reg::R7),
+			Op::RotLeft(Reg::R7, Reg::R7),
+			Op::RotRight(Reg::R7, Reg::R7),
+			Op::CCNot(Reg::R7, Reg::R7, Reg::R7),
+			Op::CSwap(Reg::R7, Reg::R7, Reg::R7),
+			Op::Immediate(Reg::R7, 0xFF),
+			Op::BranchOdd(Reg::R7, 0xFF),
+			Op::BranchEven(Reg::R7, 0xFF),
+			Op::BranchNeg(Reg::R7, 0xFF),
+			Op::BranchNonneg(Reg::R7, 0xFF),
+			Op::AssertOdd(Reg::R7, 0xFF),
+			Op::AssertEven(Reg::R7, 0xFF),
+			Op::AssertNeg(Reg::R7, 0xFF),
+			Op::AssertNonneg(Reg::R7, 0xFF),
+			Op::GoTo(0x3FFF),
+			Op::ComeFrom(0x3FFF),
 		];
 		
+		// Take advantage of reversibility and 
 		for op in ops {
 			// `Op::decode` shouldn't error when decoding a valid instruction,
 			// so just unwrap it.

@@ -125,126 +125,128 @@ pub fn run<I: Read>(src: I) {
 			Op::Reverse => dir = !dir,
 			
 			
-			Op::Not(a)       => reg[a] = !reg[a],
-			Op::Increment(a) => reg[a] = reg[a].wrapping_add(1),
-			Op::Decrement(a) => reg[a] = reg[a].wrapping_sub(1),
+			Op::Not(a)       => reg[a as usize] = !reg[a as usize],
+			Op::Increment(a) => reg[a as usize] = reg[a as usize].wrapping_add(1),
+			Op::Decrement(a) => reg[a as usize] = reg[a as usize].wrapping_sub(1),
 			Op::Push(r) => {
 				let sp = reg[6].wrapping_sub(1);
-				swap!(reg[r], data_mem[sp as usize]);
+				swap!(reg[r as usize], data_mem[sp as usize]);
 				reg[6] = sp;
 			}
 			
 			Op::Pop(r) => {
 				let sp = reg[6];
-				swap!(reg[r], data_mem[sp as usize]);
+				swap!(reg[r as usize], data_mem[sp as usize]);
 				reg[6] = sp.wrapping_add(1);
 			}
 			
-			Op::SwapPc(r)    => swap!(pc, reg[r]),
+			Op::SwapPc(r)    => swap!(pc, reg[r as usize]),
 			Op::RevSwapPc(r) => {
-				swap!(pc, reg[r]);
+				swap!(pc, reg[r as usize]);
 				dir = !dir;
 			}
 			
 			Op::Exchange(r, ra) => {
-				let raddr = reg[ra];
-				swap!(reg[r], data_mem[raddr as usize]);
+				let raddr = reg[ra as usize];
+				swap!(reg[r as usize], data_mem[raddr as usize]);
 			}
 			
 			
-			Op::RotLeftImm(r, v)  => reg[r] = reg[r].rotate_left(v as u32),
-			Op::RotRightImm(r, v) => reg[r] = reg[r].rotate_right(v as u32),
+			Op::RotLeftImm(r, v)  =>
+				reg[r as usize] = reg[r as usize].rotate_left(v as u32),
+			Op::RotRightImm(r, v) =>
+				reg[r as usize] = reg[r as usize].rotate_right(v as u32),
 			
 			
-			Op::Swap(a, b) => reg.swap(a, b),			
+			Op::Swap(a, b) => reg.swap(a as usize, b as usize),			
 			Op::CNot(rn, rc) => {
-				let c = reg[rc];
+				let c = reg[rc as usize];
 				
-				reg[rn] ^= c;
+				reg[rn as usize] ^= c;
 			}
 			
 			Op::CAdd(ra, rc) => {
-				let c = reg[rc];
-				let a = reg[ra];
+				let c = reg[rc as usize];
+				let a = reg[ra as usize];
 				
-				reg[ra] = a.wrapping_add(c);
+				reg[ra as usize] = a.wrapping_add(c);
 			}
 			
 			Op::CSub(rs, rc) => {
-				let c = reg[rc];
-				let s = reg[rs];
+				let c = reg[rc as usize];
+				let s = reg[rs as usize];
 				
-				reg[rs] = s.wrapping_sub(c);
+				reg[rs as usize] = s.wrapping_sub(c);
 			}
 			
 			Op::RotLeft(rr, ro) => {
-				let bits = reg[ro];
+				let bits = reg[ro as usize];
 				
-				reg[rr] = reg[rr].rotate_left(bits as u32);
+				reg[rr as usize] = reg[rr as usize].rotate_left(bits as u32);
 			}
 			
 			Op::RotRight(rr, ro) => {
-				let bits = reg[ro];
+				let bits = reg[ro as usize];
 				
-				reg[rr] = reg[rr].rotate_right(bits as u32);
+				reg[rr as usize] = reg[rr as usize].rotate_right(bits as u32);
 			}
 			
 			
 			Op::CCNot(rc0, rc1, rn) => {
-				let     c0 = reg[rc0];
-				let     c1 = reg[rc1];
+				let c0 = reg[rc0 as usize];
+				let c1 = reg[rc1 as usize];
 				
-				reg[rn] ^= c0 & c1;
+				reg[rn as usize] ^= c0 & c1;
 			}
 			
 			Op::CSwap(rc, rs0, rs1) => {
-				let     c  = reg[rc];
-				let mut s0 = reg[rs0];
-				let mut s1 = reg[rs1];
+				let     c  = reg[rc as usize];
+				let mut s0 = reg[rs0 as usize];
+				let mut s1 = reg[rs1 as usize];
 				
 				let t = (s0 ^ s1) & c;
 				s0 ^= t;
 				s1 ^= t;
 				
-				reg[rs0] = s0;
-				reg[rs1] = s1;
+				reg[rs0 as usize] = s0;
+				reg[rs1 as usize] = s1;
 			}
 			
 			
 			
-			Op::BranchOdd(r, off) => if reg[r] % 2 == 1 {
+			Op::BranchOdd(r, off) => if reg[r as usize] % 2 == 1 {
 				br = br.wrapping_add(off as u16);
 			},
 			
-			Op::AssertEven(r, off) => if reg[r] % 2 == 0 {
+			Op::AssertEven(r, off) => if reg[r as usize] % 2 == 0 {
 				br = br.wrapping_sub(off as u16);
 			},
 			
-			Op::BranchEven(r, off) => if reg[r] % 2 == 0 {
+			Op::BranchEven(r, off) => if reg[r as usize] % 2 == 0 {
 				br = br.wrapping_add(off as u16);
 			},
 			
-			Op::AssertOdd(r, off) => if reg[r] % 2 == 1 {
+			Op::AssertOdd(r, off) => if reg[r as usize] % 2 == 1 {
 				br = br.wrapping_sub(off as u16);
 			},
 			
-			Op::BranchNeg(r, off) => if (reg[r] as i16) < 0 {
+			Op::BranchNeg(r, off) => if (reg[r as usize] as i16) < 0 {
 				br = br.wrapping_add(off as u16);
 			},
 			
-			Op::AssertNonneg(r, off) => if (reg[r] as i16) >= 0 {
+			Op::AssertNonneg(r, off) => if (reg[r as usize] as i16) >= 0 {
 				br = br.wrapping_sub(off as u16);
 			},
 			
-			Op::BranchNonneg(r, off) => if (reg[r] as i16) >= 0 {
+			Op::BranchNonneg(r, off) => if (reg[r as usize] as i16) >= 0 {
 				br = br.wrapping_add(off as u16);
 			},
 			
-			Op::AssertNeg(r, off) => if (reg[r] as i16) < 0 {
+			Op::AssertNeg(r, off) => if (reg[r as usize] as i16) < 0 {
 				br = br.wrapping_sub(off as u16);
 			},
 			
-			Op::Immediate(r, v) => reg[r] ^= v as u16,
+			Op::Immediate(r, v) => reg[r as usize] ^= v as u16,
 			
 			
 			
