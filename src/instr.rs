@@ -719,6 +719,7 @@ impl str::FromStr for Op {
 mod tests {
 	use super::Op;
 	use super::Reg;
+	use std::str::FromStr;
 	
 	/*
 	use super::Instr;
@@ -771,7 +772,7 @@ mod tests {
 			assert_eq!(op, Op::decode(op.encode()).unwrap());
 			
 			// Also test that string conversion and back is reliable.
-			assert_eq!(op, Op::from_str(op.to_string()).unwrap());
+			assert_eq!(op, Op::from_str(&op.to_string()).unwrap());
 		}
 	}
 }

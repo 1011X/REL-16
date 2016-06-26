@@ -1,5 +1,3 @@
-use instr::Op;
-
 use std::str::FromStr;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
@@ -8,6 +6,8 @@ use std::io::{
 	BufReader, BufWriter,
 	BufRead, Read, Write
 };
+
+use instr::Op;
 
 
 pub enum Action {
