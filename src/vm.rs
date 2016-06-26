@@ -122,7 +122,7 @@ pub fn run<I: Read>(src: I) {
 		// execute
 		match instr {
 			Op::Halt => break,
-			Op::Reverse => dir = !dir,
+			//Op::Reverse => dir = !dir,
 			
 			
 			Op::Not(a)       => reg[a as usize] = !reg[a as usize],
@@ -145,6 +145,33 @@ pub fn run<I: Read>(src: I) {
 				swap!(pc, reg[r as usize]);
 				dir = !dir;
 			}
+			
+			Op::Mul2(ri) => {
+				use std::i16;
+				
+				let r = reg[ri as usize] as i16;
+				
+				reg[ri as usize] = match r {
+					-16384...16383    => r * 2,
+					16384...i16::MAX  => r - (i16::MAX - r),
+					i16::MIN...-16383 => r + (r - i16::MIN + 1),
+					
+					_ => unreachable!()
+				} as u16;
+			}
+			
+			Op::Div2(ri) => {
+				use std::i16;
+				
+				let r = reg[ri as usize] as i16;
+				
+				reg[ri as usize] = match r {
+					0...i16::MAX if r & 1 == 1 => i16::MAX - (i16::MAX - r) / 2,
+					i16::MIN...0 if r & 1 == 1 => i16::MIN + (r - (i16::MIN + 1)) / 2,
+					_ /* even */               => r / 2,
+				} as u16;
+			}
+			
 			
 			Op::Exchange(r, ra) => {
 				let raddr = reg[ra as usize];

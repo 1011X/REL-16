@@ -9,14 +9,14 @@ xori r1 2
 add r0 r1
 xori r1 2
 
-ap 3
+ap r0 3
 
 xori r0 1; flip parity bit
 # if number was odd, it's now even, and vice versa
 
 # upon flipping, the following jump will only happen
 # if the number was even, and not if it was odd.
-jp 3
+jp r0 3
 
 # here, r0 was odd. if we want the original value back,
 # we can flip the parity bit again for this section, but

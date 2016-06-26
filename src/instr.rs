@@ -166,7 +166,7 @@ impl From<u16> for Reg {
 /// Invalid values:
 /// * `_1xxxxxxxxxxxxxx`
 /// * `___1xxxxxxxxxxxx`
-/// * `________1xxxxxxx`
+/// * `_________1xxxxxx`
 /// * `__________1xxxxx`
 /// * `___________1xxxx`
 /// * `_____________1xx`
@@ -177,11 +177,13 @@ pub enum Op {
 	/// Stops the machine.
 	Halt,
 	
+	/*
 	/// Flips direction bit.
 	/// 
 	/// This will reverse the VM until it reverses again with the same
 	/// instruction, or halts.
 	Reverse,
+	*/
 	
 	/// Flips every bit in the register.
 	Not(Reg),
@@ -211,6 +213,22 @@ pub enum Op {
 	
 	/// Flips direction bit, then swaps the register and the program counter.
 	RevSwapPc(Reg),
+	
+	/// Reversible signed multiplication of register by 2.
+	/// 
+	/// Let n = 16, for the number of bits in a word.
+	/// If register is &ge; 16384, this will give `x * 2 - 2^n + 1`.
+	/// If it's &lt; -16384, this will give `x * 2 + 2^n + 1`
+	/// Otherwise, it'll give the expected `x * 2`.
+	Mul2(Reg),
+	
+	/// Reversible signed division of register by 2.
+	/// 
+	/// Let n = 16, for the number of bits in a word.
+	/// If register is odd and &gt; 0, this will give `(x - 1)/2 + 2^(n-1)`.
+	/// If it's odd and &lt; 0, this will give `(x - 1)/2 - 2^(n-1)`.
+	/// Otherwise (i.e. when it's even), it'll give the expected `x / 2`.
+	Div2(Reg),
 	
 	/// Rotates the register's bits to the left by the given amount.
 	RotLeftImm(Reg, u8),
@@ -296,7 +314,7 @@ impl Op {
 	pub fn invert(self) -> Op {
 		match self {
 			Op::Halt               => self,
-			Op::Reverse            => self,
+			//Op::Reverse            => self,
 			Op::Not(..)            => self,
 			Op::Increment(r)       => Op::Decrement(r),
 			Op::Decrement(r)       => Op::Increment(r),
@@ -304,6 +322,8 @@ impl Op {
 			Op::Pop(r)             => Op::Push(r),
 			Op::SwapPc(r)          => Op::RevSwapPc(r),
 			Op::RevSwapPc(r)       => Op::SwapPc(r),
+			Op::Mul2(r)            => Op::Div2(r),
+			Op::Div2(r)            => Op::Mul2(r),
 			Op::RotLeftImm(r, v)   => Op::RotRightImm(r, v),
 			Op::RotRightImm(r, v)  => Op::RotLeftImm(r, v),
 			Op::Swap(..)           => self,
@@ -331,7 +351,7 @@ impl Op {
 		match *self {
 			// _______________s
 			Op::Halt    => 0,
-			Op::Reverse => 1,
+			//Op::Reverse => 1,
 			
 			// ____________1rrr
 			Op::Not(reg)       => 1 << 3
@@ -354,6 +374,12 @@ impl Op {
 				| reg as u16,
 			
 			Op::RevSwapPc(reg) => 0b1_101 << 3
+				| reg as u16,
+			
+			Op::Mul2(reg)      => 0b1_110 << 3
+				| reg as u16,
+			
+			Op::Div2(reg)      => 0b1_111 << 3
 				| reg as u16,
 			
 			// _______1orrrvvvv
@@ -520,7 +546,7 @@ impl Op {
 				else { Ok(Op::RotLeftImm(r, v as u8)) }
 			}
 			
-			// _________1ooorrr
+			// ________1oooorrr
 			9 => {
 				let o = (instr >> 3) & 0b_111;
 				let r = Reg::from(instr & 0b_111);
@@ -532,6 +558,8 @@ impl Op {
 					0b_011 => Ok(Op::Pop(r)),
 					0b_100 => Ok(Op::SwapPc(r)),
 					0b_101 => Ok(Op::RevSwapPc(r)),
+					0b_110 => Ok(Op::Mul2(r)),
+					0b_111 => Ok(Op::Div2(r)),
 					
 					_ => Err(InvalidInstr)
 				}
@@ -545,10 +573,11 @@ impl Op {
 			}
 			
 			// _______________s
-			15 => Ok(Op::Reverse),
+			//15 => Ok(Op::Reverse),
 			16 => Ok(Op::Halt),
 			
 			0...16 => Err(InvalidInstr),
+			
 			_ => unreachable!()
 		}
 	}
@@ -558,7 +587,7 @@ impl fmt::Display for Op {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match *self {
 			Op::Halt    => write!(f, "hlt"),
-			Op::Reverse => write!(f, "rev"),
+			//Op::Reverse => write!(f, "rev"),
 			
 			Op::Not(r)       => write!(f, "not {}", r),
 			Op::Increment(r) => write!(f, "inc {}", r),
@@ -567,6 +596,8 @@ impl fmt::Display for Op {
 			Op::Pop(r)       => write!(f, "pop {}", r),
 			Op::SwapPc(r)    => write!(f, "sp {}", r),
 			Op::RevSwapPc(r) => write!(f, "rsp {}", r),
+			Op::Mul2(r)      => write!(f, "mul2 {}", r),
+			Op::Div2(r)      => write!(f, "div2 {}", r),
 			
 			Op::RotLeftImm(r, v)  => write!(f, "roli {} {}", r, v),
 			Op::RotRightImm(r, v) => write!(f, "rori {} {}", r, v),
@@ -642,7 +673,7 @@ impl str::FromStr for Op {
 		
 		Ok(match try!(tokens.next().ok_or(DeserialError::NoMneumonic)) {
 			"hlt" => Op::Halt,
-			"rev" => Op::Reverse,
+			//"rev" => Op::Reverse,
 			
 			"not"  => Op::Not(reg!()),
 			"inc"  => Op::Increment(reg!()),
@@ -651,6 +682,8 @@ impl str::FromStr for Op {
 			"pop"  => Op::Pop(reg!()),
 			"sp"   => Op::SwapPc(reg!()),
 			"rsp"  => Op::RevSwapPc(reg!()),
+			"mul2" => Op::Mul2(reg!()),
+			"div2" => Op::Div2(reg!()),
 			
 			"roli" => Op::RotLeftImm(reg!(), value!(u8, 0b_1111)),
 			"rori" => Op::RotRightImm(reg!(), value!(u8, 0b_1111)),
@@ -702,7 +735,7 @@ mod tests {
 		// Make a vector with all parameters initialized to 1s
 		let ops = vec![
 			Op::Halt,
-			Op::Reverse,
+			//Op::Reverse,
 			Op::Not(Reg::R7),
 			Op::Increment(Reg::R7),
 			Op::Decrement(Reg::R7),
@@ -710,6 +743,8 @@ mod tests {
 			Op::Pop(Reg::R7),
 			Op::SwapPc(Reg::R7),
 			Op::RevSwapPc(Reg::R7),
+			Op::Mul2(Reg::R7),
+			Op::Div2(Reg::R7),
 			Op::RotLeftImm(Reg::R7, 0xF),
 			Op::RotRightImm(Reg::R7, 0xF),
 			Op::Swap(Reg::R7, Reg::R7),
@@ -734,6 +769,9 @@ mod tests {
 			// `Op::decode` shouldn't error when decoding a valid instruction,
 			// so just unwrap it.
 			assert_eq!(op, Op::decode(op.encode()).unwrap());
+			
+			// Also test that string conversion and back is reliable.
+			assert_eq!(op, Op::from_str(op.to_string()).unwrap());
 		}
 	}
 }

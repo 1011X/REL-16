@@ -1,6 +1,6 @@
 [package]
 name = "rel16"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["1011X <1011XXXXX@gmail.com>"]
 
 [dependencies]

@@ -1,6 +1,6 @@
 [root]
 name = "rel16"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "getopts 0.2.14 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
