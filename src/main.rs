@@ -1,8 +1,8 @@
 extern crate getopts;
+extern crate rel_isa as isa;
 
 #[macro_use]
 mod macros;
-mod instr;
 
 mod vm;
 mod asm;
@@ -32,6 +32,7 @@ fn main() {
 	opts.optopt("o", "output", "set output file name", "NAME");
 	opts.optflag("v", "version", "print program version");
 	opts.optflag("h", "help", "print this help menu");
+	opts.optflag("", "verbose", "log each step the vm takes");
 	
 	let matches = try_err!(opts.parse(args));
 	
@@ -68,10 +69,14 @@ fn main() {
 	};
 	
 	match command {
-		Command::Run => match src {
-			Source::Stdin   => vm::run(io::stdin()),
-			Source::File(f) => vm::run(f),
-		},
+		Command::Run => {
+			let logging_enabled = matches.opt_present("verbose");
+			
+			match src {
+				Source::Stdin   => vm::run(io::stdin(), logging_enabled),
+				Source::File(f) => vm::run(f, logging_enabled),
+			}
+		}
 		
 		Command::Assembler(dir) => {
 			let dest = try_err!(matches.opt_str("output").ok_or("No output file given."));

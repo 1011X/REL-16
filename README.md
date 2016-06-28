@@ -10,11 +10,9 @@ The details of this ISA can be found in the ISA-Spec.md file on this directory.
 
 ## Install
 
-Before installing, you'll first need to install the [Rust compiler and Cargo](https://www.rust-lang.org/ "Rust Homepage"). Because this crate isn't on the registry yet, you'll need to download it to install it. Download the project however you want (e.g. GitHub's "Download ZIP" button, `git clone`, etc.) and extract it if necessary. Then, type the following into the terminal:
+Before installing, you'll first need to install the [Rust compiler and Cargo](https://www.rust-lang.org/ "Rust Homepage"). Because this crate isn't on the registry yet, you'll need to download it to install it. Download the project however you want (e.g. GitHub's "Download ZIP" button, `git clone`, etc.) and extract it if necessary. Then, `cd` into the extracted folder and run the following:
 
-	cargo install --path CRATE_PATH
-
-...where CRATE_PATH is the path to the crate you've just downloaded.
+	cargo install
 
 To get a standalone executable, run
 

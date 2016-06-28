@@ -1,91 +1,48 @@
 use std::fmt;
-use std::str;
+use std::num;
+use std::str::FromStr;
 use std::error::Error;
-use std::num::ParseIntError;
 
-/*
-use std::ops::{Range, RangeFrom};
-
-trait RangeArg {
-	fn start(&self) -> usize;
-	fn end(&self) -> Option<usize>;
-}
-
-impl RangeArg for Range<usize> {
-	fn start(&self) -> usize { self.start }
-	fn end(&self) -> Option<usize> { Some(self.start) }
-}
-
-impl RangeArg for RangeFrom<usize> {
-	fn start(&self) -> usize { self.start }
-	fn end(&self) -> Option<usize> { None }
-}
-
-struct Instr(u16);
-
-impl Instr {
-	fn bit(&self, idx: usize) -> bool {
-		if idx >= 16 {
-			panic!("index out of bounds: the len is 16 but the index is {}", idx);
-		}
-		
-		(self.0 >> (16 - idx)) % 2 == 1
-	}
-	
-	// 0b1_001_111, 10..13
-	fn bits<T: RangeArg>(&self, idx: T) -> u16 {
-		let start = idx.start(); // 10
-		let end = idx.end().unwrap_or(16); // 13
-		
-		if start > end { //not exec'd
-			panic!("slice index starts at {} but ends at {}", start, end);
-		}
-		
-		let shifted = self.0 >> (16 - end);
-		// 16 - 13 = 3
-		// 0b1_001_111 >> 3 = 0b1_001
-		println!("shifted = {}", shifted);
-		
-		if end > 16 { // not exec'd
-			panic!("index {} out of range for slice of length 16", end);
-		}
-		
-		let mask = (1 << (end - start)) - 1;
-		// 13 - 10 = 3
-		// 1 << 3 = 0b1_000 = 8
-		// 8 - 1 = 7 = 0b_111
-		
-		shifted & mask
-		// 0b1_001 & 0b_111 = 0b_001
-	}
-}
-*/
+use super::reg::Reg;
 
 #[derive(Debug)]
 pub enum DeserialError {
 	NoMneumonic,
 	NoArgument,
-	UnknownMneu,
+	UnknownMneumonic,
 	ValueTooLarge,
 	NoRegister,
-	Parsing(ParseIntError),
+	Parsing(num::ParseIntError),
 }
 
 impl fmt::Display for DeserialError {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "{}", self.description()) // Should I do this?
+		match *self {
+			DeserialError::NoMneumonic =>
+				write!(f, "No mneumonic found."),
+			DeserialError::NoArgument =>
+				write!(f, "Missing argument for this mneumonic."),
+			DeserialError::UnknownMneumonic =>
+				write!(f, "Did not recognize this mneumonic."),
+			DeserialError::ValueTooLarge =>
+				write!(f, "This value is bigger than the maximum value."),
+			DeserialError::NoRegister =>
+				write!(f, "A register literal was expected."),
+			DeserialError::Parsing(ref e) =>
+				write!(f, "Error parsing value: {}", e),
+		}
 	}
 }
 
 impl Error for DeserialError {
 	fn description(&self) -> &str {
 		match *self {
-			DeserialError::NoMneumonic    => "missing mneumonic",
-			DeserialError::NoArgument     => "missing argument",
-			DeserialError::UnknownMneu    => "unknown mneumonic",
-			DeserialError::ValueTooLarge  => "argument value is too big",
-			DeserialError::NoRegister     => "expected register literal",
-			DeserialError::Parsing(ref e) => e.description(),
+			DeserialError::NoMneumonic      => "missing mneumonic",
+			DeserialError::NoArgument       => "missing argument",
+			DeserialError::UnknownMneumonic => "unknown mneumonic",
+			DeserialError::ValueTooLarge    => "argument value is too big",
+			DeserialError::NoRegister       => "expected register literal",
+			DeserialError::Parsing(ref e)   => e.description(),
 		}
 	}
 	
@@ -111,39 +68,6 @@ impl Error for InvalidInstr {
 	fn description(&self) -> &str { "invalid instruction" }
 }
 
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Reg { R0 = 0, R1, R2, R3, R4, R5, R6, R7 }
-
-impl fmt::Display for Reg {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "r{}", *self as u8)
-	}
-}
-
-impl From<usize> for Reg {
-	fn from(val: usize) -> Self {
-		match val {
-			0 => Reg::R0,
-			1 => Reg::R1,
-			2 => Reg::R2,
-			3 => Reg::R3,
-			4 => Reg::R4,
-			5 => Reg::R5,
-			6 => Reg::R6,
-			7 => Reg::R7,
-			v => panic!("Invalid register value given: {}", v)
-		}
-	}
-}
-
-impl From<u8> for Reg {
-	fn from(val: u8) -> Self { Reg::from(val as usize) }
-}
-
-impl From<u16> for Reg {
-	fn from(val: u16) -> Self { Reg::from(val as usize) }
-}
 
 /// Bit-field key:
 /// * `_`: leading zero
@@ -177,14 +101,6 @@ pub enum Op {
 	/// Stops the machine.
 	Halt,
 	
-	/*
-	/// Flips direction bit.
-	/// 
-	/// This will reverse the VM until it reverses again with the same
-	/// instruction, or halts.
-	Reverse,
-	*/
-	
 	/// Flips every bit in the register.
 	Not(Reg),
 	
@@ -214,20 +130,24 @@ pub enum Op {
 	/// Flips direction bit, then swaps the register and the program counter.
 	RevSwapPc(Reg),
 	
-	/// Reversible signed multiplication of register by 2.
+	/// Signed multiplication by 2.
 	/// 
-	/// Let n = 16, for the number of bits in a word.
-	/// If register is &ge; 16384, this will give `x * 2 - 2^n + 1`.
-	/// If it's &lt; -16384, this will give `x * 2 + 2^n + 1`
-	/// Otherwise, it'll give the expected `x * 2`.
+	/// If the register is between -16384 and 16383, this will double its value.
+	/// 
+	/// If its value *r* is less than -16384, you'll get `2 * r - MIN + 1`.
+	/// 
+	/// Otherwise (i.e. its value *r* is greater than 16384), you'll get
+	/// `2 * r - MAX`.
 	Mul2(Reg),
 	
-	/// Reversible signed division of register by 2.
+	/// Signed division by 2.
 	/// 
-	/// Let n = 16, for the number of bits in a word.
-	/// If register is odd and &gt; 0, this will give `(x - 1)/2 + 2^(n-1)`.
-	/// If it's odd and &lt; 0, this will give `(x - 1)/2 - 2^(n-1)`.
-	/// Otherwise (i.e. when it's even), it'll give the expected `x / 2`.
+	/// If the register's value *r* is odd and greater than 0, you'll get
+	/// `MAX - (MAX - r) / 2`.
+	/// 
+	/// If it's odd and less than 0, you'll get `MIN + (r - MIN - 1) / 2`.
+	/// 
+	/// Otherwise (i.e. when it's even), you'll get `x / 2`.
 	Div2(Reg),
 	
 	/// Rotates the register's bits to the left by the given amount.
@@ -239,9 +159,8 @@ pub enum Op {
 	/// Swaps the registers' values.
 	Swap(Reg, Reg),
 	
-	/// Flips bits in the first register based on bits in the second register.
-	/// 
-	/// Same as x86's `xor` instruction.
+	/// Flips bits in the first register based on bits in the second register,
+	/// like x86's `xor` instruction.
 	CNot(Reg, Reg),
 	
 	/// Adds first register with value in second register.
@@ -261,6 +180,8 @@ pub enum Op {
 	/// Rotates the first register's bits to the right by the value in the
 	/// second register.
 	RotRight(Reg, Reg),
+	
+	//IO(Reg, Reg),
 	
 	/// Toffoli gate; ANDs first and second registers and flips the bits in the
 	/// third register based on the result.
@@ -314,7 +235,6 @@ impl Op {
 	pub fn invert(self) -> Op {
 		match self {
 			Op::Halt               => self,
-			//Op::Reverse            => self,
 			Op::Not(..)            => self,
 			Op::Increment(r)       => Op::Decrement(r),
 			Op::Decrement(r)       => Op::Increment(r),
@@ -331,6 +251,7 @@ impl Op {
 			Op::CAdd(rc, ra)       => Op::CSub(rc, ra),
 			Op::CSub(rc, rs)       => Op::CAdd(rc, rs),
 			Op::Exchange(..)       => self,
+			//Op::IO(..)             => self,
 			Op::RotLeft(rr, rv)    => Op::RotRight(rr, rv),
 			Op::RotRight(rr, rv)   => Op::RotLeft(rr, rv),
 			Op::CCNot(..)          => self,
@@ -351,7 +272,6 @@ impl Op {
 		match *self {
 			// _______________s
 			Op::Halt    => 0,
-			//Op::Reverse => 1,
 			
 			// ____________1rrr
 			Op::Not(reg)       => 1 << 3
@@ -419,7 +339,11 @@ impl Op {
 			Op::RotRight(rr, ro) => 0b1_110 << 3 + 3
 				| (rr as u16) << 3
 				| ro as u16,
-			
+			/*
+			Op::IO(rd, rp)       => 0b1_111 << 3 + 3
+				| (rd as u16) << 3
+				| rp as u16,
+			*/
 			// _____1orrrRRRrrr
 			Op::CCNot(rc0, rc1, rn) => 0b1_0 << 3 + 3 + 3
 				| (rc0 as u16) << 6
@@ -527,11 +451,8 @@ impl Op {
 					0b_100 => Ok(Op::Exchange(ra, rb)),
 					0b_101 => Ok(Op::RotLeft(ra, rb)),
 					0b_110 => Ok(Op::RotRight(ra, rb)),
-				
-					// At this point, it's an invalid op value. We don't store
-					// the value because it doesn't really matter what it is.
-					// Since anything above 0b_111 is unreachable anyways, we
-					// just return the error.
+					//0b_111 => Ok(Op::IO(ra, rb)),
+					
 					_ => Err(InvalidInstr)
 				}
 			}
@@ -573,7 +494,6 @@ impl Op {
 			}
 			
 			// _______________s
-			//15 => Ok(Op::Reverse),
 			16 => Ok(Op::Halt),
 			
 			0...16 => Err(InvalidInstr),
@@ -587,7 +507,6 @@ impl fmt::Display for Op {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match *self {
 			Op::Halt    => write!(f, "hlt"),
-			//Op::Reverse => write!(f, "rev"),
 			
 			Op::Not(r)       => write!(f, "not {}", r),
 			Op::Increment(r) => write!(f, "inc {}", r),
@@ -609,6 +528,7 @@ impl fmt::Display for Op {
 			Op::Exchange(rr, ra) => write!(f, "xchg {} {}", rr, ra),
 			Op::RotLeft(rr, ro)  => write!(f, "rol {} {}", rr, ro),
 			Op::RotRight(rr, ro) => write!(f, "ror {} {}", rr, ro),
+			//Op::IO(rd, rp)       => write!(f, "io {} {}", rd, rp),
 			
 			Op::CCNot(rc0, rc1, rn) => write!(f, "ccn {} {} {}", rc0, rc1, rn),
 			Op::CSwap(rc, rs0, rs1) => write!(f, "cswp {} {} {}", rc, rs0, rs1),
@@ -626,7 +546,7 @@ impl fmt::Display for Op {
 	}
 }
 
-impl str::FromStr for Op {
+impl FromStr for Op {
 	type Err = DeserialError;
 	
 	fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -673,7 +593,6 @@ impl str::FromStr for Op {
 		
 		Ok(match try!(tokens.next().ok_or(DeserialError::NoMneumonic)) {
 			"hlt" => Op::Halt,
-			//"rev" => Op::Reverse,
 			
 			"not"  => Op::Not(reg!()),
 			"inc"  => Op::Increment(reg!()),
@@ -695,6 +614,7 @@ impl str::FromStr for Op {
 			"xchg" => Op::Exchange(reg!(), reg!()),
 			"rol"  => Op::RotLeft(reg!(), reg!()),
 			"ror"  => Op::RotRight(reg!(), reg!()),
+			//"io"   => Op::IO(reg!(), reg!()),
 			
 			"ccn"  => Op::CCNot(reg!(), reg!(), reg!()),
 			"cswp" => Op::CSwap(reg!(), reg!(), reg!()),
@@ -710,7 +630,7 @@ impl str::FromStr for Op {
 			"pmj" => Op::ComeFrom(value!(u16, 0b_11_1111_1111_1111)),
 			
 			// `return` because this `match` block is surrounded by an `Ok()`
-			_ => return Err(DeserialError::UnknownMneu),
+			_ => return Err(DeserialError::UnknownMneumonic),
 		})
 	}
 }
@@ -718,25 +638,14 @@ impl str::FromStr for Op {
 #[cfg(test)]
 mod tests {
 	use super::Op;
-	use super::Reg;
+	use super::super::reg::Reg;
 	use std::str::FromStr;
-	
-	/*
-	use super::Instr;
-	
-	#[test]
-	fn bit_parsing() {
-		let v = Instr(0b1_001_111);
-		assert_eq!(0b_001, v.bits(10..13));
-	}
-	*/
 	
 	#[test]
 	fn instruction_encoding() {
 		// Make a vector with all parameters initialized to 1s
 		let ops = vec![
 			Op::Halt,
-			//Op::Reverse,
 			Op::Not(Reg::R7),
 			Op::Increment(Reg::R7),
 			Op::Decrement(Reg::R7),

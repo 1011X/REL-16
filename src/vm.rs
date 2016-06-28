@@ -1,12 +1,12 @@
 use std::io::{Read, BufReader};
 
-use instr::Op;
+use isa::Op;
 
 
 const MAX_MEM_LEN: usize = 65536;
 
 
-pub fn run<I: Read>(src: I) {
+pub fn run<I: Read>(src: I, logging_enabled: bool) {
 	let mut input = BufReader::new(src);
 	
 	let mut data_mem = [0_u16; MAX_MEM_LEN];
@@ -51,8 +51,7 @@ pub fn run<I: Read>(src: I) {
 	let mut reg = [0_u16; 8];
 	
 	loop {
-		// debugging code
-		{
+		if logging_enabled {
 			// address in pc and the instruction it's pointing to
 			println!("pc = {:04x}  br = {:04x}  dir = {}", pc, br, dir);
 			
@@ -122,10 +121,16 @@ pub fn run<I: Read>(src: I) {
 			println!("ir = {:04x}: INVALID\n", ir);
 		}
 		
+		
 		// execute
 		if let Some(instr) = instr {
 			match instr {
-				Op::Halt => break,
+				Op::Halt => {
+					if prog_mem.get(pc as usize).is_none() {
+						println!("WARNING: Abnormal halt.");
+					}
+					break;
+				}
 				//Op::Reverse => dir = !dir,
 			
 			
@@ -185,12 +190,6 @@ pub fn run<I: Read>(src: I) {
 				}
 			
 			
-				Op::Exchange(r, ra) => {
-					let raddr = reg[ra as usize];
-					swap!(reg[r as usize], data_mem[raddr as usize]);
-				}
-			
-			
 				Op::RotLeftImm(r, v)  =>
 					reg[r as usize] = reg[r as usize].rotate_left(v as u32),
 			
@@ -220,27 +219,36 @@ pub fn run<I: Read>(src: I) {
 				
 					reg[rs as usize] = s.wrapping_sub(c);
 				}
-			
+				
+				Op::Exchange(r, ra) => {
+					let raddr = reg[ra as usize];
+					swap!(reg[r as usize], data_mem[raddr as usize]);
+				}
+				
 				Op::RotLeft(rr, ro) => {
 					let bits = reg[ro as usize];
 				
 					reg[rr as usize] = reg[rr as usize].rotate_left(bits as u32);
 				}
-			
+				
 				Op::RotRight(rr, ro) => {
 					let bits = reg[ro as usize];
 				
 					reg[rr as usize] = reg[rr as usize].rotate_right(bits as u32);
 				}
-			
-			
+				/*
+				Op::IO(rd, rp) => {
+					unimplemented!();
+				}
+				*/
+				
 				Op::CCNot(rc0, rc1, rn) => {
 					let c0 = reg[rc0 as usize];
 					let c1 = reg[rc1 as usize];
 				
 					reg[rn as usize] ^= c0 & c1;
 				}
-			
+				
 				Op::CSwap(rc, rs0, rs1) => {
 					let     c  = reg[rc as usize];
 					let mut s0 = reg[rs0 as usize];
@@ -253,35 +261,35 @@ pub fn run<I: Read>(src: I) {
 					reg[rs0 as usize] = s0;
 					reg[rs1 as usize] = s1;
 				}
-			
-			
+				
+				
 				Op::BranchParity(r, off) =>
 					if reg[r as usize] % 2 == 1 {
 						br = br.wrapping_add(off as u16);
 					},
-			
+				
 				Op::AssertParity(r, off) =>
 					if reg[r as usize] % 2 == 1 {
 						br = br.wrapping_sub(off as u16);
 					},
-			
+				
 				Op::BranchSign(r, off) =>
 					if (reg[r as usize] as i16) < 0 {
 						br = br.wrapping_add(off as u16);
 					},
-			
+				
 				Op::AssertSign(r, off) =>
 					if (reg[r as usize] as i16) < 0 {
 						br = br.wrapping_sub(off as u16);
 					},
-			
+				
 				Op::Immediate(r, v) =>
 					reg[r as usize] ^= v as u16,
-			
-			
+				
+				
 				Op::GoTo(off) =>
 					br = br.wrapping_add(off),
-			
+				
 				Op::ComeFrom(off) =>
 					br = br.wrapping_sub(off),
 			}

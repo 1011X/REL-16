@@ -7,7 +7,7 @@ use std::io::{
 	BufRead, Read, Write
 };
 
-use instr::Op;
+use isa::Op;
 
 
 pub enum Action {

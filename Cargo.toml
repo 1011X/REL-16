@@ -4,4 +4,5 @@ version = "0.2.3"
 authors = ["1011X <1011XXXXX@gmail.com>"]
 
 [dependencies]
+rel_isa = { path = "rel_isa", version = "0.1.0" }
 getopts = "0.2.14"
