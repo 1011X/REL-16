@@ -1,7 +1,11 @@
 [package]
-name = "rel16"
-version = "0.2.3"
+name = "rel"
+version = "0.2.4"
 authors = ["1011X <1011XXXXX@gmail.com>"]
+
+repository = "https://github.com/1011X/REL-16"
+
+readme = "README.md"
 
 [dependencies]
 rel_isa = { path = "rel_isa", version = "0.1.0" }

@@ -1,45 +1,37 @@
 # REL-16
 
-REL-16 stands for Reversible/Entropy-Less 16-bit, and is an instruction set architecture (ISA) designed for reversibility of operations. This virtual machine and assembler allow for emulation of such an architecture as an example of [reversible computing](https://en.wikipedia.org/wiki/Reversible_computing "Wikipedia - Reversible computing"), and is intended as an example of what a reversible CPU would be like.
-
-<!--
-## Instruction Set
-
-The details of this ISA can be found in the ISA-Spec.md file on this directory.
--->
+REL-16 stands for Reversible/Entropy-Less 16-bit, and is an instruction set designed to be able to run both forwards and backwards. This virtual machine and assembler allow for emulation of such an architecture as an example of [reversible computing](https://en.wikipedia.org/wiki/Reversible_computing "Wikipedia - Reversible computing"), and is intended as an example of what a reversible CPU would be like.
 
 ## Install
 
-Before installing, you'll first need to install the [Rust compiler and Cargo](https://www.rust-lang.org/ "Rust Homepage"). Because this crate isn't on the registry yet, you'll need to download it to install it. Download the project however you want (e.g. GitHub's "Download ZIP" button, `git clone`, etc.) and extract it if necessary. Then, `cd` into the extracted folder and run the following:
+Before installing, you'll first need to install [the Rust compiler, along with Cargo](https://www.rust-lang.org/ "Rust Homepage"). Because this crate isn't on the registry yet, you'll need to download it to install it. Download the project however you want, extracting it if necessary. Then, `cd` into the extracted folder and run the following:
 
 	cargo install
 
 To get a standalone executable, run
 
-	cargo build
+	cargo build --release
 
-You can add the `--release` flag at the end to optimize it.
+You can find the executable in `target/release/`.
 
 ## Usage
 
 You can compile an assembly file from the terminal using
 
-	rel16 asm FILE -o OUTPUT_FILE
+	rel asm FILE -o OUTPUT_FILE
 
 To run a compiled file, just type
 
-	rel16 run FILE
+	rel run FILE --verbose
 
-in the terminal, where FILE is the path to the input file. The program will generate the output file on the current directory with the same name as the input file.
+in the terminal, where FILE is the path to the input file.
 
-When using the `run` command, the VM will show the raw and pretty-printed instruction being executed, and the contents of the registers and stack at each step of the program.
+When using the `--verbose` option with the `run` command, the VM will show the raw and pretty-printed instruction being executed, and the contents of the registers and stack at each step of the program.
 
-You can also disassemble built files using
+You can also disassemble built files similarly using:
 
-	rel16 dasm FILE -o OUTPUT_FILE
+	rel dasm FILE -o OUTPUT_FILE
 
 ## License
 
 The default license is GPLv3, but if desired, an MIT license is available for commercial uses at a price. Contact this repository's owner if you're interested.
-
-**Note regarding derivations:** When making derivatives, to avoid confusing others on which tool builds for what, it's strongly suggested to change the name to something different from REL-16, and recommended to keep it consistent between tools.
