@@ -105,12 +105,22 @@ pub fn run<I: Read>(src: I, logging_enabled: bool) {
 		}
 		
 		// fetch
-		ir = *prog_mem.get(pc as usize).unwrap_or(&0x0000);
+		ir = match prog_mem.get(pc as usize) {
+			Some(&val) => val,
+			None => {
+				println!("UNEXPECTED HALT");
+				println!("Encountered halt instruction that wasn't part of the program");
+				break;
+			}
+		};
 		
 		// get instruction and invert if in reverse mode
-		let instr = Op::decode(ir)
-			.ok()
-			.map(|i| i.invert());
+		let instr = {
+			let res = Op::decode(ir).ok();
+			
+			if dir { res.map(|i| i.invert()) }
+			else { res }
+		};
 		
 		// show which instruction is being executed
 		// if invalid, log it and skip it.
