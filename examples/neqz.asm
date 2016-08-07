@@ -101,7 +101,7 @@ swp r1 r2
 # sum zeros again
 # because arch is 16-bits, there are max 16 1's,
 # so only bits [0, 4] are used, with max number
-# of 1's being 3 (to represent 8).
+# of 1's being 4 (to represent 15).
 not r1
 
 jp r1 1; bit 0
