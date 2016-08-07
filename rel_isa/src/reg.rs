@@ -1,11 +1,53 @@
 use std::fmt;
+use std::str;
+use std::error::Error;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Reg { R0 = 0, R1, R2, R3, R4, R5, R6, R7 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum ParseError {
+	NoPrefix,
+	//InvalidIndex(&'a str),
+}
+
 impl fmt::Display for Reg {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		write!(f, "r{}", *self as u8)
+	}
+}
+
+impl str::FromStr for Reg {
+	type Err = ParseError;
+	fn from_str(s: &str) -> Result<Self, Self::Err> {
+		match s {
+			"r0" => Ok(Reg::R0),
+			"r1" => Ok(Reg::R1),
+			"r2" => Ok(Reg::R2),
+			"r3" => Ok(Reg::R3),
+			"r4" => Ok(Reg::R4),
+			"r5" => Ok(Reg::R5),
+			"r6" => Ok(Reg::R6),
+			"r7" => Ok(Reg::R7),
+			//s if s.starts_with('r') && s.parse::<u8>().is_ok() => 
+			_ => Err(ParseError::NoPrefix)
+		}
+	}
+}
+
+impl fmt::Display for ParseError {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		match *self {
+			ParseError::NoPrefix => self.description().fmt(f),
+		}
+	}
+}
+
+impl Error for ParseError {
+	fn description(&self) -> &str {
+		match *self {
+			ParseError::NoPrefix => "invalid register literal",
+		}
 	}
 }
 
@@ -20,13 +62,9 @@ impl From<usize> for Reg {
 			5 => Reg::R5,
 			6 => Reg::R6,
 			7 => Reg::R7,
-			v => panic!("Invalid register value given: {}", v)
+			_ => panic!("Invalid register value given: {}", val)
 		}
 	}
-}
-
-impl From<u8> for Reg {
-	fn from(val: u8) -> Self { Reg::from(val as usize) }
 }
 
 impl From<u16> for Reg {

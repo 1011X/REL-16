@@ -3,7 +3,7 @@ use std::num;
 use std::str::FromStr;
 use std::error::Error;
 
-use super::reg::Reg;
+use super::reg::{self, Reg};
 
 #[derive(Debug)]
 pub enum DeserialError {
@@ -12,7 +12,8 @@ pub enum DeserialError {
 	UnknownMneumonic,
 	ValueTooLarge,
 	NoRegister,
-	Parsing(num::ParseIntError),
+	Value(num::ParseIntError),
+	Register(reg::ParseError),
 }
 
 impl fmt::Display for DeserialError {
@@ -28,8 +29,10 @@ impl fmt::Display for DeserialError {
 				write!(f, "This value is bigger than the maximum value."),
 			DeserialError::NoRegister =>
 				write!(f, "A register literal was expected."),
-			DeserialError::Parsing(ref e) =>
+			DeserialError::Value(ref e) =>
 				write!(f, "Error parsing value: {}", e),
+			DeserialError::Register(ref e) =>
+				write!(f, "Error parsing register literal: {}", e),
 		}
 	}
 }
@@ -42,13 +45,15 @@ impl Error for DeserialError {
 			DeserialError::UnknownMneumonic => "unknown mneumonic",
 			DeserialError::ValueTooLarge    => "argument value is too big",
 			DeserialError::NoRegister       => "expected register literal",
-			DeserialError::Parsing(ref e)   => e.description(),
+			DeserialError::Value(ref e)     => e.description(),
+			DeserialError::Register(ref e)  => e.description(),
 		}
 	}
 	
 	fn cause(&self) -> Option<&Error> {
 		match *self {
-			DeserialError::Parsing(ref e) => Some(e),
+			DeserialError::Value(ref e)    => Some(e),
+			DeserialError::Register(ref e) => Some(e),
 			_ => None,
 		}
 	}
@@ -60,12 +65,12 @@ pub struct InvalidInstr;
 
 impl fmt::Display for InvalidInstr {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "Invalid instruction found while parsing.")
+		f.write_str("Invalid instruction found while parsing.")
 	}
 }
 
 impl Error for InvalidInstr {
-	fn description(&self) -> &str { "invalid instruction" }
+	fn description(&self) -> &'static str { "invalid instruction" }
 }
 
 
@@ -506,7 +511,7 @@ impl Op {
 impl fmt::Display for Op {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match *self {
-			Op::Halt    => write!(f, "hlt"),
+			Op::Halt => f.write_str("hlt"),
 			
 			Op::Not(r)       => write!(f, "not {}", r),
 			Op::Increment(r) => write!(f, "inc {}", r),
@@ -552,39 +557,27 @@ impl FromStr for Op {
 	fn from_str(s: &str) -> Result<Self, Self::Err> {
 		let mut tokens = s.split_whitespace();
 		
-		// Parses string $s as type $t with a max value of $max (inclusive).
-		macro_rules! parse_value(
-			($s:expr, $t:ty, $max:expr) => {
-				match $s.parse::<$t>() {
-					Ok(value) if value <= $max => Ok(value),
-		
-					Ok(_)  => Err(DeserialError::ValueTooLarge),
-					Err(e) => Err(DeserialError::Parsing(e)),
-				}
-			}
-		);
-		
 		// Parses a register literal. Returns early if an error is found.
 		macro_rules! reg(() => {
 			try!(tokens.next()
 				.ok_or(DeserialError::NoArgument)
-				.and_then(|s| {
-					if s.starts_with('r') {
-						parse_value!(s[1..], u8, 0b_111).map(Reg::from)
-					}
-					else {
-						Err(DeserialError::NoRegister)
-					}
-				})
+				.and_then(|s| s.parse::<Reg>()
+					.map_err(DeserialError::Register)
+				)
 			)
 		});
 		
-		// Parses a token of max value $max. Returns early if an error is found.
+		// Parses a token as type $t with max value $max. Returns early if an error is found.
 		macro_rules! value(
 			($t:ty, $max:expr) => {
 				try!(tokens.next()
 					.ok_or(DeserialError::NoArgument)
-					.and_then(|token| parse_value!(token, $t, $max))
+					.and_then(|token| match token.parse::<$t>() {
+						Ok(value) if value <= $max => Ok(value),
+
+						Ok(_)  => Err(DeserialError::ValueTooLarge),
+						Err(e) => Err(DeserialError::Value(e)),
+					})
 				)
 			};
 		);

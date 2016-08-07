@@ -2,12 +2,19 @@ use std::str::FromStr;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use std::io::{
+	self,
 	ErrorKind,
 	BufReader, BufWriter,
 	BufRead, Read, Write
 };
 
-use isa::Op;
+use isa::{self, Op};
+
+
+enum Error {
+	Io(io::Error),
+	Op(isa::DeserialError),
+}
 
 
 pub enum Action {
@@ -51,6 +58,7 @@ pub fn assembler<I: Read>(dir: Action, out_path: &Path, src: I) {
 
 fn assemble<I, O>(out: &mut BufWriter<O>, inp: &mut BufReader<I>) -> Result<(), ()> where
 I: Read, O: Write {
+	
 	// replace mnemonics with actual instructions
 	for (line_number, result) in inp.lines().enumerate() {
 		let line = match result {
@@ -61,22 +69,16 @@ I: Read, O: Write {
 				return Err(());
 			}
 		};
-		let mut line = line.trim();
 		
-		// check if line has a comment marker
-		for (i, c) in line.char_indices() {
-			// found marker; ignore everything after it
-			if c == '#' || c == ';' {
-				line = line[..i].trim_right();
-				break;
-			}
-		}
+		// mark end of string as index of comment marker, or its length if it doesn't exist.
+		let end = line.find(|c| c == '#' || c == ';').unwrap_or(line.len());
+		let l = line[..end].trim();
 		
 		// non-empty line assumed after this
-		if line.is_empty() { continue }
+		if l.is_empty() { continue }
 		
 		// try encoding line
-		match Op::from_str(line) {
+		match Op::from_str(l) {
 			Ok(op) => {
 				let instr = op.encode();
 				let data = [(instr >> 8) as u8, instr as u8];

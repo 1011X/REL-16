@@ -8,5 +8,6 @@ repository = "https://github.com/1011X/REL-16"
 readme = "README.md"
 
 [dependencies]
-rel_isa = { path = "rel_isa", version = "0.1.0" }
+ncurses = "5.80.0"
 getopts = "0.2.14"
+rel_isa = { path = "rel_isa", version = "0.1.0" }

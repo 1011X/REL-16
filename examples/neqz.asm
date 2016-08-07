@@ -4,11 +4,11 @@
 # prereqs:
 # r0 is input
 # mut r1 = 0
-# mut r2 = 0
 
 xori r0 15
 
 xor r1 r0; copy r0 to r1
+push r2; local variable; ensure r2 is 0
 
 # sum r1's ones in r2
 not r1
@@ -186,6 +186,8 @@ roli r1 1
 xori r3 1
 cswp r3 r1 r2
 xori r3 1
+
+pop r2; restore values
 
 
 # postreqs:
