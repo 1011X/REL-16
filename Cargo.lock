@@ -3,7 +3,6 @@ name = "rel"
 version = "0.2.4"
 dependencies = [
  "getopts 0.2.14 (registry+https://github.com/rust-lang/crates.io-index)",
- "ncurses 5.80.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rel_isa 0.1.0",
 ]
 
@@ -11,19 +10,6 @@ dependencies = [
 name = "getopts"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-
-[[package]]
-name = "libc"
-version = "0.2.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-
-[[package]]
-name = "ncurses"
-version = "5.80.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = [
- "libc 0.2.15 (registry+https://github.com/rust-lang/crates.io-index)",
-]
 
 [[package]]
 name = "rel_isa"

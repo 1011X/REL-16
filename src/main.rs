@@ -7,9 +7,9 @@ mod vm;
 mod asm;
 
 use std::env;
+use std::io;
 use std::fs::File;
-use std::path::Path;
-use std::io::{self, Write};
+use std::path::PathBuf;
 use getopts::Options;
 
 
@@ -28,16 +28,15 @@ fn main() {
 	let args = env::args().skip(1);
 	
 	let mut opts = Options::new();
-	opts.optopt("o", "output", "set output to FILENAME", "FILENAME");
+	opts.reqopt("o", "output", "set output to FILENAME", "FILENAME");
 	opts.optflag("V", "version", "print program version");
 	opts.optflag("h", "help", "print this help menu");
 	opts.optflag("v", "verbose", "log each step the VM takes");
-	opts.optopt("", "out-dir", "set output to compiler-chosen filename in DIR", "DIR");
 	
 	let matches = try_err!(opts.parse(args));
 	
 	if matches.opt_present("version") {
-		println!("rel 0.2.4");
+		println!("rel 0.2.5");
 		return;
 	}
 	
@@ -46,19 +45,21 @@ fn main() {
 		return;
 	}
 	
-	let command = match &**matches.free.get(0).expect("Missing subcommand argument.") {
-		"run"  => Command::Run,
-		"asm"  => Command::Assembler(asm::Action::Assemble),
-		"dasm" => Command::Assembler(asm::Action::Disassemble),
+	let command = match matches.free.get(0).map(|s| s.as_str()) {
+		Some("run")  => Command::Run,
+		Some("asm")  => Command::Assembler(asm::Action::Assemble),
+		Some("dasm") => Command::Assembler(asm::Action::Disassemble),
 		
-		other => panic!("No such subcommand: {}", other),
+		Some(other) => panic!("Unrecognized subcommand: {}", other),
+		
+		None => panic!("Missing subcommand."),
 	};
 	
-	let src = {
-		let input = matches.free.get(1).expect("No input source given.");
+	let src = match matches.free.get(1).map(|s| s.as_str()) {
+		Some("-") => Source::Stdin,
+		Some(path) => Source::File(try_err!(File::open(path))),
 		
-		if input == "-" { Source::Stdin }
-		else { Source::File(File::open(input).unwrap()) }
+		None => panic!("No input source given."),
 	};
 	
 	match command {
@@ -72,19 +73,11 @@ fn main() {
 		}
 		
 		Command::Assembler(dir) => {
-			let dest = matches.opt_str("out-dir")
-				.or(matches.opt_str("output"));
-			
-			let cwd = env::current_dir().unwrap();
-			
-			let out_path = match dest {
-				None => Path::new(&cwd),
-				Some(ref dir) => Path::new(dir),
-			};
+			let dest = matches.opt_str("output");
 			
 			match src {
-				Source::Stdin   => asm::assembler(dir, out_path, io::stdin()),
-				Source::File(f) => asm::assembler(dir, out_path, f),
+				Source::Stdin   => asm::assembler(dir, &dest, io::stdin()),
+				Source::File(f) => asm::assembler(dir, &dest, f),
 			}
 		}
 	}

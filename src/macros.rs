@@ -24,11 +24,7 @@ macro_rules! try_err(
 	($e: expr) => {{
 		match $e {
 			Ok(val) => val,
-			
-			Err(e) => {
-				println_err!("{}", e);
-				return;
-			}
+			Err(e)  => panic!("{}", e),
 		}
 	}}
 );

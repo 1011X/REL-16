@@ -1,5 +1,5 @@
-# uses built-in stack to push 2 numbers, then
-# pops them and adds them
+; uses built-in stack to push 2 numbers, then
+; pops them and adds them
 
 not r6      ; sp = 0xffff
 not r7      ; bp = 0xffff

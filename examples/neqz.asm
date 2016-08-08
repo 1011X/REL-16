@@ -1,16 +1,18 @@
-# Check if r0 != 0
-# Result is in r1's parity bit
+; Check if r0 != 0
+; Result is in r1's parity bit
 
-# prereqs:
-# r0 is input
-# mut r1 = 0
+; prereqs:
+; r0 is input
+; mut r1 = 0
 
-xori r0 15
+; TODO: ensure r3 is clean when used
+
+xori r0 15; value to be checked
 
 xor r1 r0; copy r0 to r1
 push r2; local variable; ensure r2 is 0
 
-# sum r1's ones in r2
+; sum r1's ones in r2
 not r1
 
 jp r1 1; bit 0
@@ -98,10 +100,10 @@ xor r1 r0; back to zero
 
 swp r1 r2
 
-# sum zeros again
-# because arch is 16-bits, there are max 16 1's,
-# so only bits [0, 4] are used, with max number
-# of 1's being 4 (to represent 15).
+; sum zeros again
+; because arch is 16-bits, there are max 16 1's,
+; so only bits [0, 4] are used, with max number
+; of 1's being 4 (to represent 15).
 not r1
 
 jp r1 1; bit 0
@@ -129,11 +131,11 @@ inc r2
 ap r1 1
 rori r1 1
 
-
+; restore r1 to the first sum
 roli r1 5
 not r1
 
-
+; roll r1 to the left to store second sum
 roli r1 3
 xori r3 7
 cswp r3 r1 r2
@@ -155,11 +157,11 @@ inc r2
 ap r1 1
 rori r1 1
 
-
+; restore r1 to first and second sum
 roli r1 3
 not r1
 
-
+; roll r1 to the left to store third sum
 roli r1 2
 xori r3 3
 cswp r3 r1 r2
@@ -177,19 +179,21 @@ inc r2
 ap r1 1
 rori r1 1
 
-
+; restore r1 to first, second, and third sum
 roli r1 2
 not r1
 
-
+; roll r1 to the left to store fourth and last sum
 roli r1 1
 xori r3 1
 cswp r3 r1 r2
 xori r3 1
 
-pop r2; restore values
+; all bits swapped into r2 were zero, so it can be
+; safely returned to the stack
+pop r2
 
 
-# postreqs:
-# r1's parity bit is the result
-# r2 = 0
+; postreqs:
+; r1's parity bit is the result
+; r2 = 0

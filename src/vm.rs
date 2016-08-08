@@ -14,23 +14,19 @@ pub fn run<I: Read>(src: I, logging_enabled: bool) {
 	
 	// read file contents into program memory
 	for i in 0.. {
-		let mut buffer = [0_u8; 2];
+		let buffer = &mut [0, 0];
 		
-		match try_err!(input.read(&mut buffer)) {
+		match try_err!(input.read(buffer)) {
 			0 => break,
 			
-			1 => {
-				println_err!("Error: Got incomplete instruction.");
-				return;
-			}
+			1 => panic!("Error: Got incomplete instruction."),
 			
 			2 => if i < MAX_MEM_LEN {
 				let instr = (buffer[0] as u16) << 8 | buffer[1] as u16;
 				prog_mem.push(instr);
 			}
 			else {
-				println_err!("Error: Binary is too big for memory!");
-				return;
+				panic!("Error: Binary is too big for memory!");
 			},
 			
 			_ => unreachable!(),
@@ -200,7 +196,7 @@ pub fn run<I: Read>(src: I, logging_enabled: bool) {
 				}
 			
 			
-				Op::RotLeftImm(r, v)  =>
+				Op::RotLeftImm(r, v) =>
 					reg[r as usize] = reg[r as usize].rotate_left(v as u32),
 			
 				Op::RotRightImm(r, v) =>
