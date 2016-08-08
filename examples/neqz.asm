@@ -192,7 +192,7 @@ xori r3 1
 ; all bits swapped into r2 were zero, so it can be
 ; safely returned to the stack
 pop r2
-
+hlt
 
 ; postreqs:
 ; r1's parity bit is the result

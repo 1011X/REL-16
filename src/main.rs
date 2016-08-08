@@ -28,7 +28,8 @@ fn main() {
 	let args = env::args().skip(1);
 	
 	let mut opts = Options::new();
-	opts.reqopt("o", "output", "set output to FILENAME", "FILENAME");
+	// shouldn't be required, bc `rel run` doesn't need it
+	opts.optopt("o", "output", "set output to FILENAME", "FILENAME");
 	opts.optflag("V", "version", "print program version");
 	opts.optflag("h", "help", "print this help menu");
 	opts.optflag("v", "verbose", "log each step the VM takes");
@@ -73,7 +74,16 @@ fn main() {
 		}
 		
 		Command::Assembler(dir) => {
-			let dest = matches.opt_str("output");
+			let dest = matches.opt_str("output")
+				.map(PathBuf::from)
+				.unwrap_or_else(|| match src {
+					Source::Stdin => PathBuf::from("default.bin"),
+					Source::File(_) => {
+						let mut path = PathBuf::from(&matches.free[1]);
+						path.set_extension("bin");
+						path
+					}
+				});
 			
 			match src {
 				Source::Stdin   => asm::assembler(dir, &dest, io::stdin()),
