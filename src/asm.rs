@@ -34,8 +34,9 @@ I: Read, O: Write {
 		let end = line.find(';').unwrap_or(line.len());
 		let l = line[..end].trim();
 		
-		// non-empty line assumed after this
+		// skip blank lines
 		if l.is_empty() { continue }
+		// non-empty line assumed after this
 		
 		// try encoding line
 		match Op::from_str(l) {

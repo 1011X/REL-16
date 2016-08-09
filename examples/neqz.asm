@@ -8,6 +8,8 @@
 ; TODO: ensure r3 is clean when used
 
 xori r0 15; value to be checked
+not r6; initialize sp
+not r7; initialize bp
 
 xor r1 r0; copy r0 to r1
 push r2; local variable; ensure r2 is 0
