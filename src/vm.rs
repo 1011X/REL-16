@@ -236,11 +236,10 @@ impl<'mem> Rel16<'mem> {
 				let bits = self.reg[ro].0;
 				self.reg[rr].0 = self.reg[rr].0.rotate_right(bits as u32);
 			}
-			/*
-			Op::IO(rd, rp) => {
-				unimplemented!();
-			}
-			*/
+			
+			Op::IO(rd, rp) =>
+				unimplemented!(),
+			
 			Op::CCNot(rc0, rc1, rn) =>
 				self.reg[rn] ^= self.reg[rc0] & self.reg[rc1],
 			

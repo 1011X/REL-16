@@ -186,7 +186,8 @@ pub enum Op {
 	/// second register.
 	RotRight(Reg, Reg),
 	
-	//IO(Reg, Reg),
+	/// Sends value at first register to port given in second register.
+	IO(Reg, Reg),
 	
 	/// Toffoli gate; ANDs first and second registers and flips the bits in the
 	/// third register based on the result.
@@ -256,7 +257,7 @@ impl Op {
 			Op::CAdd(rc, ra)       => Op::CSub(rc, ra),
 			Op::CSub(rc, rs)       => Op::CAdd(rc, rs),
 			Op::Exchange(..)       => self,
-			//Op::IO(..)             => self,
+			Op::IO(..)             => self,
 			Op::RotLeft(rr, rv)    => Op::RotRight(rr, rv),
 			Op::RotRight(rr, rv)   => Op::RotLeft(rr, rv),
 			Op::CCNot(..)          => self,
@@ -344,11 +345,11 @@ impl Op {
 			Op::RotRight(rr, ro) => 0b1_110 << 3 + 3
 				| (rr as u16) << 3
 				| ro as u16,
-			/*
+			
 			Op::IO(rd, rp)       => 0b1_111 << 3 + 3
 				| (rd as u16) << 3
 				| rp as u16,
-			*/
+			
 			// _____1orrrRRRrrr
 			Op::CCNot(rc0, rc1, rn) => 0b1_0 << 3 + 3 + 3
 				| (rc0 as u16) << 6
@@ -456,7 +457,7 @@ impl Op {
 					0b_100 => Ok(Op::Exchange(ra, rb)),
 					0b_101 => Ok(Op::RotLeft(ra, rb)),
 					0b_110 => Ok(Op::RotRight(ra, rb)),
-					//0b_111 => Ok(Op::IO(ra, rb)),
+					0b_111 => Ok(Op::IO(ra, rb)),
 					
 					_ => Err(InvalidInstr)
 				}
@@ -533,7 +534,7 @@ impl fmt::Display for Op {
 			Op::Exchange(rr, ra) => write!(f, "xchg {} {}", rr, ra),
 			Op::RotLeft(rr, ro)  => write!(f, "rol {} {}", rr, ro),
 			Op::RotRight(rr, ro) => write!(f, "ror {} {}", rr, ro),
-			//Op::IO(rd, rp)       => write!(f, "io {} {}", rd, rp),
+			Op::IO(rd, rp)       => write!(f, "io {} {}", rd, rp),
 			
 			Op::CCNot(rc0, rc1, rn) => write!(f, "ccn {} {} {}", rc0, rc1, rn),
 			Op::CSwap(rc, rs0, rs1) => write!(f, "cswp {} {} {}", rc, rs0, rs1),
@@ -607,7 +608,7 @@ impl FromStr for Op {
 			"xchg" => Op::Exchange(reg!(), reg!()),
 			"rol"  => Op::RotLeft(reg!(), reg!()),
 			"ror"  => Op::RotRight(reg!(), reg!()),
-			//"io"   => Op::IO(reg!(), reg!()),
+			"io"   => Op::IO(reg!(), reg!()),
 			
 			"ccn"  => Op::CCNot(reg!(), reg!(), reg!()),
 			"cswp" => Op::CSwap(reg!(), reg!(), reg!()),
@@ -657,6 +658,7 @@ mod tests {
 			Op::Exchange(Reg::R7, Reg::R7),
 			Op::RotLeft(Reg::R7, Reg::R7),
 			Op::RotRight(Reg::R7, Reg::R7),
+			Op::IO(Reg::R7, Reg::R7),
 			Op::CCNot(Reg::R7, Reg::R7, Reg::R7),
 			Op::CSwap(Reg::R7, Reg::R7, Reg::R7),
 			Op::Immediate(Reg::R7, 0xFF),
