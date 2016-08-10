@@ -130,164 +130,163 @@ impl<'mem> Rel16<'mem> {
 	pub fn execute(&mut self) -> bool {
 		// get instruction and invert if in reverse mode
 		let instr = {
-			let res = Op::decode(self.ir).ok();
+			let res = match Op::decode(self.ir) {
+				Ok(instr) => instr,
+				Err(e) => {
+					println_err!("Error parsing instruction 0x{:04x}", self.ir);
+					println_err!("{}", e);
+					return true;
+				}
+			};
 			
-			if self.dir { res.map(|i| i.invert()) }
+			if self.dir { res.invert() }
 			else { res }
 		};
 		
-		if let Some(instr) = instr {
-			match instr {
-				Op::Halt => return true,
+		match instr {
+			Op::Halt => return true,
 			
 			
-				Op::Not(a) =>
-					self.reg[a] = !self.reg[a],
+			Op::Not(a) =>
+				self.reg[a] = !self.reg[a],
 			
-				Op::Increment(a) =>
-					self.reg[a] += Wrapping(1),
+			Op::Increment(a) =>
+				self.reg[a] += Wrapping(1),
 			
-				Op::Decrement(a) =>
-					self.reg[a] -= Wrapping(1),
+			Op::Decrement(a) =>
+				self.reg[a] -= Wrapping(1),
 			
-				Op::Push(r) => {
-					self.reg.0[6] -= Wrapping(1);
-					let sp = self.reg.0[6].0 as usize;
-					swap!(self.reg[r].0, self.data_mem[sp]);
-				}
-			
-				Op::Pop(r) => {
-					let sp = self.reg.0[6].0 as usize;
-					swap!(self.reg[r].0, self.data_mem[sp]);
-					self.reg.0[6] += Wrapping(1);
-				}
-			
-				Op::SwapPc(r) =>
-					swap!(self.pc, self.reg[r]),
-			
-				Op::RevSwapPc(r) => {
-					swap!(self.pc, self.reg[r]);
-					self.dir = !self.dir;
-				}
-			
-				Op::Mul2(ri) => {
-					use std::i16;
-				
-					let r = self.reg[ri].0 as i16;
-				
-					self.reg[ri].0 = match r {
-						-16384...16383    => r * 2,
-						16384...i16::MAX  => r - (i16::MAX - r),
-						i16::MIN...-16383 => r + (r - i16::MIN + 1),
-					
-						_ => unreachable!()
-					} as u16;
-				}
-			
-				Op::Div2(ri) => {
-					use std::i16;
-				
-					let r = self.reg[ri].0 as i16;
-				
-					self.reg[ri].0 = match r {
-						0...i16::MAX if r & 1 == 1 => i16::MAX - (i16::MAX - r) / 2,
-						i16::MIN...0 if r & 1 == 1 => i16::MIN + (r - (i16::MIN + 1)) / 2,
-						_ /* even */               => r / 2,
-					} as u16;
-				}
-			
-			
-				Op::RotLeftImm(r, v) =>
-					self.reg[r].0 = self.reg[r].0.rotate_left(v as u32),
-			
-				Op::RotRightImm(r, v) =>
-					self.reg[r].0 = self.reg[r].0.rotate_right(v as u32),
-			
-			
-				Op::Swap(a, b) =>
-					self.reg.0.swap(a as usize, b as usize),
-			
-				Op::CNot(rn, rc) =>
-					self.reg[rn] ^= self.reg[rc],
-			
-				Op::CAdd(ra, rc) =>
-					self.reg[ra] += self.reg[rc],
-			
-				Op::CSub(rs, rc) =>
-					self.reg[rs] -= self.reg[rc],
-				
-				Op::Exchange(r, ra) => {
-					let raddr = self.reg[ra].0 as usize;
-					swap!(self.reg[r].0, self.data_mem[raddr]);
-				}
-				
-				Op::RotLeft(rr, ro) => {
-					let bits = self.reg[ro].0;
-				
-					self.reg[rr].0 = self.reg[rr].0.rotate_left(bits as u32);
-				}
-				
-				Op::RotRight(rr, ro) => {
-					let bits = self.reg[ro].0;
-				
-					self.reg[rr].0 = self.reg[rr].0.rotate_right(bits as u32);
-				}
-				/*
-				Op::IO(rd, rp) => {
-					unimplemented!();
-				}
-				*/
-				Op::CCNot(rc0, rc1, rn) => {
-					let c0 = self.reg[rc0];
-					let c1 = self.reg[rc1];
-				
-					self.reg[rn] ^= c0 & c1;
-				}
-				
-				Op::CSwap(rc, rs0, rs1) => {
-					let c = self.reg[rc];
-					let mut s0 = self.reg[rs0];
-					let mut s1 = self.reg[rs1];
-				
-					let t = (s0 ^ s1) & c;
-					s0 ^= t;
-					s1 ^= t;
-				
-					self.reg[rs0] = s0;
-					self.reg[rs1] = s1;
-				}
-				
-				
-				Op::BranchParity(r, off) =>
-					if self.reg[r].0 % 2 == 1 {
-						self.br += Wrapping(off as u16);
-					},
-				
-				Op::AssertParity(r, off) =>
-					if self.reg[r].0 % 2 == 1 {
-						self.br -= Wrapping(off as u16);
-					},
-				
-				Op::BranchSign(r, off) =>
-					if (self.reg[r].0 as i16) < 0 {
-						self.br += Wrapping(off as u16);
-					},
-				
-				Op::AssertSign(r, off) =>
-					if (self.reg[r].0 as i16) < 0 {
-						self.br -= Wrapping(off as u16);
-					},
-				
-				Op::Immediate(r, v) =>
-					self.reg[r] ^= Wrapping(v as u16),
-				
-				
-				Op::GoTo(off) =>
-					self.br += Wrapping(off),
-				
-				Op::ComeFrom(off) =>
-					self.br -= Wrapping(off),
+			Op::Push(r) => {
+				self.reg[Reg::R6] -= Wrapping(1);
+				let sp = self.reg[Reg::R6].0 as usize;
+				swap!(self.reg[r].0, self.data_mem[sp]);
 			}
+			
+			Op::Pop(r) => {
+				let sp = self.reg[Reg::R6].0 as usize;
+				swap!(self.reg[r].0, self.data_mem[sp]);
+				self.reg[Reg::R6] += Wrapping(1);
+			}
+			
+			Op::SwapPc(r) =>
+				swap!(self.pc, self.reg[r]),
+			
+			Op::RevSwapPc(r) => {
+				swap!(self.pc, self.reg[r]);
+				self.dir = !self.dir;
+			}
+			
+			Op::Mul2(ri) => {
+				use std::i16;
+				
+				let r = self.reg[ri].0 as i16;
+				
+				self.reg[ri].0 = match r {
+					-16384...16383    => r * 2,
+					16384...i16::MAX  => r - (i16::MAX - r),
+					i16::MIN...-16383 => r + (r - i16::MIN + 1),
+					
+					_ => unreachable!()
+				} as u16;
+			}
+			
+			Op::Div2(ri) => {
+				use std::i16;
+				
+				let r = self.reg[ri].0 as i16;
+				
+				self.reg[ri].0 = match r {
+					0...i16::MAX if r & 1 == 1 => i16::MAX - (i16::MAX - r) / 2,
+					i16::MIN...0 if r & 1 == 1 => i16::MIN + (r - (i16::MIN + 1)) / 2,
+					_ /* even */               => r / 2,
+				} as u16;
+			}
+			
+		
+			Op::RotLeftImm(r, v) =>
+				self.reg[r].0 = self.reg[r].0.rotate_left(v as u32),
+			
+			Op::RotRightImm(r, v) =>
+				self.reg[r].0 = self.reg[r].0.rotate_right(v as u32),
+			
+			
+			Op::Swap(a, b) =>
+				self.reg.0.swap(a as usize, b as usize),
+			
+			Op::CNot(rn, rc) =>
+				self.reg[rn] ^= self.reg[rc],
+			
+			Op::CAdd(ra, rc) =>
+				self.reg[ra] += self.reg[rc],
+			
+			Op::CSub(rs, rc) =>
+				self.reg[rs] -= self.reg[rc],
+			
+			Op::Exchange(r, ra) => {
+				let raddr = self.reg[ra].0 as usize;
+				swap!(self.reg[r].0, self.data_mem[raddr]);
+			}
+			
+			Op::RotLeft(rr, ro) => {
+				let bits = self.reg[ro].0;
+				self.reg[rr].0 = self.reg[rr].0.rotate_left(bits as u32);
+			}
+			
+			Op::RotRight(rr, ro) => {
+				let bits = self.reg[ro].0;
+				self.reg[rr].0 = self.reg[rr].0.rotate_right(bits as u32);
+			}
+			/*
+			Op::IO(rd, rp) => {
+				unimplemented!();
+			}
+			*/
+			Op::CCNot(rc0, rc1, rn) =>
+				self.reg[rn] ^= self.reg[rc0] & self.reg[rc1],
+			
+			Op::CSwap(rc, rs0, rs1) => {
+				let c = self.reg[rc];
+				let mut s0 = self.reg[rs0];
+				let mut s1 = self.reg[rs1];
+				
+				let t = (s0 ^ s1) & c;
+				s0 ^= t;
+				s1 ^= t;
+				
+				self.reg[rs0] = s0;
+				self.reg[rs1] = s1;
+			}
+			
+			
+			Op::BranchParity(r, off) =>
+				if self.reg[r].0 % 2 == 1 {
+					self.br += Wrapping(off as u16);
+				},
+			
+			Op::AssertParity(r, off) =>
+				if self.reg[r].0 % 2 == 1 {
+					self.br -= Wrapping(off as u16);
+				},
+			
+			Op::BranchSign(r, off) =>
+				if (self.reg[r].0 as i16) < 0 {
+					self.br += Wrapping(off as u16);
+				},
+			
+			Op::AssertSign(r, off) =>
+				if (self.reg[r].0 as i16) < 0 {
+					self.br -= Wrapping(off as u16);
+				},
+			
+			Op::Immediate(r, v) =>
+				self.reg[r].0 ^= v as u16,
+			
+			
+			Op::GoTo(off) =>
+				self.br += Wrapping(off),
+			
+			Op::ComeFrom(off) =>
+				self.br -= Wrapping(off),
 		}
 		
 		// next instruction
