@@ -1,4 +1,6 @@
 use std::io::{Read, BufReader};
+use std::fs::File;
+use std::path::Path;
 use std::ops::{Index, IndexMut};
 use std::num::Wrapping;
 
@@ -297,8 +299,8 @@ impl<'mem> Rel16<'mem> {
 }
 
 
-pub fn run<I: Read>(src: I, logging_enabled: bool) {
-	let mut input = BufReader::new(src);
+pub fn run(src: &Path, logging_enabled: bool) {
+	let mut input = BufReader::new(try_err!(File::open(src)));
 	
 	let mut prog_mem = [0; MAX_MEM_LEN];
 	let mut data_mem = [0; MAX_MEM_LEN];

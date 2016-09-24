@@ -9,23 +9,11 @@ use std::io::{
 use isa::Op;
 
 
-pub enum Action { Assemble, Disassemble }
-
-
-pub fn assembler<I: Read>(dir: Action, dest: &Path, src: I) {
+pub fn assemble(output: &Path, input: &Path) {
 	// open input source and create output file, both buffered
-	let mut input = BufReader::new(src);
-	let mut output = BufWriter::new(try_err!(File::create(dest)));
+	let inp = BufReader::new(try_err!(File::open(input)));
+	let mut out = BufWriter::new(try_err!(File::create(output)));
 	
-	// choose assemble or disassemble based on dir
-	match dir {
-		Action::Assemble    => assemble(&mut output, &mut input),
-		Action::Disassemble => disassemble(&mut output, &mut input),
-	}
-}
-
-fn assemble<I, O>(out: &mut BufWriter<O>, inp: &mut BufReader<I>) where
-I: Read, O: Write {
 	// replace mnemonics with actual instructions
 	for (line_number, result) in inp.lines().enumerate() {
 		let line = try_err!(result);
@@ -56,8 +44,11 @@ I: Read, O: Write {
 	}
 }
 
-fn disassemble<I, O>(out: &mut BufWriter<O>, inp: &mut BufReader<I>) where
-I: Read, O: Write {
+pub fn disassemble(output: &Path, input: &Path) {
+	// open input source and create output file, both buffered
+	let mut inp = BufReader::new(try_err!(File::open(input)));
+	let mut out = BufWriter::new(try_err!(File::create(output)));
+	
 	// replace instructions with mnemonics
 	for i in 0.. {
 		let buf = &mut [0, 0];
