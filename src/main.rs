@@ -7,7 +7,8 @@ mod vm;
 mod asm;
 
 use std::env;
-use std::path::PathBuf;
+use std::io::{Write, BufReader, BufWriter};
+use std::fs::{self, File};
 use getopts::Options;
 
 
@@ -47,36 +48,43 @@ fn main() {
 		return;
 	}
 	
+	let mut src = match matches.free.get(1) {
+		Some(path) => BufReader::new(try_err!(File::open(path))),
+		None => exit_with!("No input source given."),
+	};
+	
 	match matches.free.get(0).map(|s| s.as_str()) {
 		Some("run") => {
 			let logging_enabled = matches.opt_present("verbose");
-			let src = match matches.free.get(1) {
-				Some(path) => PathBuf::from(path),
-				None => exit_with!("No input source given."),
-			};
 			
-			vm::run(&src, logging_enabled);
+			vm::run(&mut src, logging_enabled);
 		}
 		
-		Some(sc @ "asm") |
-		Some(sc @ "dasm") => {
-			let dest = PathBuf::from(matches.opt_str("output")
-				.unwrap_or("default.bin".to_owned())
-			);
-			
-			let src = match matches.free.get(1) {
-				Some(path) => PathBuf::from(path),
-				None => exit_with!("No input source given."),
+		Some(subc @ "asm") |
+		Some(subc @ "dasm") => {
+			let data = match subc {
+				"asm"  => asm::assemble(src),
+				"dasm" => asm::disassemble(&mut src),
+				_      => unreachable!()
 			};
 			
-			match sc {
-				"asm"  => asm::assemble(&dest, &src),
-				"dasm" => asm::disassemble(&dest, &src),
-				_      => unreachable!()
+			let filename = matches.opt_str("output")
+				.unwrap_or("default.bin".to_owned());
+			
+			let result = BufWriter::new(try_err!(File::create(&filename)))
+				.write_all(&data);
+			
+			if let Err(e) = result {
+				println_err!("Could not write to file: {}", e);
+				
+				if let Err(e) = fs::remove_file(&filename) {
+					println_err!("Could not delete empty file: {}", e);
+					println_err!("Please delete manually.");
+				}
 			}
 		}
 		
-		Some(other) => exit_with!("Unrecognized subcommand: {}", other),
+		Some(subc) => exit_with!("Unrecognized subcommand: {}", subc),
 		
 		None => exit_with!("Missing subcommand."),
 	}

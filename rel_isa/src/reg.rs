@@ -3,7 +3,7 @@ use std::str;
 use std::error::Error;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Reg { R0 = 0, R1, R2, R3, R4, R5, R6, R7 }
+pub enum Reg { R0 = 0, R1, R2, R3, R4, R5, SP, BP }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ParseError {
@@ -27,8 +27,8 @@ impl str::FromStr for Reg {
 			"r3" => Ok(Reg::R3),
 			"r4" => Ok(Reg::R4),
 			"r5" => Ok(Reg::R5),
-			"r6" => Ok(Reg::R6),
-			"r7" => Ok(Reg::R7),
+			"r6" | "sp" => Ok(Reg::SP),
+			"r7" | "bp" => Ok(Reg::BP),
 			//s if s.starts_with('r') && s.parse::<u8>().is_ok() => 
 			_ => Err(ParseError::NoPrefix)
 		}
@@ -60,8 +60,8 @@ impl From<usize> for Reg {
 			3 => Reg::R3,
 			4 => Reg::R4,
 			5 => Reg::R5,
-			6 => Reg::R6,
-			7 => Reg::R7,
+			6 => Reg::SP,
+			7 => Reg::BP,
 			_ => panic!("Invalid register value given: {}", val)
 		}
 	}

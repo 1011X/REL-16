@@ -1,22 +1,15 @@
 use std::str::FromStr;
-use std::fs::File;
-use std::path::Path;
-use std::io::{
-	BufReader, BufWriter,
-	BufRead, Read, Write
-};
+use std::io::{BufRead, Write};
 
 use isa::Op;
 
 
-pub fn assemble(output: &Path, input: &Path) {
-	// open input source and create output file, both buffered
-	let inp = BufReader::new(try_err!(File::open(input)));
-	let mut out = BufWriter::new(try_err!(File::create(output)));
+pub fn assemble<I: BufRead>(inp: I) -> Vec<u8> {
+	let mut out = Vec::new();
 	
 	// replace mnemonics with actual instructions
 	for (line_number, result) in inp.lines().enumerate() {
-		let line = try_err!(result);
+		let line = result.unwrap(); // TODO: handle unwrap
 		
 		// mark end of string as index of first comment marker, or its length if none exist.
 		let end = line.find(';').unwrap_or(line.len());
@@ -30,9 +23,9 @@ pub fn assemble(output: &Path, input: &Path) {
 		match Op::from_str(l) {
 			Ok(op) => {
 				let instr = op.encode();
-				let data = &[(instr >> 8) as u8, instr as u8];
 				
-				try_err!(out.write_all(data));
+				out.push((instr >> 8) as u8);
+				out.push(instr as u8);
 			}
 			
 			Err(e) => {
@@ -42,12 +35,12 @@ pub fn assemble(output: &Path, input: &Path) {
 			}
 		}
 	}
+	
+	out
 }
 
-pub fn disassemble(output: &Path, input: &Path) {
-	// open input source and create output file, both buffered
-	let mut inp = BufReader::new(try_err!(File::open(input)));
-	let mut out = BufWriter::new(try_err!(File::create(output)));
+pub fn disassemble<I: BufRead>(inp: &mut I) -> Vec<u8> {
+	let mut out = Vec::new();
 	
 	// replace instructions with mnemonics
 	for i in 0.. {
@@ -64,8 +57,8 @@ pub fn disassemble(output: &Path, input: &Path) {
 		let instr = (buf[0] as u16) << 8 | buf[1] as u16;
 		
 		match Op::decode(instr) {
-			// try writing instruction and abort if there's an error
-			Ok(op) => try_err!(writeln!(out, "{}", op)),
+			// write instruction
+			Ok(op) => writeln!(out, "{}", op).unwrap(),
 			
 			Err(e) => {
 				// write line number, instruction, and error description
@@ -74,4 +67,6 @@ pub fn disassemble(output: &Path, input: &Path) {
 			}
 		}
 	}
+	
+	out
 }
