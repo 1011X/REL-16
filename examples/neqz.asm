@@ -1,15 +1,27 @@
+; initilization
+not r6; init sp
+not r7; init bp
+
+dec r6; make space to store result
+
+xori r0 15; value to be checked
+push r0
+
 ; Check if r0 != 0
 ; Result is in r1's parity bit
 
 ; prereqs:
-; r0 is input
+; stack[0] is input
+; stack[1] is result
 ; mut r1 = 0
 
 ; TODO: ensure r3 is clean when used
 
-xori r0 15; value to be checked
-not r6; initialize sp
-not r7; initialize bp
+xor r4 r7
+
+
+xchg r0 r6; input
+xchg r1 r; result
 
 xor r1 r0; copy r0 to r1
 push r2; local variable; ensure r2 is 0
@@ -104,7 +116,7 @@ swp r1 r2
 
 ; sum zeros again
 ; because arch is 16-bits, there are max 16 1's,
-; so only bits [0, 4] are used, with max number
+; so only first 5 bits are used, with max number
 ; of 1's being 4 (to represent 15).
 not r1
 
