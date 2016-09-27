@@ -7,28 +7,15 @@ mod vm;
 mod asm;
 
 use std::env;
-use std::io;
-use std::fs::File;
-use std::path::PathBuf;
+use std::io::{Write, BufReader, BufWriter};
+use std::fs::{self, File};
 use getopts::Options;
 
 
-enum Command {
-	Run,
-	Assembler(asm::Action),
-}
-
-enum Source {
-	Stdin,
-	File(File),
-}
-
 const USAGE: &'static str = "Usage:
     rel [--version] [--help]
-    rel run [--verbose] <input>
-    rel [d]asm [--output <filepath>] <input>
-    
-    The special argument \"-\" can be used as input to specify stdin.";
+    rel run [--verbose] <infile>
+    rel [d]asm [--output <outfile>] <infile>";
 
 
 fn main() {
@@ -42,74 +29,63 @@ fn main() {
 	opts.optflag("v", "verbose", "Log each step the VM takes");
 	
 	let matches = try_err!(opts.parse(args));
-	
-	let print_help = || println_err!("{}", opts.usage(USAGE));
-	
+
+	macro_rules! exit_with(
+		($($arg: tt)*) => {{
+			println_err!($($arg)*);
+			println_err!("{}", opts.usage(USAGE));
+			return;
+		}}
+	);
+
 	if matches.opt_present("version") {
-		println!("rel 0.2.5");
+		println!("rel 0.2.6");
 		return;
 	}
 	
 	if matches.opt_present("help") {
-		print_help();
+		println_err!("{}", opts.usage(USAGE));
 		return;
 	}
 	
-	let command = match matches.free.get(0).map(|s| s.as_str()) {
-		Some("run")  => Command::Run,
-		Some("asm")  => Command::Assembler(asm::Action::Assemble),
-		Some("dasm") => Command::Assembler(asm::Action::Disassemble),
-		
-		Some(other) => {
-			println_err!("Unrecognized subcommand: {}", other);
-			print_help();
-			return;
-		}
-		
-		None => {
-			println_err!("Missing subcommand.");
-			print_help();
-			return;
-		}
+	let mut src = match matches.free.get(1) {
+		Some(path) => BufReader::new(try_err!(File::open(path))),
+		None => exit_with!("No input source given."),
 	};
 	
-	let src = match matches.free.get(1).map(|s| s.as_str()) {
-		Some("-") => Source::Stdin,
-		Some(path) => Source::File(try_err!(File::open(path))),
-		
-		None => {
-			println_err!("No input source given.");
-			print_help();
-			return;
-		}
-	};
-	
-	match command {
-		Command::Run => {
+	match matches.free.get(0).map(|s| s.as_str()) {
+		Some("run") => {
 			let logging_enabled = matches.opt_present("verbose");
 			
-			match src {
-				Source::Stdin   => vm::run(io::stdin(), logging_enabled),
-				Source::File(f) => vm::run(f, logging_enabled),
+			vm::run(&mut src, logging_enabled);
+		}
+		
+		Some(subc @ "asm") |
+		Some(subc @ "dasm") => {
+			let data = match subc {
+				"asm"  => asm::assemble(src),
+				"dasm" => asm::disassemble(&mut src),
+				_      => unreachable!()
+			};
+			
+			let filename = matches.opt_str("output")
+				.unwrap_or("default.bin".to_owned());
+			
+			let result = BufWriter::new(try_err!(File::create(&filename)))
+				.write_all(&data);
+			
+			if let Err(e) = result {
+				println_err!("Could not write to file: {}", e);
+				
+				if let Err(e) = fs::remove_file(&filename) {
+					println_err!("Could not delete empty file: {}", e);
+					println_err!("Please delete manually.");
+				}
 			}
 		}
 		
-		Command::Assembler(dir) => {
-			let dest = matches.opt_str("output")
-				.map(PathBuf::from)
-				.unwrap_or_else(|| match src {
-					Source::Stdin => PathBuf::from("default.bin"),
-					Source::File(_) => {
-						let mut path = PathBuf::from(&matches.free[1]);
-						path.set_extension("bin");
-						path
-					}
-				});
-			
-			match src {
-				Source::Stdin   => asm::assembler(dir, &dest, io::stdin()),
-				Source::File(f) => asm::assembler(dir, &dest, f),
-			}
-		}
+		Some(subc) => exit_with!("Unrecognized subcommand: {}", subc),
+		
+		None => exit_with!("Missing subcommand."),
 	}
 }
