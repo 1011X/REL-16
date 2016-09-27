@@ -5,7 +5,7 @@ use std::num::Wrapping;
 use isa::{Op, Reg};
 
 
-const MAX_MEM_LEN: usize = 65536;
+const MAX_MEM: usize = 65536;
 
 /*
 struct MemoryROM<'a>(&'a [u16; MAX_MEM_LEN]);
@@ -40,12 +40,12 @@ pub struct Rel16<'mem> {
 	// r7 is the stack base pointer (bp)
 	reg: RegisterFile,
 	
-	prog_mem: &'mem [u16; MAX_MEM_LEN], //MemoryROM<'a>,
-	data_mem: &'mem mut [u16; MAX_MEM_LEN], //MemoryRAM<'a>,
+	prog_mem: &'mem [u16; MAX_MEM], //MemoryROM<'a>,
+	data_mem: [u16; MAX_MEM], //MemoryRAM<'a>,
 }
 
 impl<'mem> Rel16<'mem> {
-	pub fn new(prog: &'mem [u16; MAX_MEM_LEN], data: &'mem mut [u16; MAX_MEM_LEN]) -> Rel16<'mem> {
+	pub fn new(prog: &'mem [u16; MAX_MEM]) -> Rel16<'mem> {
 		Rel16 {
 			dir: false,
 			br: Wrapping(1),
@@ -53,7 +53,7 @@ impl<'mem> Rel16<'mem> {
 			ir: 0,
 			reg: RegisterFile([0; 8]),
 			prog_mem: prog,
-			data_mem: data,
+			data_mem: [0; MAX_MEM],
 		}
 	}
 	
@@ -302,8 +302,7 @@ impl<'mem> Rel16<'mem> {
 
 
 pub fn run<I: BufRead>(input: &mut I, logging_enabled: bool) {
-	let mut prog_mem = [0; MAX_MEM_LEN];
-	let mut data_mem = [0; MAX_MEM_LEN];
+	let mut prog_mem = [0; MAX_MEM];
 	
 	// read file contents into program memory
 	for i in 0.. {
@@ -314,7 +313,7 @@ pub fn run<I: BufRead>(input: &mut I, logging_enabled: bool) {
 			
 			1 => panic!("Error: Got incomplete instruction."),
 			
-			2 => if i < MAX_MEM_LEN {
+			2 => if i < MAX_MEM {
 				let instr = (buffer[0] as u16) << 8 | buffer[1] as u16;
 				prog_mem[i] = instr;
 			} else {
@@ -325,7 +324,7 @@ pub fn run<I: BufRead>(input: &mut I, logging_enabled: bool) {
 		}
 	}
 	
-	let mut cpu = Rel16::new(&prog_mem, &mut data_mem);
+	let mut cpu = Rel16::new(&prog_mem);
 	
 	loop {
 		if logging_enabled { cpu.log_state() }
