@@ -1,8 +1,8 @@
 extern crate getopts;
 //extern crate ncurses;
-extern crate rel_isa as isa;
 
 #[macro_use] mod macros;
+mod isa;
 mod vm;
 mod asm;
 
