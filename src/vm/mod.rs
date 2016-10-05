@@ -8,8 +8,8 @@ use std::io::BufRead;
 use self::cpu::Cpu;
 
 pub fn run<I: BufRead>(input: &mut I, logging_enabled: bool) {
-	let mut prog_mem = [0; MAX_MEM_LEN];
-	let mut data_mem = [0; MAX_MEM_LEN];
+	let mut prog_mem = [0; MAX_MEM];
+	let mut data_mem = [0; MAX_MEM];
 	
 	// read file contents into program memory
 	for i in 0.. {
@@ -20,7 +20,7 @@ pub fn run<I: BufRead>(input: &mut I, logging_enabled: bool) {
 			
 			1 => panic!("Error: Got incomplete instruction."),
 			
-			2 => if i < MAX_MEM_LEN {
+			2 => if i < MAX_MEM {
 				let instr = (buffer[0] as u16) << 8 | buffer[1] as u16;
 				prog_mem[i] = instr;
 			} else {
