@@ -9,7 +9,6 @@ use self::cpu::Cpu;
 
 pub fn run<I: BufRead>(input: &mut I, logging_enabled: bool) {
 	let mut prog_mem = [0; MAX_MEM];
-	let mut data_mem = [0; MAX_MEM];
 	
 	// read file contents into program memory
 	for i in 0.. {
@@ -31,7 +30,7 @@ pub fn run<I: BufRead>(input: &mut I, logging_enabled: bool) {
 		}
 	}
 	
-	let mut cpu = Cpu::new(&prog_mem, &mut data_mem);
+	let mut cpu = Cpu::new(&prog_mem);
 	
 	loop {
 		if logging_enabled { cpu.log_state() }

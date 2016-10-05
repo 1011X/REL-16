@@ -22,7 +22,7 @@ pub struct Cpu<'mem> {
 }
 
 impl<'mem> Cpu<'mem> {
-	pub fn new(prog: &'mem [u16; MAX_MEM], data: &'mem mut [u16; MAX_MEM]) -> Cpu<'mem> {
+	pub fn new(prog: &'mem [u16; MAX_MEM]) -> Cpu<'mem> {
 		Cpu {
 			dir: false,
 			br: Rev(1),
