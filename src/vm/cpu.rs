@@ -1,37 +1,14 @@
-use std::io::BufRead;
-use std::ops::{Index, IndexMut};
-use std::num::Wrapping;
-
 use isa::{Op, Reg};
 
+use super::register_file::RegisterFile;
+use super::rev::Rev;
+use super::MAX_MEM_LEN;
 
-const MAX_MEM: usize = 65536;
-
-/*
-struct MemoryROM<'a>(&'a [u16; MAX_MEM_LEN]);
-struct MemoryRAM<'a>(&'a mut [u16; MAX_MEM_LEN]);
-*/
-
-struct RegisterFile([u16; 8]);
-
-impl Index<Reg> for RegisterFile {
-	type Output = u16;
-	fn index(&self, index: Reg) -> &Self::Output {
-		&self.0[index as usize]
-	}
-}
-
-impl IndexMut<Reg> for RegisterFile {
-	fn index_mut(&mut self, index: Reg) -> &mut Self::Output {
-		&mut self.0[index as usize]
-	}
-}
-
-pub struct Rel16<'mem> {
+pub struct Cpu<'mem> {
 	// when dir is true, it is in reverse mode
 	dir: bool,
-	br: Wrapping<u16>,
-	pc: Wrapping<u16>,
+	br: Rev,
+	pc: Rev,
 	ir: u16,
 	
 	// Some conventions on registers:
@@ -44,14 +21,14 @@ pub struct Rel16<'mem> {
 	data_mem: [u16; MAX_MEM], //MemoryRAM<'a>,
 }
 
-impl<'mem> Rel16<'mem> {
-	pub fn new(prog: &'mem [u16; MAX_MEM]) -> Rel16<'mem> {
-		Rel16 {
+impl<'mem> Cpu<'mem> {
+	pub fn new(prog: &'mem [u16; MAX_MEM_LEN], data: &'mem mut [u16; MAX_MEM_LEN]) -> Cpu<'mem> {
+		Cpu {
 			dir: false,
-			br: Wrapping(1),
-			pc: Wrapping(0),
+			br: Rev(1),
+			pc: Rev(0),
 			ir: 0,
-			reg: RegisterFile([0; 8]),
+			reg: RegisterFile([Rev(0); 8]),
 			prog_mem: prog,
 			data_mem: [0; MAX_MEM],
 		}
@@ -62,17 +39,17 @@ impl<'mem> Rel16<'mem> {
 	
 	pub fn log_state(&self) {
 		// address in pc and the instruction it's pointing to
-		println!("pc = {:04x}  br = {:04x}  dir = {}", self.pc, self.br, self.dir);
+		println!("pc = {:04x}  br = {:04x}  dir = {}", self.pc.0, self.br.0, self.dir);
 		
 		
 		// print contents of registers
 		print!("registers: [");
 	
-		for &r in &self.reg.0[..7] {
-			print!("{:04x}, ", r);
+		for &Rev(val) in &self.reg.0[..7] {
+			print!("{:04x}, ", val);
 		}
 		
-		println!("{:04x}]", self.reg[Reg::BP]);
+		println!("{:04x}]", self.reg[Reg::BP].0);
 		
 		
 		// print contents of stack
@@ -87,8 +64,8 @@ impl<'mem> Rel16<'mem> {
 			println!("invalid");
 		}
 		else {
-			let bp = self.reg[Reg::BP] as usize;
-			let sp = self.reg[Reg::SP] as usize;
+			let bp = self.reg[Reg::BP].0 as usize;
+			let sp = self.reg[Reg::SP].0 as usize;
 			
 			print!("<");
 			
@@ -148,40 +125,40 @@ impl<'mem> Rel16<'mem> {
 			
 			
 			Op::Not(a) =>
-				self.reg[a] = !self.reg[a],
+				self.reg[a].0 = !self.reg[a].0,
 			
 			Op::Increment(a) =>
-				self.reg[a] = self.reg[a].wrapping_add(1),
+				self.reg[a] += 1,
 			
 			Op::Decrement(a) =>
-				self.reg[a] = self.reg[a].wrapping_sub(1),
+				self.reg[a] -= 1,
 			
 			Op::Push(r) => {
-				self.reg[Reg::SP] = self.reg[Reg::SP].wrapping_sub(1);
-				let sp = self.reg[Reg::SP] as usize;
-				swap!(self.reg[r], self.data_mem[sp]);
+				self.reg[Reg::SP] -= 1;
+				let sp = self.reg[Reg::SP].0 as usize;
+				swap!(self.reg[r].0, self.data_mem[sp]);
 			}
 			
 			Op::Pop(r) => {
-				let sp = self.reg[Reg::SP] as usize;
-				swap!(self.reg[r], self.data_mem[sp]);
-				self.reg[Reg::SP] = self.reg[Reg::SP].wrapping_add(1);
+				let sp = self.reg[Reg::SP].0 as usize;
+				swap!(self.reg[r].0, self.data_mem[sp]);
+				self.reg[Reg::SP] += 1;
 			}
 			
 			Op::SwapPc(r) =>
-				swap!(self.pc.0, self.reg[r]),
+				swap!(self.pc, self.reg[r]),
 			
 			Op::RevSwapPc(r) => {
-				swap!(self.pc.0, self.reg[r]);
+				swap!(self.pc, self.reg[r]);
 				self.dir = !self.dir;
 			}
 			
 			Op::Mul2(ri) => {
 				use std::i16;
 				
-				let r = self.reg[ri] as i16;
+				let r = self.reg[ri].0 as i16;
 				
-				self.reg[ri] = match r {
+				self.reg[ri].0 = match r {
 					-16384...16383    => r * 2,
 					16384...i16::MAX  => r - (i16::MAX - r),
 					i16::MIN...-16385 => r + (r - i16::MIN + 1),
@@ -193,10 +170,10 @@ impl<'mem> Rel16<'mem> {
 			Op::Div2(ri) => {
 				use std::i16;
 				
-				let r = self.reg[ri] as i16;
+				let r = self.reg[ri].0 as i16;
 				let odd = |r| r & 1 == 1;
 				
-				self.reg[ri] = match r {
+				self.reg[ri].0 = match r {
 					0...i16::MAX if odd(r) => i16::MAX - (i16::MAX - r) / 2,
 					i16::MIN...0 if odd(r) => i16::MIN + (r + i16::MAX) / 2,
 					_ /* even */           => r / 2
@@ -205,10 +182,10 @@ impl<'mem> Rel16<'mem> {
 			
 		
 			Op::RotLeftImm(r, v) =>
-				self.reg[r] = self.reg[r].rotate_left(v as u32),
+				self.reg[r] <<= v as u16,
 			
 			Op::RotRightImm(r, v) =>
-				self.reg[r] = self.reg[r].rotate_right(v as u32),
+				self.reg[r] >>= v as u16,
 			
 			
 			Op::Swap(a, b) =>
@@ -218,64 +195,60 @@ impl<'mem> Rel16<'mem> {
 				self.reg[rn] ^= self.reg[rc],
 			
 			Op::CAdd(ra, rc) =>
-				self.reg[ra] = self.reg[ra].wrapping_add(self.reg[rc]),
+				self.reg[ra] += self.reg[rc],
 			
 			Op::CSub(rs, rc) =>
-				self.reg[rs] = self.reg[rs].wrapping_sub(self.reg[rc]),
+				self.reg[rs] -= self.reg[rc],
 			
 			Op::Exchange(r, ra) => {
-				let raddr = self.reg[ra] as usize;
-				swap!(self.reg[r], self.data_mem[raddr]);
+				let raddr = self.reg[ra].0 as usize;
+				swap!(self.reg[r].0, self.data_mem[raddr]);
 			}
 			
-			Op::RotLeft(rr, ro) => {
-				let bits = self.reg[ro];
-				self.reg[rr] = self.reg[rr].rotate_left(bits as u32);
-			}
+			Op::RotLeft(rr, ro) =>
+				self.reg[rr] <<= self.reg[ro],
 			
-			Op::RotRight(rr, ro) => {
-				let bits = self.reg[ro];
-				self.reg[rr] = self.reg[rr].rotate_right(bits as u32);
-			}
+			Op::RotRight(rr, ro) =>
+				self.reg[rr] >>= self.reg[ro],
 			
 			Op::IO(rd, rp) =>
 				unimplemented!(),
 			
 			Op::CCNot(rc0, rc1, rn) =>
-				self.reg[rn] ^= self.reg[rc0] & self.reg[rc1],
+				self.reg[rn] ^= self.reg[rc0].0 & self.reg[rc1].0,
 			
 			Op::CSwap(rc, rs0, rs1) => {
-				let c = self.reg[rc];
-				let mut s0 = self.reg[rs0];
-				let mut s1 = self.reg[rs1];
+				let c = self.reg[rc].0;
+				let mut s0 = self.reg[rs0].0;
+				let mut s1 = self.reg[rs1].0;
 				
 				let t = (s0 ^ s1) & c;
 				s0 ^= t;
 				s1 ^= t;
 				
-				self.reg[rs0] = s0;
-				self.reg[rs1] = s1;
+				self.reg[rs0].0 = s0;
+				self.reg[rs1].0 = s1;
 			}
 			
 			
 			Op::BranchParity(r, off) =>
-				if self.reg[r] % 2 == 1 {
-					self.br += Wrapping(off as u16);
+				if self.reg[r].0 % 2 == 1 {
+					self.br += off as u16;
 				},
 			
 			Op::AssertParity(r, off) =>
-				if self.reg[r] % 2 == 1 {
-					self.br -= Wrapping(off as u16);
+				if self.reg[r].0 % 2 == 1 {
+					self.br -= off as u16;
 				},
 			
 			Op::BranchSign(r, off) =>
-				if (self.reg[r] as i16) < 0 {
-					self.br += Wrapping(off as u16);
+				if (self.reg[r].0 as i16) < 0 {
+					self.br += off as u16;
 				},
 			
 			Op::AssertSign(r, off) =>
-				if (self.reg[r] as i16) < 0 {
-					self.br -= Wrapping(off as u16);
+				if (self.reg[r].0 as i16) < 0 {
+					self.br -= off as u16;
 				},
 			
 			Op::Immediate(r, v) =>
@@ -283,10 +256,10 @@ impl<'mem> Rel16<'mem> {
 			
 			
 			Op::GoTo(off) =>
-				self.br += Wrapping(off),
+				self.br += off,
 			
 			Op::ComeFrom(off) =>
-				self.br -= Wrapping(off),
+				self.br -= off,
 		}
 		
 		// next instruction
@@ -297,42 +270,5 @@ impl<'mem> Rel16<'mem> {
 		}
 		
 		false
-	}
-}
-
-
-pub fn run<I: BufRead>(input: &mut I, logging_enabled: bool) {
-	let mut prog_mem = [0; MAX_MEM];
-	
-	// read file contents into program memory
-	for i in 0.. {
-		let buffer = &mut [0, 0];
-		
-		match try_err!(input.read(buffer)) {
-			0 => break,
-			
-			1 => panic!("Error: Got incomplete instruction."),
-			
-			2 => if i < MAX_MEM {
-				let instr = (buffer[0] as u16) << 8 | buffer[1] as u16;
-				prog_mem[i] = instr;
-			} else {
-				panic!("Error: Binary is too big for memory!");
-			},
-			
-			_ => unreachable!(),
-		}
-	}
-	
-	let mut cpu = Rel16::new(&prog_mem);
-	
-	loop {
-		if logging_enabled { cpu.log_state() }
-		
-		if cpu.fetch() { break }
-		
-		if logging_enabled { cpu.log_current_instr() }
-		
-		if cpu.execute() { break }
 	}
 }
