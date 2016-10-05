@@ -2,7 +2,7 @@ mod register_file;
 mod rev;
 mod cpu;
 
-const MAX_MEM_LEN: usize = 65536;
+const MAX_MEM: usize = 65536;
 
 use std::io::BufRead;
 use self::cpu::Cpu;

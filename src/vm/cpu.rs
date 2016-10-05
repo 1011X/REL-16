@@ -2,7 +2,7 @@ use isa::{Op, Reg};
 
 use super::register_file::RegisterFile;
 use super::rev::Rev;
-use super::MAX_MEM_LEN;
+use super::MAX_MEM;
 
 pub struct Cpu<'mem> {
 	// when dir is true, it is in reverse mode
@@ -22,7 +22,7 @@ pub struct Cpu<'mem> {
 }
 
 impl<'mem> Cpu<'mem> {
-	pub fn new(prog: &'mem [u16; MAX_MEM_LEN], data: &'mem mut [u16; MAX_MEM_LEN]) -> Cpu<'mem> {
+	pub fn new(prog: &'mem [u16; MAX_MEM], data: &'mem mut [u16; MAX_MEM]) -> Cpu<'mem> {
 		Cpu {
 			dir: false,
 			br: Rev(1),
