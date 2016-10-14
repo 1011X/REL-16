@@ -1,32 +1,36 @@
-; initilization
-not r6; init sp
-not r7; init bp
-
-dec r6; make space to store result
+; initialization
+not sp; sp = 0xFFFF
+not bp; bp = 0xFFFF
 
 xori r0 15; value to be checked
 push r0
+; stack <15]
+; r0 = 0
 
-; Check if r0 != 0
-; Result is in r1's parity bit
+dec sp; make space to store result
+; stack = <0, 15]
+
+
+; proc neqz
+; Checks if `input` != 0
+; Result is in `result`'s parity bit
 
 ; prereqs:
-; stack[0] is input
-; stack[1] is result
-; mut r1 = 0
+; general-purpose registers are all 0
+; stack = <0, input]
 
-; TODO: ensure r3 is clean when used
+; TODO:
+; * verify r3 is clean when used.
+; * make result be only the parity bit
+;   by undoing intermediate calculations.
+; * clear registers when done.
 
-xor r4 r7
+pop r1; r1 = 0, <input]
+pop r0; r0 = input, <]
 
+xor r1 r0; r1 ^= r0; r1 = r0
 
-xchg r0 r6; input
-xchg r1 r; result
-
-xor r1 r0; copy r0 to r1
-push r2; local variable; ensure r2 is 0
-
-; sum r1's ones in r2
+; start summing r1's ones in r2
 not r1
 
 jp r1 1; bit 0
@@ -114,7 +118,7 @@ xor r1 r0; back to zero
 
 swp r1 r2
 
-; sum zeros again
+; start calculating sum of 1's in first sum
 ; because arch is 16-bits, there are max 16 1's,
 ; so only first 5 bits are used, with max number
 ; of 1's being 4 (to represent 15).
@@ -177,11 +181,14 @@ not r1
 
 ; roll r1 to the left to store third sum
 roli r1 2
+
+; store third sum in r1
 xori r3 3
 cswp r3 r1 r2
 xori r3 3
-not r1
 
+; start calculating fourth sum
+not r1
 
 jp r1 1; bit 0
 inc r2
@@ -203,11 +210,11 @@ xori r3 1
 cswp r3 r1 r2
 xori r3 1
 
-; all bits swapped into r2 were zero, so it can be
-; safely returned to the stack
-pop r2
-hlt
+push r0
+push r1
 
 ; postreqs:
-; r1's parity bit is the result
-; r2 = 0
+; general-purpose registers are all back to 0
+; stack = <result, input]
+
+hlt

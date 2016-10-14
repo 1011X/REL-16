@@ -585,6 +585,7 @@ impl FromStr for Op {
 		
 		use std::u8;
 		
+		// TODO: check to make sure all tokens are exhausted.
 		Ok(match try!(tokens.next().ok_or(DeserialError::NoMneumonic)) {
 			"hlt" => Op::Halt,
 			
