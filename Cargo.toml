@@ -1,6 +1,6 @@
 [package]
 name = "rel"
-version = "0.2.7"
+version = "0.2.8"
 authors = ["1011X <1011XXXXX@gmail.com>"]
 
 repository = "https://github.com/1011X/REL-16"

@@ -13,7 +13,18 @@ pub enum ParseError {
 
 impl fmt::Display for Reg {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "r{}", *self as u8)
+		match *self {
+			Reg::R0
+			| Reg::R1
+			| Reg::R2
+			| Reg::R3
+			| Reg::R4
+			| Reg::R5 =>
+				write!(f, "r{}", *self as u8),
+			
+			Reg::SP => f.write_str("sp"),
+			Reg::BP => f.write_str("bp"),
+		}
 	}
 }
 

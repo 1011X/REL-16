@@ -519,8 +519,8 @@ impl fmt::Display for Op {
 			Op::Decrement(r) => write!(f, "dec {}", r),
 			Op::Push(r)      => write!(f, "push {}", r),
 			Op::Pop(r)       => write!(f, "pop {}", r),
-			Op::SwapPc(r)    => write!(f, "sp {}", r),
-			Op::RevSwapPc(r) => write!(f, "rsp {}", r),
+			Op::SwapPc(r)    => write!(f, "spc {}", r),
+			Op::RevSwapPc(r) => write!(f, "rspc {}", r),
 			Op::Mul2(r)      => write!(f, "mul2 {}", r),
 			Op::Div2(r)      => write!(f, "div2 {}", r),
 			
@@ -594,8 +594,8 @@ impl FromStr for Op {
 			"dec"  => Op::Decrement(reg!()),
 			"push" => Op::Push(reg!()),
 			"pop"  => Op::Pop(reg!()),
-			"sp"   => Op::SwapPc(reg!()),
-			"rsp"  => Op::RevSwapPc(reg!()),
+			"spc"  => Op::SwapPc(reg!()),
+			"rspc" => Op::RevSwapPc(reg!()),
 			"mul2" => Op::Mul2(reg!()),
 			"div2" => Op::Div2(reg!()),
 			
