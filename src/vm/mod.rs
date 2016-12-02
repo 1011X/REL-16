@@ -1,6 +1,7 @@
 mod register_file;
 mod rev;
 mod cpu;
+//mod devices;
 
 const MAX_MEM: usize = 65536;
 
@@ -9,6 +10,10 @@ use self::cpu::Cpu;
 
 pub fn run<I: BufRead>(input: &mut I, logging_enabled: bool) {
 	let mut prog_mem = [0; MAX_MEM];
+	//let mut ports = [None; MAX_MEM];
+	
+	//let mut hdd = devices::Hdd::new();
+	//ports[0] = Some(&mut hdd);
 	
 	// read file contents into program memory
 	for i in 0.. {
@@ -16,7 +21,6 @@ pub fn run<I: BufRead>(input: &mut I, logging_enabled: bool) {
 		
 		match try_err!(input.read(buffer)) {
 			0 => break,
-			
 			1 => panic!("Error: Got incomplete instruction."),
 			
 			2 => if i < MAX_MEM {
@@ -30,7 +34,7 @@ pub fn run<I: BufRead>(input: &mut I, logging_enabled: bool) {
 		}
 	}
 	
-	let mut cpu = Cpu::new(&prog_mem);
+	let mut cpu = Cpu::new(&prog_mem/*, &ports*/);
 	
 	loop {
 		if logging_enabled { cpu.log_state() }
