@@ -34,9 +34,6 @@ impl<'mem> Cpu<'mem> {
 		}
 	}
 	
-	//pub fn get_reg(&self, r: Reg) -> u16 { self.reg[r as usize] }
-	//pub fn set_reg(&mut self, r: Reg, v: u16) { self.reg[r as usize] = v }
-	
 	pub fn log_state(&self) {
 		// address in pc and the instruction it's pointing to
 		println!("pc = {:04x}  br = {:04x}  dir = {}", self.pc.0, self.br.0, self.dir);
@@ -55,27 +52,24 @@ impl<'mem> Cpu<'mem> {
 		// print contents of stack
 		print!("stack: ");
 		
-		// bp == sp
-		if self.reg[Reg::BP] == self.reg[Reg::SP] {
-			println!("nil");
-		}
-		// bp < sp
-		else if self.reg[Reg::BP] < self.reg[Reg::SP] {
-			println!("invalid");
-		}
-		else {
-			let bp = self.reg[Reg::BP].0 as usize;
-			let sp = self.reg[Reg::SP].0 as usize;
+		use std::cmp::Ordering;
+		match self.reg[Reg::BP].cmp(&self.reg[Reg::SP]) {
+			Ordering::Equal   => println!("nil"),
+			Ordering::Less    => println!("invalid"),
+			Ordering::Greater => {
+				let bp = self.reg[Reg::BP].0 as usize;
+				let sp = self.reg[Reg::SP].0 as usize;
 			
-			print!("<");
+				print!("<");
 			
-			// log whole stack except for last value
-			for &val in &self.data_mem[sp..bp - 1] {
-				print!("{:04x}, ", val);
+				// log whole stack except for last value
+				for &val in &self.data_mem[sp..bp - 1] {
+					print!("{:04x}, ", val);
+				}
+			
+				// log last value
+				println!("{:04x}]", self.data_mem[bp - 1]);
 			}
-			
-			// log last value
-			println!("{:04x}]", self.data_mem[bp - 1]);
 		}
 		
 		print!("\n");
@@ -84,6 +78,7 @@ impl<'mem> Cpu<'mem> {
 	pub fn log_current_instr(&self) {
 		// show which instruction is being executed
 		print!("ir = {:04x}: ", self.ir);
+		
 		// if invalid, log it and skip it.
 		match Op::decode(self.ir) {
 			Ok(ref instr) => println!("{}\n", instr),

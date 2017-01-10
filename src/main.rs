@@ -22,7 +22,7 @@ fn main() {
 	let args = env::args().skip(1);
 	
 	let mut opts = Options::new();
-	// not required because `rel run` doesn't need it
+	// -o not required because `rel run` doesn't need it
 	opts.optopt("o", "output",   "Set output destination to <filepath>. Default: \"default.bin\"", "<filepath>");
 	opts.optflag("V", "version", "Print program version");
 	opts.optflag("h", "help",    "Print this help menu");
