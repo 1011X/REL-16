@@ -4,11 +4,11 @@ REL-16 stands for Reversible/Entropy-Less 16-bit, and is an instruction set desi
 
 ## Install
 
-Before installing, you'll first need to install [the Rust compiler, along with Cargo](https://www.rust-lang.org/ "Rust Homepage"). Because this crate isn't on the registry yet, you'll need to download it to install it. Download the project however you want, extracting it if necessary. Then, `cd` into the extracted folder and run the following:
+Before installing, you'll first need to install [the Rust compiler, along with Cargo](https://www.rust-lang.org/ "Rust Homepage"). Because this crate isn't on the registry yet, you'll need to download it to install it. Download the project however you want, extracting it if necessary. Then, `cd` into the project and run the following:
 
 	cargo install
 
-To get a standalone executable, run
+To get a standalone executable, run:
 
 	cargo build --release
 
