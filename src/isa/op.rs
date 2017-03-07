@@ -1,78 +1,101 @@
 use std::fmt;
 use std::num;
 use std::str::FromStr;
-use std::error::Error;
+use std::error;
+use std::result;
 
 use super::reg::{self, Reg};
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum Addr {
+	Offset(usize),
+	Label(String),
+}
+
+impl fmt::Display for Addr {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		match *self {
+			Addr::Offset(off)      => write!(f, "{}", off),
+			Addr::Label(ref label) => f.write_str(label),
+		}
+	}
+}
+
+type Result<T> = result::Result<T, Error>;
+
 #[derive(Debug)]
-pub enum DeserialError {
+pub enum Error {
+	InvalidInstr(u16),
+	UnresolvedLabel,
+	
 	NoMneumonic,
 	NoArgument,
-	UnknownMneumonic,
+	NoAddress,
 	ValueTooLarge,
 	NoRegister,
+	UnknownMneumonic(String),
+	ExtraArgs(Vec<String>),
 	Value(num::ParseIntError),
 	Register(reg::ParseError),
 }
 
-impl fmt::Display for DeserialError {
+impl fmt::Display for Error {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match *self {
-			DeserialError::NoMneumonic =>
-				write!(f, "No mneumonic found."),
-			DeserialError::NoArgument =>
-				write!(f, "Missing argument for this mneumonic."),
-			DeserialError::UnknownMneumonic =>
-				write!(f, "Did not recognize this mneumonic."),
-			DeserialError::ValueTooLarge =>
-				write!(f, "This value is bigger than the maximum value."),
-			DeserialError::NoRegister =>
-				write!(f, "A register literal was expected."),
-			DeserialError::Value(ref e) =>
+			Error::InvalidInstr(i) =>
+				write!(f, "Got invalid instruction: 0x{:04x}", i),
+			Error::UnresolvedLabel =>
+				write!(f, "Could not resolve label"),
+			
+			Error::NoMneumonic =>
+				f.write_str("No mneumonic found."),
+			Error::NoArgument =>
+				f.write_str("Missing argument for this mneumonic."),
+			Error::NoAddress =>
+				f.write_str("No label or offset found."),
+			Error::ValueTooLarge =>
+				f.write_str("This value is bigger than the maximum value."),
+			Error::NoRegister =>
+				f.write_str("A register literal was expected."),
+			
+			Error::UnknownMneumonic(ref m) =>
+				write!(f, "Did not recognize mneumonic: {}", m),
+			Error::ExtraArgs(ref v) => 
+				write!(f, "Found these extra tokens at the end: {:?}", v),
+			Error::Value(ref e) =>
 				write!(f, "Error parsing value: {}", e),
-			DeserialError::Register(ref e) =>
+			Error::Register(ref e) =>
 				write!(f, "Error parsing register literal: {}", e),
 		}
 	}
 }
 
-impl Error for DeserialError {
+impl error::Error for Error {
 	fn description(&self) -> &str {
 		match *self {
-			DeserialError::NoMneumonic      => "missing mneumonic",
-			DeserialError::NoArgument       => "missing argument",
-			DeserialError::UnknownMneumonic => "unknown mneumonic",
-			DeserialError::ValueTooLarge    => "argument value is too big",
-			DeserialError::NoRegister       => "expected register literal",
-			DeserialError::Value(ref e)     => e.description(),
-			DeserialError::Register(ref e)  => e.description(),
+			Error::InvalidInstr(..)     => "invalid instruction",
+			Error::UnresolvedLabel      => "label not found",
+			
+			Error::NoMneumonic          => "missing mneumonic",
+			Error::NoArgument           => "missing argument",
+			Error::NoAddress            => "missing address",
+			Error::ValueTooLarge        => "argument value is too big",
+			Error::NoRegister           => "missing register literal",
+			Error::UnknownMneumonic(..) => "unknown mneumonic",
+			Error::ExtraArgs(..)        => "found extra tokens",
+			Error::Value(ref e)         => e.description(),
+			Error::Register(ref e)      => e.description(),
 		}
 	}
 	
-	fn cause(&self) -> Option<&Error> {
+	fn cause(&self) -> Option<&error::Error> {
 		match *self {
-			DeserialError::Value(ref e)    => Some(e),
-			DeserialError::Register(ref e) => Some(e),
+			Error::Value(ref e)    => Some(e),
+			Error::Register(ref e) => Some(e),
 			_ => None,
 		}
 	}
 }
-
-
-#[derive(Debug)]
-pub struct InvalidInstr;
-
-impl fmt::Display for InvalidInstr {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		f.write_str("Invalid instruction found while parsing.")
-	}
-}
-
-impl Error for InvalidInstr {
-	fn description(&self) -> &'static str { "invalid instruction" }
-}
-
 
 /// Bit-field key:
 /// * `_`: leading zero
@@ -186,9 +209,6 @@ pub enum Op {
 	/// second register.
 	RotRight(Reg, Reg),
 	
-	/// Sends value at first register to port given in second register.
-	IO(Reg, Reg),
-	
 	/// Toffoli gate; ANDs first and second registers and flips the bits in the
 	/// third register based on the result.
 	/// 
@@ -214,25 +234,25 @@ pub enum Op {
 	
 	/// Adds an immediate byte offset to the branch register if the register
 	/// is an odd number.
-	BranchParity(Reg, u8),
+	BranchParity(Reg, Addr),
 	
 	/// Subtracts an immediate byte offset from the branch register if the
 	/// the register is an odd number.
-	AssertParity(Reg, u8),
+	AssertParity(Reg, Addr),
 	
 	/// Adds an immediate byte offset to the branch register if the register
 	/// is below zero.
-	BranchSign(Reg, u8),
+	BranchSign(Reg, Addr),
 	
 	/// Subtracts an immediate byte offset from the branch register if the
 	/// register is below zero.
-	AssertSign(Reg, u8),
+	AssertSign(Reg, Addr),
 	
 	/// Adds a value to the branch register.
-	GoTo(u16),
+	GoTo(Addr),
 	
 	/// Subtracts a value from the branch register.
-	ComeFrom(u16),
+	ComeFrom(Addr),
 }
 
 impl Op {
@@ -257,7 +277,6 @@ impl Op {
 			Op::CAdd(rc, ra)       => Op::CSub(rc, ra),
 			Op::CSub(rc, rs)       => Op::CAdd(rc, rs),
 			Op::Exchange(..)       => self,
-			Op::IO(..)             => self,
 			Op::RotLeft(rr, rv)    => Op::RotRight(rr, rv),
 			Op::RotRight(rr, rv)   => Op::RotLeft(rr, rv),
 			Op::CCNot(..)          => self,
@@ -272,11 +291,11 @@ impl Op {
 		}
 	}
 	
-	pub fn encode(&self) -> u16 {
+	pub fn encode(&self) -> Result<u16> {
 		// All values in the enum should be explicitly casted, in case the
 		// types change.
-		match *self {
-			// _______________s
+		Ok(match *self {
+			// _______________0
 			Op::Halt    => 0,
 			
 			// ____________1rrr
@@ -346,10 +365,6 @@ impl Op {
 				| (rr as u16) << 3
 				| ro as u16,
 			
-			Op::IO(rd, rp)       => 0b1_111 << 3 + 3
-				| (rd as u16) << 3
-				| rp as u16,
-			
 			// _____1orrrRRRrrr
 			Op::CCNot(rc0, rc1, rn) => 0b1_0 << 3 + 3 + 3
 				| (rc0 as u16) << 6
@@ -367,56 +382,58 @@ impl Op {
 				| val as u16,
 			
 			// __1oorrrvvvvvvvv
-			Op::BranchParity(r, off) => 0b1_00 << 3 + 8
+			Op::BranchParity(r, Addr::Offset(off)) => 0b1_00 << 3 + 8
 				| (r as u16) << 8
 				| off as u16,
 			
-			Op::AssertParity(r, off) => 0b1_01 << 3 + 8
+			Op::AssertParity(r, Addr::Offset(off)) => 0b1_01 << 3 + 8
 				| (r as u16) << 8
 				| off as u16,
 			
-			Op::BranchSign(r, off)   => 0b1_10 << 3 + 8
+			Op::BranchSign(r, Addr::Offset(off))   => 0b1_10 << 3 + 8
 				| (r as u16) << 8
 				| off as u16,
 			
-			Op::AssertSign(r, off)   => 0b1_11 << 3 + 8
+			Op::AssertSign(r, Addr::Offset(off))   => 0b1_11 << 3 + 8
 				| (r as u16) << 8
 				| off as u16,
 			
 			// 1ovvvvvvvvvvvvvv
-			Op::GoTo(off)     => 0b1_0 << 14
+			Op::GoTo(Addr::Offset(off))     => 0b1_0 << 14
 				| off as u16,
 			
-			Op::ComeFrom(off) => 0b1_1 << 14
+			Op::ComeFrom(Addr::Offset(off)) => 0b1_1 << 14
 				| off as u16,
-		}
+			
+			_ => return Err(Error::UnresolvedLabel)
+		})
 	}
 	
-	pub fn decode(instr: u16) -> Result<Op, InvalidInstr> {
+	pub fn decode(instr: u16) -> Result<Op> {
 		
 		match instr.leading_zeros() {
 			// 1ovvvvvvvvvvvvvv
 			0 => {
 				let o = ((instr >> 14) & 1) == 1;
 				
-				let v = instr & 0b_11_1111_1111_1111;
+				let v = (instr & 0b_11_1111_1111_1111) as usize;
 				
-				if o { Ok(Op::ComeFrom(v as u16)) }
-				else { Ok(Op::GoTo(v as u16)) }
+				if o { Ok(Op::ComeFrom(Addr::Offset(v))) }
+				else { Ok(Op::GoTo(Addr::Offset(v))) }
 			}
 			
 			// __1oorrrvvvvvvvv
 			2 => {
 				let o = (instr >> 8 + 3) & 0b_11;
 				let r = Reg::from((instr >> 8) & 0b_111);
-				let v = instr & 0b_1111_1111;
+				let v = (instr & 0b_1111_1111) as usize;
 				
 				match o {
-					0b_00 => Ok(Op::BranchParity(r, v as u8)),
-					0b_01 => Ok(Op::AssertParity(r, v as u8)),
+					0b_00 => Ok(Op::BranchParity(r, Addr::Offset(v))),
+					0b_01 => Ok(Op::AssertParity(r, Addr::Offset(v))),
 					
-					0b_10 => Ok(Op::BranchSign(r, v as u8)),
-					0b_11 => Ok(Op::AssertSign(r, v as u8)),
+					0b_10 => Ok(Op::BranchSign(r, Addr::Offset(v))),
+					0b_11 => Ok(Op::AssertSign(r, Addr::Offset(v))),
 					
 					_ => unreachable!()
 				}
@@ -425,9 +442,9 @@ impl Op {
 			// ____1rrrvvvvvvvv
 			4 => {
 				let r = Reg::from((instr >> 8) & 0b_111);
-				let v = instr & 0xFF;
+				let v = (instr & 0xFF) as u8;
 				
-				Ok(Op::Immediate(r, v as u8))
+				Ok(Op::Immediate(r, v))
 			}
 		
 			// _____1orrrRRRrrr
@@ -457,9 +474,8 @@ impl Op {
 					0b_100 => Ok(Op::Exchange(ra, rb)),
 					0b_101 => Ok(Op::RotLeft(ra, rb)),
 					0b_110 => Ok(Op::RotRight(ra, rb)),
-					0b_111 => Ok(Op::IO(ra, rb)),
 					
-					_ => Err(InvalidInstr)
+					_ => Err(Error::InvalidInstr(instr))
 				}
 			}
 			
@@ -467,10 +483,10 @@ impl Op {
 			7 => {
 				let o = ((instr >> 3 + 4) & 1) == 1;
 				let r = Reg::from((instr >> 4) & 0b_111);
-				let v = instr & 0b_1111;
+				let v = (instr & 0b_1111) as u8;
 				
-				if o { Ok(Op::RotRightImm(r, v as u8)) }
-				else { Ok(Op::RotLeftImm(r, v as u8)) }
+				if o { Ok(Op::RotRightImm(r, v)) }
+				else { Ok(Op::RotLeftImm(r, v)) }
 			}
 			
 			// ________1oooorrr
@@ -488,23 +504,17 @@ impl Op {
 					0b_110 => Ok(Op::Mul2(r)),
 					0b_111 => Ok(Op::Div2(r)),
 					
-					_ => Err(InvalidInstr)
+					_ => unreachable!()
 				}
 			}
 			
 			// ____________1rrr
-			12 => {
-				let r = Reg::from(instr & 0b_111);
-				
-				Ok(Op::Not(r))
-			}
+			12 => Ok(Op::Not(Reg::from(instr & 0b_111))),
 			
-			// _______________s
+			// _______________0
 			16 => Ok(Op::Halt),
 			
-			0...16 => Err(InvalidInstr),
-			
-			_ => unreachable!()
+			_ => Err(Error::InvalidInstr(instr)),
 		}
 	}
 }
@@ -534,59 +544,80 @@ impl fmt::Display for Op {
 			Op::Exchange(rr, ra) => write!(f, "xchg {} {}", rr, ra),
 			Op::RotLeft(rr, ro)  => write!(f, "rol {} {}", rr, ro),
 			Op::RotRight(rr, ro) => write!(f, "ror {} {}", rr, ro),
-			Op::IO(rd, rp)       => write!(f, "io {} {}", rd, rp),
 			
 			Op::CCNot(rc0, rc1, rn) => write!(f, "ccn {} {} {}", rc0, rc1, rn),
 			Op::CSwap(rc, rs0, rs1) => write!(f, "cswp {} {} {}", rc, rs0, rs1),
 			
 			Op::Immediate(r, v)    => write!(f, "xori {} {}", r, v),
 			
-			Op::BranchParity(r, v) => write!(f, "jp {} {}", r, v),
-			Op::AssertParity(r, v) => write!(f, "ap {} {}", r, v),
-			Op::BranchSign(r, v)   => write!(f, "js {} {}", r, v),
-			Op::AssertSign(r, v)   => write!(f, "as {} {}", r, v),
+			Op::BranchParity(r, ref v) => write!(f, "jp {} {}", r, v),
+			Op::AssertParity(r, ref v) => write!(f, "ap {} {}", r, v),
+			Op::BranchSign(r, ref v)   => write!(f, "js {} {}", r, v),
+			Op::AssertSign(r, ref v)   => write!(f, "as {} {}", r, v),
 			
-			Op::GoTo(off)     => write!(f, "jmp {}", off),
-			Op::ComeFrom(off) => write!(f, "pmj {}", off),
+			Op::GoTo(ref off)     => write!(f, "jmp {}", off),
+			Op::ComeFrom(ref off) => write!(f, "pmj {}", off),
 		}
 	}
 }
 
 impl FromStr for Op {
-	type Err = DeserialError;
+	type Err = Error;
 	
-	fn from_str(s: &str) -> Result<Self, Self::Err> {
+	fn from_str(s: &str) -> Result<Self> {
+		
 		let mut tokens = s.split_whitespace();
 		
 		// Parses a register literal. Returns early if an error is found.
 		macro_rules! reg(() => {
-			try!(tokens.next()
-				.ok_or(DeserialError::NoArgument)
-				.and_then(|s| s.parse::<Reg>()
-					.map_err(DeserialError::Register)
-				)
-			)
+			tokens.next()
+			.ok_or(Error::NoRegister)
+			.and_then(|s| s.parse::<Reg>()
+				.map_err(Error::Register)
+			)?
 		});
 		
-		// Parses a token as type $t with max value $max. Returns early if an error is found.
-		macro_rules! value(
-			($t:ty, $max:expr) => {
-				try!(tokens.next()
-					.ok_or(DeserialError::NoArgument)
-					.and_then(|token| match token.parse::<$t>() {
-						Ok(value) if value <= $max => Ok(value),
+		// Parses a token as type $t with max value $max.
+		// Returns early if an error is found.
+		macro_rules! val(($t:ty, $max:expr) => {
+			tokens.next()
+			.ok_or(Error::NoArgument)
+			.and_then(|token| match token.parse::<$t>() {
+				Ok(value) if value <= $max => Ok(value),
 
-						Ok(_)  => Err(DeserialError::ValueTooLarge),
-						Err(e) => Err(DeserialError::Value(e)),
-					})
-				)
-			};
-		);
+				Ok(_)  => Err(Error::ValueTooLarge),
+				Err(e) => Err(Error::Value(e)),
+			})?
+		});
+		
+		macro_rules! addr(($max:expr) => {
+			tokens.next()
+			.ok_or(Error::NoAddress)
+			.and_then(|tok| {
+				let first = tok.chars().nth(0).unwrap();
+				
+				if (first.is_alphabetic() || first == '_') && tok.chars().skip(1).all(|c| c.is_alphanumeric() || c == '_') {
+					Ok(Addr::Label(tok.to_string()))
+				}
+				else if tok.chars().all(|c| c >= '0' && c <= '9') {
+					match tok.parse::<usize>() {
+						Ok(value) if value <= $max =>
+							Ok(Addr::Offset(value)),
+
+						Ok(_)  => Err(Error::ValueTooLarge),
+						Err(e) => Err(Error::Value(e))
+					}
+				}
+				else {
+					Err(Error::NoAddress)
+				}
+			})?
+		});
 		
 		use std::u8;
 		
-		// TODO: check to make sure all tokens are exhausted.
-		Ok(match try!(tokens.next().ok_or(DeserialError::NoMneumonic)) {
+		let mneu = tokens.next().ok_or(Error::NoMneumonic)?;
+		let op = match mneu {
 			"hlt" => Op::Halt,
 			
 			"not"  => Op::Not(reg!()),
@@ -599,8 +630,8 @@ impl FromStr for Op {
 			"mul2" => Op::Mul2(reg!()),
 			"div2" => Op::Div2(reg!()),
 			
-			"roli" => Op::RotLeftImm(reg!(), value!(u8, 0b_1111)),
-			"rori" => Op::RotRightImm(reg!(), value!(u8, 0b_1111)),
+			"roli" => Op::RotLeftImm(reg!(), val!(u8, 0b_1111)),
+			"rori" => Op::RotRightImm(reg!(), val!(u8, 0b_1111)),
 			
 			"swp"  => Op::Swap(reg!(), reg!()),
 			"xor"  => Op::CNot(reg!(), reg!()),
@@ -609,24 +640,28 @@ impl FromStr for Op {
 			"xchg" => Op::Exchange(reg!(), reg!()),
 			"rol"  => Op::RotLeft(reg!(), reg!()),
 			"ror"  => Op::RotRight(reg!(), reg!()),
-			"io"   => Op::IO(reg!(), reg!()),
 			
 			"ccn"  => Op::CCNot(reg!(), reg!(), reg!()),
 			"cswp" => Op::CSwap(reg!(), reg!(), reg!()),
 			
-			"xori" => Op::Immediate(reg!(), value!(u8, u8::MAX)),
+			"xori" => Op::Immediate(reg!(), val!(u8, u8::MAX)),
 			
-			"jp" => Op::BranchParity(reg!(), value!(u8, u8::MAX)),
-			"ap" => Op::AssertParity(reg!(), value!(u8, u8::MAX)),
-			"js" => Op::BranchSign(reg!(), value!(u8, u8::MAX)),
-			"as" => Op::AssertSign(reg!(), value!(u8, u8::MAX)),
+			"jp" => Op::BranchParity(reg!(), addr!(u8::MAX as usize)),
+			"ap" => Op::AssertParity(reg!(), addr!(u8::MAX as usize)),
+			"js" => Op::BranchSign(reg!(), addr!(u8::MAX as usize)),
+			"as" => Op::AssertSign(reg!(), addr!(u8::MAX as usize)),
 			
-			"jmp" => Op::GoTo(value!(u16, 0b_11_1111_1111_1111)),
-			"pmj" => Op::ComeFrom(value!(u16, 0b_11_1111_1111_1111)),
+			"jmp" => Op::GoTo(addr!(0b_11_1111_1111_1111)),
+			"pmj" => Op::ComeFrom(addr!(0b_11_1111_1111_1111)),
 			
-			// `return` because this `match` block is surrounded by an `Ok()`
-			_ => return Err(DeserialError::UnknownMneumonic),
-		})
+			mneu => return Err(Error::UnknownMneumonic(mneu.to_string()))
+		};
+		
+		// check to make sure all tokens are exhausted.
+		let leftovers: Vec<_> = tokens.map(|s| s.to_string()).collect();
+		
+		if leftovers.is_empty() { Ok(op) }
+		else { Err(Error::ExtraArgs(leftovers)) }
 	}
 }
 

@@ -1,4 +1,5 @@
-use isa::{Op, Reg};
+use isa::op::{Op, Addr};
+use isa::reg::Reg;
 
 use super::register_file::RegisterFile;
 use super::rev::Rev;
@@ -206,9 +207,6 @@ impl<'mem> Cpu<'mem> {
 			Op::RotRight(rr, ro) =>
 				self.reg[rr] >>= self.reg[ro],
 			
-			Op::IO(rd, rp) =>
-				unimplemented!(),
-			
 			Op::CCNot(rc0, rc1, rn) =>
 				self.reg[rn] ^= self.reg[rc0].0 & self.reg[rc1].0,
 			
@@ -226,22 +224,22 @@ impl<'mem> Cpu<'mem> {
 			}
 			
 			
-			Op::BranchParity(r, off) =>
+			Op::BranchParity(r, Addr::Offset(off)) =>
 				if self.reg[r].0 % 2 == 1 {
 					self.br += off as u16;
 				},
 			
-			Op::AssertParity(r, off) =>
+			Op::AssertParity(r, Addr::Offset(off)) =>
 				if self.reg[r].0 % 2 == 1 {
 					self.br -= off as u16;
 				},
 			
-			Op::BranchSign(r, off) =>
+			Op::BranchSign(r, Addr::Offset(off)) =>
 				if (self.reg[r].0 as i16) < 0 {
 					self.br += off as u16;
 				},
 			
-			Op::AssertSign(r, off) =>
+			Op::AssertSign(r, Addr::Offset(off)) =>
 				if (self.reg[r].0 as i16) < 0 {
 					self.br -= off as u16;
 				},
@@ -250,11 +248,13 @@ impl<'mem> Cpu<'mem> {
 				self.reg[r] ^= v as u16,
 			
 			
-			Op::GoTo(off) =>
-				self.br += off,
+			Op::GoTo(Addr::Offset(off)) =>
+				self.br += off as u16,
 			
-			Op::ComeFrom(off) =>
-				self.br -= off,
+			Op::ComeFrom(Addr::Offset(off)) =>
+				self.br -= off as u16,
+			
+			_ => unreachable!()
 		}
 		
 		// next instruction

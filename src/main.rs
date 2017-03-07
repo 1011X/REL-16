@@ -39,7 +39,7 @@ fn main() {
 	);
 
 	if matches.opt_present("version") {
-		println!("rel 0.2.8");
+		println!("rel 0.3.0");
 		return;
 	}
 	
@@ -63,8 +63,8 @@ fn main() {
 		Some(subc @ "asm") |
 		Some(subc @ "dasm") => {
 			let data = match subc {
-				"asm"  => asm::assemble(src),
-				"dasm" => asm::disassemble(&mut src),
+				"asm"  => asm::assemble(src).unwrap(), // TODO: handle unwrap
+				"dasm" => asm::disassemble(&mut src).unwrap(), // TODO: handle unwrap
 				_      => unreachable!()
 			};
 			
