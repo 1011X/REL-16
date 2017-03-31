@@ -1,12 +1,11 @@
 use std::ops::{Index, IndexMut};
 
 use isa::reg::Reg;
-use super::rev::Rev;
 
-pub struct RegisterFile(pub [Rev; 8]);
+pub struct RegisterFile(pub [u16; 8]);
 
 impl Index<Reg> for RegisterFile {
-	type Output = Rev;
+	type Output = u16;
 	fn index(&self, index: Reg) -> &Self::Output {
 		&self.0[index as usize]
 	}

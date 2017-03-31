@@ -6,27 +6,24 @@ use std::error::Error;
 pub enum Reg { R0 = 0, R1, R2, R3, R4, R5, SP, BP }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum ParseError {
-	NoPrefix,
-	//InvalidIndex(&'a str),
-}
+pub struct ParseError { tried: String }
 
 impl fmt::Display for Reg {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match *self {
-			Reg::R0
-			| Reg::R1
-			| Reg::R2
-			| Reg::R3
-			| Reg::R4
-			| Reg::R5 =>
-				write!(f, "r{}", *self as u8),
+			Reg::R0 => write!(f, "r0"),
+			Reg::R1 => write!(f, "r1"),
+			Reg::R2 => write!(f, "r2"),
+			Reg::R3 => write!(f, "r3"),
+			Reg::R4 => write!(f, "r4"),
+			Reg::R5 => write!(f, "r5"),
 			
-			Reg::SP => f.write_str("sp"),
-			Reg::BP => f.write_str("bp"),
+			Reg::SP => write!(f, "sp"),
+			Reg::BP => write!(f, "bp"),
 		}
 	}
 }
+
 
 impl str::FromStr for Reg {
 	type Err = ParseError;
@@ -40,44 +37,19 @@ impl str::FromStr for Reg {
 			"r5" => Ok(Reg::R5),
 			"r6" | "sp" => Ok(Reg::SP),
 			"r7" | "bp" => Ok(Reg::BP),
-			//s if s.starts_with('r') && s.parse::<u8>().is_ok() => 
-			_ => Err(ParseError::NoPrefix)
+			_ => Err(ParseError {tried: s.to_string()})
 		}
 	}
 }
 
 impl fmt::Display for ParseError {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		match *self {
-			ParseError::NoPrefix => self.description().fmt(f),
-		}
+		write!(f, "No such register: {}", self.tried)
 	}
 }
 
 impl Error for ParseError {
 	fn description(&self) -> &str {
-		match *self {
-			ParseError::NoPrefix => "invalid register literal",
-		}
+		"invalid register literal"
 	}
-}
-
-impl From<usize> for Reg {
-	fn from(val: usize) -> Self {
-		match val {
-			0 => Reg::R0,
-			1 => Reg::R1,
-			2 => Reg::R2,
-			3 => Reg::R3,
-			4 => Reg::R4,
-			5 => Reg::R5,
-			6 => Reg::SP,
-			7 => Reg::BP,
-			_ => panic!("Invalid register value given: {}", val)
-		}
-	}
-}
-
-impl From<u16> for Reg {
-	fn from(val: u16) -> Self { Reg::from(val as usize) }
 }
