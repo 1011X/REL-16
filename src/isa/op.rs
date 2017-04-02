@@ -269,7 +269,7 @@ impl Op {
 impl fmt::Display for Op {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match *self {
-			Op::Halt => f.write_str("hlt"),
+			Op::Halt => write!(f, "hlt"),
 			
 			Op::Not(r)       => write!(f, "not {}", r),
 			Op::Increment(r) => write!(f, "inc {}", r),

@@ -119,16 +119,34 @@ pub fn run(code: Vec<Op>, symtab: HashMap<String, usize>, logging_enabled: bool)
 			Op::Decrement(a) =>
 				cpu.reg[a] = cpu.reg[a].wrapping_sub(1),
 			
-			Op::Push(r) => {
-				cpu.reg[SP] = cpu.reg[SP].wrapping_sub(1);
-				let sp = cpu.reg[SP] as usize;
-				swap!(cpu.reg[r], cpu.data_mem[sp]);
+			Op::Push(rr) => {
+				let ref mut r = 0;
+				let ref mut sp = 0;
+				swap!(r, cpu.reg[rr]);
+				swap!(sp, cpu.reg[SP]);
+				
+				*sp = sp.wrapping_sub(1);
+				swap!(r, cpu.data_mem[*sp as usize]);
+				
+				swap!(sp, cpu.reg[SP]);
+				swap!(r, cpu.reg[rr]);
+				debug_assert!(sp == 0);
+				debug_assert!(r == 0);
 			}
 			
-			Op::Pop(r) => {
-				let sp = cpu.reg[SP] as usize;
-				swap!(cpu.reg[r], cpu.data_mem[sp]);
-				cpu.reg[SP] = cpu.reg[SP].wrapping_add(1);
+			Op::Pop(rr) => {
+				let ref mut r = 0;
+				let ref mut sp = 0;
+				swap!(r, cpu.reg[rr]);
+				swap!(sp, cpu.reg[SP]);
+				
+				swap!(r, cpu.data_mem[*sp as usize]);
+				*sp = sp.wrapping_add(1);
+				
+				swap!(sp, cpu.reg[SP]);
+				swap!(r, cpu.reg[rr]);
+				debug_assert!(sp == 0);
+				debug_assert!(r == 0);
 			}
 			
 			Op::SwapPc(r) =>
@@ -175,40 +193,91 @@ pub fn run(code: Vec<Op>, symtab: HashMap<String, usize>, logging_enabled: bool)
 			Op::Swap(a, b) =>
 				cpu.reg.0.swap(a as usize, b as usize),
 			
-			Op::CNot(rn, rc) =>
-				cpu.reg[rn] ^= cpu.reg[rc],
-			
-			Op::CAdd(ra, rc) =>
-				cpu.reg[ra] = cpu.reg[ra].wrapping_add(cpu.reg[rc]),
-			
-			Op::CSub(rs, rc) =>
-				cpu.reg[rs] = cpu.reg[rs].wrapping_sub(cpu.reg[rc]),
-			
-			Op::Exchange(r, ra) => {
-				let raddr = cpu.reg[ra] as usize;
-				swap!(cpu.reg[r], cpu.data_mem[raddr]);
+			Op::CNot(rn, rc) => {
+				let ref mut n = 0;
+				swap!(n, cpu.reg[rn]);
+				
+				*n ^= cpu.reg[rc];
+				
+				swap!(n, cpu.reg[rn]);
+				debug_assert!(n == 0);
 			}
 			
-			Op::RotLeft(rr, ro) =>
-				cpu.reg[rr] = cpu.reg[rr].rotate_left(cpu.reg[ro] as u32),
+			Op::CAdd(ra, rc) => {
+				let ref mut a = 0;
+				swap!(a, cpu.reg[ra]);
+				
+				*a = a.wrapping_add(cpu.reg[rc]);
+				
+				swap!(a, cpu.reg[ra]);
+				debug_assert!(a == 0);
+			}
 			
-			Op::RotRight(rr, ro) =>
-				cpu.reg[rr] = cpu.reg[rr].rotate_right(cpu.reg[ro] as u32),
+			Op::CSub(rs, rc) => {
+				let ref mut s = 0;
+				swap!(s, cpu.reg[rs]);
+				
+				*s = s.wrapping_sub(cpu.reg[rc]);
+				
+				swap!(s, cpu.reg[rs]);
+				debug_assert!(s == 0);
+			}
 			
-			Op::CCNot(rc0, rc1, rn) =>
-				cpu.reg[rn] ^= cpu.reg[rc0] & cpu.reg[rc1],
+			Op::Exchange(rd, ra) => {
+				let ref mut d = 0;
+				swap!(d, cpu.reg[rd]);
+				
+				let addr = cpu.reg[ra] as usize;
+				swap!(d, cpu.data_mem[addr]);
+				
+				swap!(d, cpu.reg[rd]);
+				debug_assert!(d == 0);
+			}
+			
+			Op::RotLeft(rr, ro) => {
+				let ref mut r = 0;
+				swap!(r, cpu.reg[rr]);
+				
+				*r = r.rotate_left(cpu.reg[ro] as u32);
+				
+				swap!(r, cpu.reg[rr]);
+				debug_assert!(r == 0);
+			}
+			
+			Op::RotRight(rr, ro) => {
+				let ref mut r = 0;
+				swap!(r, cpu.reg[rr]);
+				
+				*r = r.rotate_right(cpu.reg[ro] as u32);
+				
+				swap!(r, cpu.reg[rr]);
+				debug_assert!(r == 0);
+			}
+			
+			Op::CCNot(rc0, rc1, rn) => {
+				let ref mut n = 0;
+				swap!(n, cpu.reg[rn]);
+				
+				*n ^= cpu.reg[rc0] & cpu.reg[rc1];
+				
+				swap!(n, cpu.reg[rn]);
+				debug_assert!(n == 0);
+			}
 			
 			Op::CSwap(rc, rs0, rs1) => {
-				let c = cpu.reg[rc];
-				let mut s0 = cpu.reg[rs0];
-				let mut s1 = cpu.reg[rs1];
+				let mut ref s0 = 0;
+				let mut ref s1 = 0;
+				swap!(s0, cpu.reg[rs0]);
+				swap!(s1, cpu.reg[rs1]);
 				
-				let t = (s0 ^ s1) & c;
-				s0 ^= t;
-				s1 ^= t;
+				let t = (*s0 ^ *s1) & cpu.reg[rc];
+				*s0 ^= t;
+				*s1 ^= t;
 				
-				cpu.reg[rs0] = s0;
-				cpu.reg[rs1] = s1;
+				swap!(s1, cpu.reg[rs1]);
+				swap!(s0, cpu.reg[rs0]);
+				debug_assert!(s1 == 0);
+				debug_assert!(s0 == 0);
 			}
 			
 			Op::BranchParity(r, ref label) =>
