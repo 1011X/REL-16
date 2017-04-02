@@ -1,16 +1,23 @@
-use isa::op::{Op, Addr};
+use std::collections::HashMap;
+
+use isa::op::Op;
 use isa::reg::Reg;
 
 use super::register_file::RegisterFile;
-use super::rev::Rev;
-use super::MAX_MEM;
+
+const SP: Reg = Reg::SP;
+const BP: Reg = Reg::BP;
+const MAX_MEM: usize = 65536;
 
 pub struct Cpu<'mem> {
+	symtab: HashMap<String, usize>,
+	logging_enabled: bool,
+	
 	// when dir is true, it is in reverse mode
 	dir: bool,
-	br: Rev,
-	pc: Rev,
-	ir: u16,
+	br: u16,
+	pc: u16,
+	ir: Op,
 	
 	// Some conventions on registers:
 	// r0 can be treated like an accumulator register
@@ -18,252 +25,308 @@ pub struct Cpu<'mem> {
 	// r7 is the stack base pointer (bp)
 	reg: RegisterFile,
 	
-	prog_mem: &'mem [u16; MAX_MEM], //MemoryROM<'a>,
-	data_mem: [u16; MAX_MEM], //MemoryRAM<'a>,
+	prog_mem: &'mem [Op], // ROM
+	data_mem: [u16; MAX_MEM], // RAM
 }
 
 impl<'mem> Cpu<'mem> {
-	pub fn new(prog: &'mem [u16; MAX_MEM]) -> Cpu<'mem> {
+	pub fn new(prog: &[Op], symtab: HashMap<String, usize>, log: bool) -> Cpu {
 		Cpu {
+			symtab: symtab,
+			logging_enabled: log,
+			
 			dir: false,
-			br: Rev(1),
-			pc: Rev(0),
-			ir: 0,
-			reg: RegisterFile([Rev(0); 8]),
+			br: 1,
+			pc: 0,
+			ir: Op::Halt,
+			reg: RegisterFile([0; 8]),
 			prog_mem: prog,
 			data_mem: [0; MAX_MEM],
 		}
 	}
 	
-	pub fn log_state(&self) {
-		// address in pc and the instruction it's pointing to
-		println!("pc = {:04x}  br = {:04x}  dir = {}", self.pc.0, self.br.0, self.dir);
-		
-		
-		// print contents of registers
-		print!("registers: [");
-	
-		for &Rev(val) in &self.reg.0[..7] {
-			print!("{:04x}, ", val);
-		}
-		
-		println!("{:04x}]", self.reg[Reg::BP].0);
-		
-		
-		// print contents of stack
-		print!("stack: ");
-		
-		use std::cmp::Ordering;
-		match self.reg[Reg::BP].cmp(&self.reg[Reg::SP]) {
-			Ordering::Equal   => println!("nil"),
-			Ordering::Less    => println!("invalid"),
-			Ordering::Greater => {
-				let bp = self.reg[Reg::BP].0 as usize;
-				let sp = self.reg[Reg::SP].0 as usize;
+	pub fn run(&mut self) {
+		loop {
+			if self.logging_enabled {
+				println!("pc = {:04x}  br = {:04x}  dir = {}", self.pc, self.br, self.dir);
 			
-				print!("<");
+				// print contents of registers
+				print!("registers: [");
 			
-				// log whole stack except for last value
-				for &val in &self.data_mem[sp..bp - 1] {
+				for &val in &self.reg.0[..BP as usize] {
 					print!("{:04x}, ", val);
 				}
 			
-				// log last value
-				println!("{:04x}]", self.data_mem[bp - 1]);
+				println!("{:04x}]", self.reg[BP]);
+			
+			
+				// print contents of stack
+				print!("stack: ");
+			
+				use std::cmp::Ordering;
+			
+				match self.reg[BP].cmp(&self.reg[SP]) {
+					Ordering::Equal   => println!("nil"),
+					Ordering::Less    => println!("invalid"),
+					Ordering::Greater => {
+						let bp = self.reg[BP] as usize;
+						let sp = self.reg[SP] as usize;
+					
+						print!("<");
+					
+						// log whole stack except for last value
+						for &val in &self.data_mem[sp..bp - 1] {
+							print!("{:04x}, ", val);
+						}
+					
+						// log last value
+						println!("{:04x}]", self.data_mem[bp - 1]);
+					}
+				}
+			
+				print!("\n");
 			}
-		}
 		
-		print!("\n");
-	}
-	
-	pub fn log_current_instr(&self) {
-		// show which instruction is being executed
-		print!("ir = {:04x}: ", self.ir);
-		
-		// if invalid, log it and skip it.
-		match Op::decode(self.ir) {
-			Ok(ref instr) => println!("{}\n", instr),
-			Err(_)        => println!("INVALID\n"),
-		}
-	}
-	
-	pub fn fetch(&mut self) -> bool {
-		self.ir = match self.prog_mem.get(self.pc.0 as usize) {
-			Some(&val) => val,
-			None => {
-				println!("UNEXPECTED HALT");
-				println!("Encountered halt instruction that wasn't part of the program");
-				return true;
-			}
-		};
-		
-		false
-	}
-	
-	pub fn execute(&mut self) -> bool {
-		// get instruction and invert if in reverse mode
-		let instr = {
-			let res = match Op::decode(self.ir) {
-				Ok(instr) => instr,
-				Err(e) => {
-					println_err!("Error parsing instruction {:#06x}", self.ir);
-					println_err!("{}", e);
-					return true;
+			/* FETCH */
+			self.ir = match self.prog_mem.get(self.pc as usize) {
+				Some(val) => val.clone(),
+				None => {
+					println!("UNEXPECTED HALT");
+					println!("Encountered halt instruction that wasn't part of the program.");
+					break;
 				}
 			};
-			
-			if self.dir { res.invert() }
-			else { res }
-		};
 		
-		match instr {
-			Op::Halt => return true,
-			
-			
-			Op::Not(a) =>
-				self.reg[a].0 = !self.reg[a].0,
-			
-			Op::Increment(a) =>
-				self.reg[a] += 1,
-			
-			Op::Decrement(a) =>
-				self.reg[a] -= 1,
-			
-			Op::Push(r) => {
-				self.reg[Reg::SP] -= 1;
-				let sp = self.reg[Reg::SP].0 as usize;
-				swap!(self.reg[r].0, self.data_mem[sp]);
+		
+			if self.logging_enabled {
+				// show which instruction is being executed
+				println!("ir: {:?}\n", self.ir);
 			}
-			
-			Op::Pop(r) => {
-				let sp = self.reg[Reg::SP].0 as usize;
-				swap!(self.reg[r].0, self.data_mem[sp]);
-				self.reg[Reg::SP] += 1;
+		
+		
+			/* EXECUTE */
+			// get instruction and invert if in reverse mode
+			if self.dir {
+				self.ir = self.ir.clone().invert();
 			}
+		
+			match self.ir {
+				Op::Halt => break,
 			
-			Op::SwapPc(r) =>
-				swap!(self.pc, self.reg[r]),
+				Op::Not(a) =>
+					self.reg[a] = !self.reg[a],
 			
-			Op::RevSwapPc(r) => {
-				swap!(self.pc, self.reg[r]);
-				self.dir = !self.dir;
-			}
+				Op::Increment(a) =>
+					self.reg[a] = self.reg[a].wrapping_add(1),
 			
-			Op::Mul2(ri) => {
-				use std::i16;
+				Op::Decrement(a) =>
+					self.reg[a] = self.reg[a].wrapping_sub(1),
+			
+				Op::Push(rr) => {
+					let mut r = 0;
+					let mut sp = 0;
+					swap!(r, self.reg[rr]);
+					swap!(sp, self.reg[SP]);
 				
-				let r = self.reg[ri].0 as i16;
+					sp = sp.wrapping_sub(1);
+					swap!(r, self.data_mem[sp as usize]);
 				
-				self.reg[ri].0 = match r {
-					-16384...16383    => r * 2,
-					16384...i16::MAX  => r - (i16::MAX - r),
-					i16::MIN...-16385 => r + (r - i16::MIN + 1),
+					swap!(sp, self.reg[SP]);
+					swap!(r, self.reg[rr]);
+					debug_assert!(sp == 0);
+					debug_assert!(r == 0);
+				}
+			
+				Op::Pop(rr) => {
+					let mut r = 0;
+					let mut sp = 0;
+					swap!(r, self.reg[rr]);
+					swap!(sp, self.reg[SP]);
+				
+					swap!(r, self.data_mem[sp as usize]);
+					sp = sp.wrapping_add(1);
+				
+					swap!(sp, self.reg[SP]);
+					swap!(r, self.reg[rr]);
+					debug_assert!(sp == 0);
+					debug_assert!(r == 0);
+				}
+			
+				Op::SwapPc(r) =>
+					swap!(self.pc, self.reg[r]),
+			
+				Op::RevSwapPc(r) => {
+					swap!(self.pc, self.reg[r]);
+					self.dir = !self.dir;
+				}
+			
+				Op::Mul2(ri) => {
+					use std::i16;
+				
+					let r = self.reg[ri] as i16;
+				
+					self.reg[ri] = match r {
+						-16384...16383    => r * 2,
+						16384...i16::MAX  => r - (i16::MAX - r),
+						i16::MIN...-16385 => r + (r - i16::MIN + 1),
 					
-					_ => unreachable!()
-				} as u16;
-			}
+						_ => unreachable!()
+					} as u16;
+				}
 			
-			Op::Div2(ri) => {
-				use std::i16;
+				Op::Div2(ri) => {
+					use std::i16;
 				
-				let r = self.reg[ri].0 as i16;
-				let odd = |r| r & 1 == 1;
+					let r = self.reg[ri] as i16;
+					let odd = |r| r & 1 == 1;
 				
-				self.reg[ri].0 = match r {
-					0...i16::MAX if odd(r) => i16::MAX - (i16::MAX - r) / 2,
-					i16::MIN...0 if odd(r) => i16::MIN + (r + i16::MAX) / 2,
-					_ /* even */           => r / 2
-				} as u16;
-			}
+					self.reg[ri] = match r {
+						0...i16::MAX if odd(r) => i16::MAX - (i16::MAX - r) / 2,
+						i16::MIN...0 if odd(r) => i16::MIN + (r + i16::MAX) / 2,
+						_ /* even */           => r / 2
+					} as u16;
+				}
 			
+				Op::RotLeftImm(r, v) =>
+					self.reg[r] = self.reg[r].rotate_left(v as u32),
+			
+				Op::RotRightImm(r, v) =>
+					self.reg[r] = self.reg[r].rotate_right(v as u32),
+			
+				Op::Swap(a, b) =>
+					self.reg.0.swap(a as usize, b as usize),
+			
+				Op::CNot(rn, rc) => {
+					let mut n = 0;
+					swap!(n, self.reg[rn]);
+				
+					n ^= self.reg[rc];
+				
+					swap!(n, self.reg[rn]);
+					debug_assert!(n == 0);
+				}
+			
+				Op::CAdd(ra, rc) => {
+					let mut a = 0;
+					swap!(a, self.reg[ra]);
+				
+					a = a.wrapping_add(self.reg[rc]);
+				
+					swap!(a, self.reg[ra]);
+					debug_assert!(a == 0);
+				}
+			
+				Op::CSub(rs, rc) => {
+					let mut s = 0;
+					swap!(s, self.reg[rs]);
+				
+					s = s.wrapping_sub(self.reg[rc]);
+				
+					swap!(s, self.reg[rs]);
+					debug_assert!(s == 0);
+				}
+			
+				Op::Exchange(rd, ra) => {
+					let mut d = 0;
+					swap!(d, self.reg[rd]);
+				
+					let addr = self.reg[ra] as usize;
+					swap!(d, self.data_mem[addr]);
+				
+					swap!(d, self.reg[rd]);
+					debug_assert!(d == 0);
+				}
+			
+				Op::RotLeft(rr, ro) => {
+					let mut r = 0;
+					swap!(r, self.reg[rr]);
+				
+					r = r.rotate_left(self.reg[ro] as u32);
+				
+					swap!(r, self.reg[rr]);
+					debug_assert!(r == 0);
+				}
+			
+				Op::RotRight(rr, ro) => {
+					let mut r = 0;
+					swap!(r, self.reg[rr]);
+				
+					r = r.rotate_right(self.reg[ro] as u32);
+				
+					swap!(r, self.reg[rr]);
+					debug_assert!(r == 0);
+				}
+			
+				Op::CCNot(rc0, rc1, rn) => {
+					let mut n = 0;
+					swap!(n, self.reg[rn]);
+				
+					n ^= self.reg[rc0] & self.reg[rc1];
+				
+					swap!(n, self.reg[rn]);
+					debug_assert!(n == 0);
+				}
+			
+				Op::CSwap(rc, rs0, rs1) => {
+					let mut s0 = 0;
+					let mut s1 = 0;
+					swap!(s0, self.reg[rs0]);
+					swap!(s1, self.reg[rs1]);
+				
+					let t = (s0 ^ s1) & self.reg[rc];
+					s0 ^= t;
+					s1 ^= t;
+				
+					swap!(s1, self.reg[rs1]);
+					swap!(s0, self.reg[rs0]);
+					debug_assert!(s1 == 0);
+					debug_assert!(s0 == 0);
+				}
+			
+				Op::BranchParity(r, ref label) =>
+					if (self.reg[r] & 1) == 1 {
+						let off = self.symtab[label];
+						self.br = self.br.wrapping_add(off as u16);
+					},
+			
+				Op::AssertParity(r, ref label) =>
+					if (self.reg[r] & 1) == 1 {
+						let off = self.symtab[label];
+						self.br = self.br.wrapping_sub(off as u16);
+					},
+			
+				Op::BranchSign(r, ref label) =>
+					if (self.reg[r] as i16) < 0 {
+						let off = self.symtab[label];
+						self.br = self.br.wrapping_add(off as u16);
+					},
+			
+				Op::AssertSign(r, ref label) =>
+					if (self.reg[r] as i16) < 0 {
+						let off = self.symtab[label];
+						self.br = self.br.wrapping_sub(off as u16);
+					},
+			
+				Op::Immediate(r, v) =>
+					self.reg[r] ^= v as u16,
+			
+				Op::GoTo(ref label) => {
+					let off = self.symtab[label];
+					self.br = self.br.wrapping_add(off as u16);
+				}
+			
+				Op::ComeFrom(ref label) => {
+					let off = self.symtab[label];
+					self.br = self.br.wrapping_sub(off as u16);
+				}
+			}
 		
-			Op::RotLeftImm(r, v) =>
-				self.reg[r] <<= v as u16,
-			
-			Op::RotRightImm(r, v) =>
-				self.reg[r] >>= v as u16,
-			
-			
-			Op::Swap(a, b) =>
-				self.reg.0.swap(a as usize, b as usize),
-			
-			Op::CNot(rn, rc) =>
-				self.reg[rn] ^= self.reg[rc],
-			
-			Op::CAdd(ra, rc) =>
-				self.reg[ra] += self.reg[rc],
-			
-			Op::CSub(rs, rc) =>
-				self.reg[rs] -= self.reg[rc],
-			
-			Op::Exchange(r, ra) => {
-				let raddr = self.reg[ra].0 as usize;
-				swap!(self.reg[r].0, self.data_mem[raddr]);
+			// decide next instruction based on offset and dir bit
+			if self.dir {
+				self.pc = self.pc.wrapping_sub(self.br);
+			} else {
+				self.pc = self.pc.wrapping_add(self.br);
 			}
-			
-			Op::RotLeft(rr, ro) =>
-				self.reg[rr] <<= self.reg[ro],
-			
-			Op::RotRight(rr, ro) =>
-				self.reg[rr] >>= self.reg[ro],
-			
-			Op::CCNot(rc0, rc1, rn) =>
-				self.reg[rn] ^= self.reg[rc0].0 & self.reg[rc1].0,
-			
-			Op::CSwap(rc, rs0, rs1) => {
-				let c = self.reg[rc].0;
-				let mut s0 = self.reg[rs0].0;
-				let mut s1 = self.reg[rs1].0;
-				
-				let t = (s0 ^ s1) & c;
-				s0 ^= t;
-				s1 ^= t;
-				
-				self.reg[rs0].0 = s0;
-				self.reg[rs1].0 = s1;
-			}
-			
-			
-			Op::BranchParity(r, Addr::Offset(off)) =>
-				if self.reg[r].0 % 2 == 1 {
-					self.br += off as u16;
-				},
-			
-			Op::AssertParity(r, Addr::Offset(off)) =>
-				if self.reg[r].0 % 2 == 1 {
-					self.br -= off as u16;
-				},
-			
-			Op::BranchSign(r, Addr::Offset(off)) =>
-				if (self.reg[r].0 as i16) < 0 {
-					self.br += off as u16;
-				},
-			
-			Op::AssertSign(r, Addr::Offset(off)) =>
-				if (self.reg[r].0 as i16) < 0 {
-					self.br -= off as u16;
-				},
-			
-			Op::Immediate(r, v) =>
-				self.reg[r] ^= v as u16,
-			
-			
-			Op::GoTo(Addr::Offset(off)) =>
-				self.br += off as u16,
-			
-			Op::ComeFrom(Addr::Offset(off)) =>
-				self.br -= off as u16,
-			
-			_ => unreachable!()
 		}
-		
-		// next instruction
-		if self.dir {
-			self.pc -= self.br;
-		} else {
-			self.pc += self.br;
-		}
-		
-		false
 	}
 }
