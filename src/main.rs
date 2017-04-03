@@ -43,7 +43,7 @@ fn main() {
 			let (code, symtab) = try_err!(asm::parse(reader));
 			let logging_enabled = matches.opt_present("verbose");
 			
-			vm::run(code, symtab, logging_enabled);
+			vm::Cpu::new(&code, symtab, logging_enabled).run();
 		}
 		
 		None => {

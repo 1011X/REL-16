@@ -4,6 +4,7 @@ use std::str::FromStr;
 use std::result;
 
 use isa::op::Op;
+use isa::op::Addr;
 
 type Result<T> = result::Result<T, String>;
 type SymTable = HashMap<String, usize>;
@@ -39,12 +40,12 @@ pub fn parse<I: BufRead>(inp: I) -> Result<(Vec<Op>, SymTable)> {
 		.enumerate()
 		// write addresses where labels appears in table
 		.inspect(|&(i, ref op)| match *op {
-			Op::BranchParity(_, ref label)
-			| Op::BranchSign(_, ref label)
-			| Op::AssertParity(_, ref label)
-			| Op::AssertSign(_, ref label)
-			| Op::GoTo(ref label)
-			| Op::ComeFrom(ref label) =>
+			Op::BranchParity(_, Addr::Label(ref label))
+			| Op::BranchSign(_, Addr::Label(ref label))
+			| Op::AssertParity(_, Addr::Label(ref label))
+			| Op::AssertSign(_, Addr::Label(ref label))
+			| Op::GoTo(Addr::Label(ref label))
+			| Op::ComeFrom(Addr::Label(ref label)) =>
 				label_indices.entry(label.clone())
 				.or_insert(Vec::with_capacity(2))
 				.push(i),

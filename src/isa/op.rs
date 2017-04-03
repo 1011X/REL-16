@@ -8,6 +8,12 @@ use super::reg::{self, Reg};
 
 type Result<T> = result::Result<T, Error>;
 
+#[derive(Debug, Clone)]
+pub enum Addr {
+	Label(String),
+	Offset(usize),
+}
+
 #[derive(Debug)]
 pub enum Error {
 	NoMneumonic,
@@ -98,7 +104,7 @@ impl error::Error for Error {
 /// * `_____________1xx`
 /// * `______________1x`
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub enum Op {
 	/// Stops the machine.
 	Halt,
@@ -208,25 +214,25 @@ pub enum Op {
 	
 	/// Adds an immediate byte offset to the branch register if the register
 	/// is an odd number.
-	BranchParity(Reg, String),
+	BranchParity(Reg, Addr),
 	
 	/// Subtracts an immediate byte offset from the branch register if the
 	/// the register is an odd number.
-	AssertParity(Reg, String),
+	AssertParity(Reg, Addr),
 	
 	/// Adds an immediate byte offset to the branch register if the register
 	/// is below zero.
-	BranchSign(Reg, String),
+	BranchSign(Reg, Addr),
 	
 	/// Subtracts an immediate byte offset from the branch register if the
 	/// register is below zero.
-	AssertSign(Reg, String),
+	AssertSign(Reg, Addr),
 	
 	/// Adds a value to the branch register.
-	GoTo(String),
+	GoTo(Addr),
 	
 	/// Subtracts a value from the branch register.
-	ComeFrom(String),
+	ComeFrom(Addr),
 }
 
 impl Op {
@@ -256,12 +262,12 @@ impl Op {
 			Op::CCNot(..)          => self,
 			Op::CSwap(..)          => self,
 			Op::Immediate(..)      => self,
-			Op::BranchParity(r, o) => Op::AssertParity(r, o),
-			Op::BranchSign(r, o)   => Op::AssertSign(r, o),
-			Op::AssertParity(r, o) => Op::BranchParity(r, o),
-			Op::AssertSign(r, o)   => Op::BranchSign(r, o),
-			Op::GoTo(off)          => Op::ComeFrom(off),
-			Op::ComeFrom(off)      => Op::GoTo(off),
+			Op::BranchParity(r, a) => Op::AssertParity(r, a),
+			Op::BranchSign(r, a)   => Op::AssertSign(r, a),
+			Op::AssertParity(r, a) => Op::BranchParity(r, a),
+			Op::AssertSign(r, a)   => Op::BranchSign(r, a),
+			Op::GoTo(addr)         => Op::ComeFrom(addr),
+			Op::ComeFrom(addr)     => Op::GoTo(addr),
 		}
 	}
 }
@@ -269,7 +275,7 @@ impl Op {
 impl fmt::Display for Op {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match *self {
-			Op::Halt => f.write_str("hlt"),
+			Op::Halt => write!(f, "hlt"),
 			
 			Op::Not(r)       => write!(f, "not {}", r),
 			Op::Increment(r) => write!(f, "inc {}", r),
@@ -297,13 +303,13 @@ impl fmt::Display for Op {
 			
 			Op::Immediate(r, v)    => write!(f, "xori {} {}", r, v),
 			
-			Op::BranchParity(r, ref v) => write!(f, "jp {} {}", r, v),
-			Op::AssertParity(r, ref v) => write!(f, "ap {} {}", r, v),
-			Op::BranchSign(r, ref v)   => write!(f, "js {} {}", r, v),
-			Op::AssertSign(r, ref v)   => write!(f, "as {} {}", r, v),
+			Op::BranchParity(r, ref a) => write!(f, "jp {} {:?}", r, a),
+			Op::AssertParity(r, ref a) => write!(f, "ap {} {:?}", r, a),
+			Op::BranchSign(r, ref a)   => write!(f, "js {} {:?}", r, a),
+			Op::AssertSign(r, ref a)   => write!(f, "as {} {:?}", r, a),
 			
-			Op::GoTo(ref off)     => write!(f, "jmp {}", off),
-			Op::ComeFrom(ref off) => write!(f, "pmj {}", off),
+			Op::GoTo(ref addr)     => write!(f, "jmp {:?}", addr),
+			Op::ComeFrom(ref addr) => write!(f, "pmj {:?}", addr),
 		}
 	}
 }
@@ -341,10 +347,25 @@ impl FromStr for Op {
 			tokens.next()
 			.ok_or(Error::NoAddress)
 			.and_then(|tok| {
+				// TODO: handle unwrap
 				let first = tok.chars().nth(0).unwrap();
+				let is_alpha = |c| (c >= 'a' && c <= 'z')
+					|| (c >= 'A' && c <= 'Z')
+					|| c == '_';
+				let is_num = |c| c >= '0' && c <= '9';
+				let is_alphanum = |c| is_alpha(c) || is_num(c);
 				
-				if (first.is_alphabetic() || first == '_') && tok.chars().skip(1).all(|c| c.is_alphanumeric() || c == '_') {
-					Ok(tok.to_string())
+				if is_alpha(first) && tok.chars().skip(1).all(is_alphanum) {
+					Ok(Addr::Label(tok.to_string()))
+				}
+				else if tok.chars().all(|c| is_num(c)) {
+					match tok.parse::<usize>() {
+						Ok(value) if value <= $max =>
+							Ok(Addr::Offset(value)),
+
+						Ok(_)  => Err(Error::ValueTooLarge),
+						Err(e) => Err(Error::Value(e)),
+					}
 				}
 				else {
 					Err(Error::NoAddress)
