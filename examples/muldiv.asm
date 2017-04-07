@@ -23,3 +23,4 @@ mul2 r0
 div2 r0
 roli r0 2
 xori r0 1
+hlt

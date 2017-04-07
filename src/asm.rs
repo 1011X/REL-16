@@ -40,10 +40,14 @@ pub fn parse<I: BufRead>(inp: I) -> Result<(Vec<Op>, SymTable)> {
 		.enumerate()
 		// write addresses where labels appears in table
 		.inspect(|&(i, ref op)| match *op {
-			Op::BranchParity(_, Addr::Label(ref label))
-			| Op::BranchSign(_, Addr::Label(ref label))
-			| Op::AssertParity(_, Addr::Label(ref label))
-			| Op::AssertSign(_, Addr::Label(ref label))
+			Op::BranchParityOdd(_, Addr::Label(ref label))
+			| Op::BranchSignNegative(_, Addr::Label(ref label))
+			| Op::AssertParityOdd(_, Addr::Label(ref label))
+			| Op::AssertSignNegative(_, Addr::Label(ref label))
+			| Op::BranchParityEven(_, Addr::Label(ref label))
+			| Op::BranchSignNonneg(_, Addr::Label(ref label))
+			| Op::AssertParityEven(_, Addr::Label(ref label))
+			| Op::AssertSignNonneg(_, Addr::Label(ref label))
 			| Op::GoTo(Addr::Label(ref label))
 			| Op::ComeFrom(Addr::Label(ref label)) =>
 				label_indices.entry(label.clone())
