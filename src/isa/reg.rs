@@ -6,7 +6,7 @@ use std::error::Error;
 pub enum Reg { R0 = 0, R1, R2, R3, R4, R5, SP, BP }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct ParseError { tried: String }
+pub struct ParseError(String);
 
 impl fmt::Display for Reg {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -37,14 +37,14 @@ impl str::FromStr for Reg {
 			"r5" => Ok(Reg::R5),
 			"r6" | "sp" => Ok(Reg::SP),
 			"r7" | "bp" => Ok(Reg::BP),
-			_ => Err(ParseError {tried: s.to_string()})
+			_ => Err(ParseError(s.to_string()))
 		}
 	}
 }
 
 impl fmt::Display for ParseError {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "No such register: {}", self.tried)
+		write!(f, "No such register: {}", self.0)
 	}
 }
 
