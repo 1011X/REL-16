@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use isa::op::{Op, Addr};
 use isa::reg::Reg;
 
@@ -10,7 +8,6 @@ const BP: Reg = Reg::BP;
 const MAX_MEM: usize = 65536;
 
 pub struct Cpu<'mem> {
-	symtab: HashMap<String, usize>,
 	logging_enabled: bool,
 	
 	// when dir is true, it is in reverse mode
@@ -30,9 +27,8 @@ pub struct Cpu<'mem> {
 }
 
 impl<'mem> Cpu<'mem> {
-	pub fn new(prog: &[Op], symtab: HashMap<String, usize>, log: bool) -> Cpu {
+	pub fn new(prog: &[Op], log: bool) -> Cpu {
 		Cpu {
-			symtab: symtab,
 			logging_enabled: log,
 			
 			dir: false,
@@ -301,95 +297,49 @@ impl<'mem> Cpu<'mem> {
 				debug_assert!(s0 == 0);
 			}
 		
-			Op::BranchParityOdd(r, ref addr)
-			if (self.reg[r] & 1) == 1 => {
-				let off = match *addr {
-					Addr::Label(ref label) => self.symtab[label],
-					Addr::Offset(off) => off,
-				};
-				
-				log!(" [offset: {}]", off);
-				self.br = self.br.wrapping_add(off as u16);
-			}
+			Op::BranchParityOdd(r, Addr::Offset(off))
+			if (self.reg[r] & 1) == 1 =>
+				self.br = self.br.wrapping_add(off as u16),
 		
-			Op::AssertParityOdd(r, ref addr)
-			if (self.reg[r] & 1) == 1 => {
-				let off = match *addr {
-					Addr::Label(ref label) => self.symtab[label],
-					Addr::Offset(off) => off,
-				};
-				
-				log!(" [offset: {}]", off);
-				self.br = self.br.wrapping_sub(off as u16);
-			}
+			Op::AssertParityOdd(r, Addr::Offset(off))
+			if (self.reg[r] & 1) == 1 =>
+				self.br = self.br.wrapping_sub(off as u16),
 		
-			Op::BranchSignNegative(r, ref addr)
-			if (self.reg[r] as i16) < 0 => {
-				let off = match *addr {
-					Addr::Label(ref label) => self.symtab[label],
-					Addr::Offset(off) => off,
-				};
-				
-				log!(" [offset: {}]", off);
-				self.br = self.br.wrapping_add(off as u16);
-			}
+			Op::BranchSignNegative(r, Addr::Offset(off))
+			if (self.reg[r] as i16) < 0 =>
+				self.br = self.br.wrapping_add(off as u16),
 		
-			Op::AssertSignNegative(r, ref addr)
-			if (self.reg[r] as i16) < 0 => {
-				let off = match *addr {
-					Addr::Label(ref label) => self.symtab[label],
-					Addr::Offset(off) => off,
-				};
-				
-				log!(" [offset: {}]", off);
-				self.br = self.br.wrapping_sub(off as u16);
-			}
+			Op::AssertSignNegative(r, Addr::Offset(off))
+			if (self.reg[r] as i16) < 0 =>
+				self.br = self.br.wrapping_sub(off as u16),
 			
-			Op::BranchParityEven(r, ref addr)
-			if (self.reg[r] & 1) == 0 => {
-				let off = match *addr {
-					Addr::Label(ref label) => self.symtab[label],
-					Addr::Offset(off) => off,
-				};
-				
-				log!(" [offset: {}]", off);
-				self.br = self.br.wrapping_add(off as u16);
-			}
+			Op::BranchParityEven(r, Addr::Offset(off))
+			if (self.reg[r] & 1) == 0 =>
+				self.br = self.br.wrapping_add(off as u16),
 			
-			Op::AssertParityEven(r, ref addr)
-			if (self.reg[r] & 1) == 0 => {
-				let off = match *addr {
-					Addr::Label(ref label) => self.symtab[label],
-					Addr::Offset(off) => off,
-				};
-				
-				log!(" [offset: {}]", off);
-				self.br = self.br.wrapping_sub(off as u16);
-			}
+			Op::AssertParityEven(r, Addr::Offset(off))
+			if (self.reg[r] & 1) == 0 =>
+				self.br = self.br.wrapping_sub(off as u16),
 			
-			Op::BranchSignNonneg(r, ref addr)
-			if (self.reg[r] as i16) >= 0 => {
-				let off = match *addr {
-					Addr::Label(ref label) => self.symtab[label],
-					Addr::Offset(off) => off,
-				};
-				
-				log!(" [offset: {}]", off);
-				self.br = self.br.wrapping_add(off as u16);
-			}
+			Op::BranchSignNonneg(r, Addr::Offset(off))
+			if (self.reg[r] as i16) >= 0 =>
+				self.br = self.br.wrapping_add(off as u16),
 			
-			Op::AssertSignNonneg(r, ref addr)
-			if (self.reg[r] as i16) >= 0 => {
-				let off = match *addr {
-					Addr::Label(ref label) => self.symtab[label],
-					Addr::Offset(off) => off,
-				};
-				
-				log!(" [offset: {}]", off);
-				self.br = self.br.wrapping_sub(off as u16);
-			}
+			Op::AssertSignNonneg(r, Addr::Offset(off))
+			if (self.reg[r] as i16) >= 0 =>
+				self.br = self.br.wrapping_sub(off as u16),
+			
+			Op::Immediate(r, v) =>
+				self.reg[r] ^= v as u16,
+		
+			Op::GoTo(Addr::Offset(off)) =>
+				self.br = self.br.wrapping_add(off as u16),
+		
+			Op::ComeFrom(Addr::Offset(off)) =>
+				self.br = self.br.wrapping_sub(off as u16),
 			
 			// for when branch instrs don't meet their conditions
+			// or have labels (which shouldn't happen)
 			Op::BranchParityOdd(..)
 			| Op::BranchParityEven(..)
 			| Op::BranchSignNegative(..)
@@ -397,31 +347,10 @@ impl<'mem> Cpu<'mem> {
 			| Op::AssertParityOdd(..)
 			| Op::AssertParityEven(..)
 			| Op::AssertSignNegative(..)
-			| Op::AssertSignNonneg(..) =>
-				log!(" [not taken]"),
-			
-			Op::Immediate(r, v) =>
-				self.reg[r] ^= v as u16,
-		
-			Op::GoTo(ref addr) => {
-				let off = match *addr {
-					Addr::Label(ref label) => self.symtab[label],
-					Addr::Offset(off) => off,
-				};
-				
-				log!(" [offset: {}]", off);
-				self.br = self.br.wrapping_add(off as u16);
-			}
-		
-			Op::ComeFrom(ref addr) => {
-				let off = match *addr {
-					Addr::Label(ref label) => self.symtab[label],
-					Addr::Offset(off) => off,
-				};
-				
-				log!(" [offset: {}]", off);
-				self.br = self.br.wrapping_sub(off as u16);
-			}
+			| Op::AssertSignNonneg(..)
+			| Op::GoTo(..)
+			| Op::ComeFrom(..) =>
+				unreachable!(),
 		}
 		
 		log!("\n\n");

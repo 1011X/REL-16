@@ -40,10 +40,10 @@ fn main() {
 	match matches.free.get(0) {
 		Some(arg) => {
 			let reader = BufReader::new(try_err!(File::open(arg)));
-			let (code, symtab) = try_err!(asm::parse(reader));
+			let code = try_err!(asm::parse(reader));
 			let logging_enabled = matches.opt_present("verbose");
 			
-			vm::Cpu::new(&code, symtab, logging_enabled).run();
+			vm::Cpu::new(&code, logging_enabled).run();
 		}
 		
 		None => {

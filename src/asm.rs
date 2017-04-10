@@ -7,9 +7,8 @@ use isa::op::Op;
 use isa::op::Addr;
 
 type Result<T> = result::Result<T, String>;
-type SymTable = HashMap<String, usize>;
 
-pub fn parse<I: BufRead>(inp: I) -> Result<(Vec<Op>, SymTable)> {
+pub fn parse<I: BufRead>(inp: I) -> Result<Vec<Op>> {
 	let mut label_indices = HashMap::new();
 	
 	let lines = inp.lines()
@@ -59,7 +58,7 @@ pub fn parse<I: BufRead>(inp: I) -> Result<(Vec<Op>, SymTable)> {
 		// don't need the address anymore
 		.map(|(_, op)| op)
 		// collect the finished product!
-		.collect();
+		.collect::<Vec<_>>();
 	
 	// used to store calculated address offsets
 	let mut ltab = HashMap::with_capacity(label_indices.len());
@@ -73,5 +72,31 @@ pub fn parse<I: BufRead>(inp: I) -> Result<(Vec<Op>, SymTable)> {
 		ltab.insert(k, v[1] - v[0] - 1);
 	}
 	
-	Ok((code, ltab))
+	// turn all labels into offsets
+	Ok(code.into_iter()
+		.map(|op| match op {
+			Op::BranchParityOdd(r, Addr::Label(ref label)) =>
+				Op::BranchParityOdd(r, Addr::Offset(ltab[label])),
+			Op::BranchSignNegative(r, Addr::Label(ref label)) =>
+				Op::BranchSignNegative(r, Addr::Offset(ltab[label])),
+			Op::AssertParityOdd(r, Addr::Label(ref label)) =>
+				Op::AssertParityOdd(r, Addr::Offset(ltab[label])),
+			Op::AssertSignNegative(r, Addr::Label(ref label)) =>
+				Op::AssertSignNegative(r, Addr::Offset(ltab[label])),
+			Op::BranchParityEven(r, Addr::Label(ref label)) =>
+				Op::BranchParityEven(r, Addr::Offset(ltab[label])),
+			Op::BranchSignNonneg(r, Addr::Label(ref label)) =>
+				Op::BranchSignNonneg(r, Addr::Offset(ltab[label])),
+			Op::AssertParityEven(r, Addr::Label(ref label)) =>
+				Op::AssertParityEven(r, Addr::Offset(ltab[label])),
+			Op::AssertSignNonneg(r, Addr::Label(ref label)) =>
+				Op::AssertSignNonneg(r, Addr::Offset(ltab[label])),
+			Op::GoTo(Addr::Label(ref label)) =>
+				Op::GoTo(Addr::Offset(ltab[label])),
+			Op::ComeFrom(Addr::Label(ref label)) =>
+				Op::ComeFrom(Addr::Offset(ltab[label])),
+			_ => op
+		})
+		.collect()
+	)
 }
