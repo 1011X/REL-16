@@ -28,88 +28,90 @@ dec sp; make space to store result
 pop r1; r1 = 0, <input]
 pop r0; r0 = input, <]
 
-xor r1 r0; r1 ^= r0; r1 = r0
+xor r1 r0; r1 = r0
 
 ; start summing r1's ones in r2
+
+; bits flipped to concide with branch checks
 not r1
 
 jp r1 1; bit 0
-inc r2
+	inc r2
 ap r1 1
 rori r1 1
 
 jp r1 1; bit 1
-inc r2
+	inc r2
 ap r1 1
 rori r1 1
 
 jp r1 1
-inc r2
+	inc r2
 ap r1 1
 rori r1 1
 
 jp r1 1; bit 3
-inc r2
+	inc r2
 ap r1 1
 rori r1 1
 
 jp r1 1
-inc r2
+	inc r2
 ap r1 1
 rori r1 1
 
 jp r1 1
-inc r2
+	inc r2
 ap r1 1
 rori r1 1
 
 jp r1 1
-inc r2
+	inc r2
 ap r1 1
 rori r1 1
 
 jp r1 1; bit 7
-inc r2
+	inc r2
 ap r1 1
 rori r1 1
 
 jp r1 1
-inc r2
+	inc r2
 ap r1 1
 rori r1 1
 
 jp r1 1
-inc r2
+	inc r2
 ap r1 1
 rori r1 1
 
 jp r1 1
-inc r2
+	inc r2
 ap r1 1
 rori r1 1
 
 jp r1 1
-inc r2
+	inc r2
 ap r1 1
 rori r1 1
 
 jp r1 1
-inc r2
+	inc r2
 ap r1 1
 rori r1 1
 
 jp r1 1
-inc r2
+	inc r2
 ap r1 1
 rori r1 1
 
 jp r1 1
-inc r2
+	inc r2
 ap r1 1
 rori r1 1
 
 jp r1 1; bit 15
-inc r2
+	inc r2
 ap r1 1
 rori r1 1; complete rotation
 
@@ -125,27 +127,27 @@ swp r1 r2
 not r1
 
 jp r1 1; bit 0
-inc r2
+	inc r2
 ap r1 1
 rori r1 1
 
 jp r1 1; bit 1
-inc r2
+	inc r2
 ap r1 1
 rori r1 1
 
 jp r1 1
-inc r2
+	inc r2
 ap r1 1
 rori r1 1
 
 jp r1 1; bit 3
-inc r2
+	inc r2
 ap r1 1
 rori r1 1
 
 jp r1 1
-inc r2
+	inc r2
 ap r1 1
 rori r1 1
 
@@ -161,17 +163,17 @@ xori r3 7
 not r1
 
 jp r1 1; bit 0
-inc r2
+	inc r2
 ap r1 1
 rori r1 1
 
 jp r1 1; bit 1
-inc r2
+	inc r2
 ap r1 1
 rori r1 1
 
 jp r1 1; bit 2
-inc r2
+	inc r2
 ap r1 1
 rori r1 1
 
@@ -191,12 +193,12 @@ xori r3 3
 not r1
 
 jp r1 1; bit 0
-inc r2
+	inc r2
 ap r1 1
 rori r1 1
 
 jp r1 1; bit 1
-inc r2
+	inc r2
 ap r1 1
 rori r1 1
 
