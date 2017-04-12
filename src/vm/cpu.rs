@@ -121,7 +121,11 @@ impl<'mem> Cpu<'mem> {
 		
 	
 		match self.ir {
-			Op::Halt => return true,
+			Op::Halt => {
+				log!("\n");
+				return true;
+			}
+			
 			Op::Nop => {}
 			
 			Op::Not(a) =>
@@ -300,42 +304,42 @@ impl<'mem> Cpu<'mem> {
 			Op::BranchParityOdd(r, Addr::Offset(off)) =>
 			if (self.reg[r] & 1) == 1 {
 				self.br = self.br.wrapping_add(off as u16);
-			}
+			},
 		
 			Op::AssertParityOdd(r, Addr::Offset(off)) =>
 			if (self.reg[r] & 1) == 1 {
 				self.br = self.br.wrapping_sub(off as u16);
-			}
-		
+			},
+			
 			Op::BranchSignNegative(r, Addr::Offset(off)) =>
 			if (self.reg[r] as i16) < 0 {
 				self.br = self.br.wrapping_add(off as u16);
-			}
-		
+			},
+			
 			Op::AssertSignNegative(r, Addr::Offset(off)) =>
 			if (self.reg[r] as i16) < 0 {
 				self.br = self.br.wrapping_sub(off as u16);
-			}
+			},
 			
 			Op::BranchParityEven(r, Addr::Offset(off)) =>
 			if (self.reg[r] & 1) == 0 {
 				self.br = self.br.wrapping_add(off as u16);
-			}
+			},
 			
 			Op::AssertParityEven(r, Addr::Offset(off)) =>
 			if (self.reg[r] & 1) == 0 {
 				self.br = self.br.wrapping_sub(off as u16);
-			}
+			},
 			
 			Op::BranchSignNonneg(r, Addr::Offset(off)) =>
 			if (self.reg[r] as i16) >= 0 {
 				self.br = self.br.wrapping_add(off as u16);
-			}
+			},
 			
 			Op::AssertSignNonneg(r, Addr::Offset(off)) =>
 			if (self.reg[r] as i16) >= 0 {
 				self.br = self.br.wrapping_sub(off as u16);
-			}
+			},
 			
 			Op::Immediate(r, v) =>
 				self.reg[r] ^= v as u16,
