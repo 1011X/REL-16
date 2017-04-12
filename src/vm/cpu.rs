@@ -58,7 +58,7 @@ impl<'mem> Cpu<'mem> {
 				print!("{:04x}, ", val);
 			}
 		
-			println!("{:04x}]", self.reg[BP]);
+			print!("{:04x}]\n", self.reg[BP]);
 		
 		
 			// print contents of stack
@@ -67,8 +67,8 @@ impl<'mem> Cpu<'mem> {
 			use std::cmp::Ordering;
 		
 			match self.reg[BP].cmp(&self.reg[SP]) {
-				Ordering::Equal   => println!("nil"),
-				Ordering::Less    => println!("invalid"),
+				Ordering::Equal   => print!("nil\n"),
+				Ordering::Less    => print!("invalid\n"),
 				Ordering::Greater => {
 					let bp = self.reg[BP] as usize;
 					let sp = self.reg[SP] as usize;
@@ -81,7 +81,7 @@ impl<'mem> Cpu<'mem> {
 					}
 				
 					// log last value
-					println!("{:04x}]", self.data_mem[bp - 1]);
+					print!("{:04x}]\n", self.data_mem[bp - 1]);
 				}
 			}
 		
@@ -97,35 +97,26 @@ impl<'mem> Cpu<'mem> {
 				return true;
 			}
 		};
-	
-	
-		if self.logging_enabled {
-			// show which instruction is being executed
-			print!("ir: {:?}", self.ir);
-		}
-	
-	
+		
 		/* EXECUTE */
 		// get instruction and invert if in reverse mode
 		if self.dir {
 			self.ir = self.ir.clone().invert();
 		}
 		
-		
 		// macro to log only when self.logging_enabled is true
-		macro_rules! log(($($t:tt)*) => {{
+		macro_rules! log(($($t:tt)*) => {
 			if self.logging_enabled {
 				print!($($t)*);
 			}
-		}});
+		});
 		
+		
+		// show which instruction is being executed
+		log!("ir: {:?}\n\n", self.ir);
 	
 		match self.ir {
-			Op::Halt => {
-				log!("\n");
-				return true;
-			}
-			
+			Op::Halt => return true,
 			Op::Nop => {}
 			
 			Op::Not(a) =>
@@ -180,132 +171,132 @@ impl<'mem> Cpu<'mem> {
 		
 			Op::Mul2(ri) => {
 				use std::i16;
-			
+				
 				let r = self.reg[ri] as i16;
-			
+				
 				self.reg[ri] = match r {
 					-16384...16383    => r * 2,
 					16384...i16::MAX  => r - (i16::MAX - r),
 					i16::MIN...-16385 => r + (r - i16::MIN + 1),
-				
+					
 					_ => unreachable!()
 				} as u16;
 			}
-		
+			
 			Op::Div2(ri) => {
 				use std::i16;
-			
+				
 				let r = self.reg[ri] as i16;
 				let odd = |r| r & 1 == 1;
-			
+				
 				self.reg[ri] = match r {
 					0...i16::MAX if odd(r) => i16::MAX - (i16::MAX - r) / 2,
 					i16::MIN...0 if odd(r) => i16::MIN + (r + i16::MAX) / 2,
 					_ /* even */           => r / 2
 				} as u16;
 			}
-		
+			
 			Op::RotLeftImm(r, v) =>
 				self.reg[r] = self.reg[r].rotate_left(v as u32),
-		
+			
 			Op::RotRightImm(r, v) =>
 				self.reg[r] = self.reg[r].rotate_right(v as u32),
-		
+			
 			Op::Swap(a, b) =>
 				self.reg.0.swap(a as usize, b as usize),
-		
+			
 			Op::CNot(rn, rc) => {
 				let mut n = 0;
 				swap!(n, self.reg[rn]);
-			
+				
 				n ^= self.reg[rc];
-			
+				
 				swap!(n, self.reg[rn]);
 				debug_assert!(n == 0);
 			}
-		
+			
 			Op::CAdd(ra, rc) => {
 				let mut a = 0;
 				swap!(a, self.reg[ra]);
-			
+				
 				a = a.wrapping_add(self.reg[rc]);
-			
+				
 				swap!(a, self.reg[ra]);
 				debug_assert!(a == 0);
 			}
-		
+			
 			Op::CSub(rs, rc) => {
 				let mut s = 0;
 				swap!(s, self.reg[rs]);
-			
+				
 				s = s.wrapping_sub(self.reg[rc]);
-			
+				
 				swap!(s, self.reg[rs]);
 				debug_assert!(s == 0);
 			}
-		
+			
 			Op::Exchange(rd, ra) => {
 				let mut d = 0;
 				swap!(d, self.reg[rd]);
-			
+				
 				let addr = self.reg[ra] as usize;
 				swap!(d, self.data_mem[addr]);
-			
+				
 				swap!(d, self.reg[rd]);
 				debug_assert!(d == 0);
 			}
-		
+			
 			Op::RotLeft(rr, ro) => {
 				let mut r = 0;
 				swap!(r, self.reg[rr]);
-			
+				
 				r = r.rotate_left(self.reg[ro] as u32);
-			
+				
 				swap!(r, self.reg[rr]);
 				debug_assert!(r == 0);
 			}
-		
+			
 			Op::RotRight(rr, ro) => {
 				let mut r = 0;
 				swap!(r, self.reg[rr]);
-			
+				
 				r = r.rotate_right(self.reg[ro] as u32);
-			
+				
 				swap!(r, self.reg[rr]);
 				debug_assert!(r == 0);
 			}
-		
+			
 			Op::CCNot(rc0, rc1, rn) => {
 				let mut n = 0;
 				swap!(n, self.reg[rn]);
-			
+				
 				n ^= self.reg[rc0] & self.reg[rc1];
-			
+				
 				swap!(n, self.reg[rn]);
 				debug_assert!(n == 0);
 			}
-		
+			
 			Op::CSwap(rc, rs0, rs1) => {
 				let mut s0 = 0;
 				let mut s1 = 0;
 				swap!(s0, self.reg[rs0]);
 				swap!(s1, self.reg[rs1]);
-			
+				
 				let t = (s0 ^ s1) & self.reg[rc];
 				s0 ^= t;
 				s1 ^= t;
-			
+				
 				swap!(s1, self.reg[rs1]);
 				swap!(s0, self.reg[rs0]);
 				debug_assert!(s1 == 0);
 				debug_assert!(s0 == 0);
 			}
-		
+			
 			Op::BranchParityOdd(r, Addr::Offset(off)) =>
 			if (self.reg[r] & 1) == 1 {
 				self.br = self.br.wrapping_add(off as u16);
 			},
-		
+			
 			Op::AssertParityOdd(r, Addr::Offset(off)) =>
 			if (self.reg[r] & 1) == 1 {
 				self.br = self.br.wrapping_sub(off as u16);
@@ -364,8 +355,6 @@ impl<'mem> Cpu<'mem> {
 				unreachable!(),
 		}
 		
-		log!("\n\n");
-	
 		// decide next instruction based on offset and dir bit
 		if self.dir {
 			self.pc = self.pc.wrapping_sub(self.br);

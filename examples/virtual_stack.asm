@@ -8,7 +8,7 @@ xori r1 3; value to be pushed
 
 ;; push ;;
 inc r0; increment stack pointer
-;stack base will always be 0
+; stack base will always be 0
 
 xchg r1 r0; exchange value of r1 and value of [r0]
 ; currently: r1 = 0, [r0] = 3

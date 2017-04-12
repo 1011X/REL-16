@@ -10,7 +10,7 @@ not r7      ; bp = 0xffff
 xori r0 5   ; r0 = 5
 push r0     ; push(r0, sp)
 
-xori r0 3   ; r0 ^= 3  // r0 = 3
+xori r0 3   ; r0 = 3
 push r0     ; push(r0, sp)
 
 ; summon values from The Stack

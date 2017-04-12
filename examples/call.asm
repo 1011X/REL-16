@@ -1,5 +1,7 @@
+; initialize stack registers
 not sp
 not bp
+
 jmp main
 
 ; push(sp, val)
@@ -16,7 +18,7 @@ spc r2
 pmj main
 
 xori r0 255; r0 = 255
-xori r1  10; r1 = 3
+xori r1  10; r1 = 10
 
 push r0
 push r1
