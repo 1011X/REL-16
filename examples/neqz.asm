@@ -32,87 +32,84 @@ xor r1 r0; r1 = r0
 
 ; start summing r1's ones in r2
 
-; bits flipped to concide with branch checks
-not r1
-
-jp r1 1; bit 0
+jpe r1 1; bit 0
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1
 
-jp r1 1; bit 1
+jpe r1 1; bit 1
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1
 
-jp r1 1
+jpe r1 1
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1
 
-jp r1 1; bit 3
+jpe r1 1; bit 3
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1
 
-jp r1 1
+jpe r1 1
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1
 
-jp r1 1
+jpe r1 1
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1
 
-jp r1 1
+jpe r1 1
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1
 
-jp r1 1; bit 7
+jpe r1 1; bit 7
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1
 
-jp r1 1
+jpe r1 1
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1
 
-jp r1 1
+jpe r1 1
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1
 
-jp r1 1
+jpe r1 1
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1
 
-jp r1 1
+jpe r1 1
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1
 
-jp r1 1
+jpe r1 1
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1
 
-jp r1 1
+jpe r1 1
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1
 
-jp r1 1
+jpe r1 1
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1
 
-jp r1 1; bit 15
+jpe r1 1; bit 15
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1; complete rotation
 
 not r1; back to original value
@@ -126,29 +123,29 @@ swp r1 r2
 ; of 1's being 4 (to represent 15).
 not r1
 
-jp r1 1; bit 0
+jpe r1 1; bit 0
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1
 
-jp r1 1; bit 1
+jpe r1 1; bit 1
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1
 
-jp r1 1
+jpe r1 1
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1
 
-jp r1 1; bit 3
+jpe r1 1; bit 3
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1
 
-jp r1 1
+jpe r1 1
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1
 
 ; restore r1 to the first sum
@@ -162,19 +159,19 @@ cswp r3 r1 r2
 xori r3 7
 not r1
 
-jp r1 1; bit 0
+jpe r1 1; bit 0
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1
 
-jp r1 1; bit 1
+jpe r1 1; bit 1
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1
 
-jp r1 1; bit 2
+jpe r1 1; bit 2
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1
 
 ; restore r1 to first and second sum
@@ -192,14 +189,14 @@ xori r3 3
 ; start calculating fourth sum
 not r1
 
-jp r1 1; bit 0
+jpe r1 1; bit 0
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1
 
-jp r1 1; bit 1
+jpe r1 1; bit 1
 	inc r2
-ap r1 1
+ape r1 1
 rori r1 1
 
 ; restore r1 to first, second, and third sum
