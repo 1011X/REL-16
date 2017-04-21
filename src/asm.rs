@@ -3,8 +3,7 @@ use std::io::{self, BufRead};
 use std::str::FromStr;
 use std::result;
 
-use isa::op::Op;
-use isa::op::Addr;
+use isa::{Op, Addr};
 
 type Result<T> = result::Result<T, String>;
 

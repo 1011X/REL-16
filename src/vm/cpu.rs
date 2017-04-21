@@ -1,6 +1,4 @@
-use isa::op::{Op, Addr};
-use isa::reg::Reg;
-
+use isa::{Op, Addr, Reg};
 use super::register_file::RegisterFile;
 
 const SP: Reg = Reg::SP;

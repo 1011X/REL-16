@@ -1,0 +1,6 @@
+[package]
+name = "rel_isa"
+version = "0.3.1"
+authors = ["1011X <1011XXXXX@gmail.com>"]
+
+[dependencies]
