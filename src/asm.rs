@@ -16,7 +16,7 @@ pub fn parse<I: BufRead>(inp: I) -> Result<Vec<Op>> {
 	
 	let code = lines.iter()
 		// get everything before the comment marker (semicolon)
-		.map(|l| l.split(';').nth(0))
+		.map(|l| l.split(';').nth(0).unwrap())
 		// keep track of line numbers. MUST go before .filter()
 		.enumerate()
 		// keep non-empty lines
