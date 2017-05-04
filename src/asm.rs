@@ -15,13 +15,8 @@ pub fn parse<I: BufRead>(inp: I) -> Result<Vec<Op>> {
 		.map_err(|e| e.to_string())?;
 	
 	let code = lines.iter()
-		// mark end of string as index of first semicolon
-		// (comment marker), or its length if none exist, and
-		// then trim.
-		.map(|l| {
-			let end = l.find(';').unwrap_or(l.len());
-			l[..end].trim()
-		})
+		// get everything before the comment marker (semicolon)
+		.map(|l| l.split(';').nth(0))
 		// keep track of line numbers. MUST go before .filter()
 		.enumerate()
 		// keep non-empty lines
