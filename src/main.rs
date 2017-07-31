@@ -11,7 +11,7 @@ use std::fs::File;
 use getopts::Options;
 
 
-const USAGE: &'static str = "Usage:
+static USAGE: &'static str = "Usage:
     rel [--version] [--help]
     rel [--verbose] <file>";
 
@@ -24,7 +24,7 @@ fn main() {
 	opts.optflag("h", "help",    "Print this help menu");
 	opts.optflag("v", "verbose", "Log each step the VM takes");
 	
-	let matches = try_err!(opts.parse(args));
+	let matches = opts.parse(args).unwrap();
 
 	if matches.opt_present("version") {
 		println!("rel 0.3.0");
@@ -32,22 +32,19 @@ fn main() {
 	}
 	
 	if matches.opt_present("help") {
-		println_err!("{}", opts.usage(USAGE));
+		eprintln!("{}", opts.usage(USAGE));
 		return;
 	}
 	
-	match matches.free.get(0) {
-		Some(arg) => {
-			let reader = BufReader::new(try_err!(File::open(arg)));
-			let code = try_err!(asm::parse(reader));
-			let logging_enabled = matches.opt_present("verbose");
-			
-			vm::Cpu::new(&code, logging_enabled).run();
-		}
+	if let Some(arg) = matches.free.get(0) {
+		let reader = BufReader::new(File::open(arg).unwrap());
+		let code = asm::parse(reader).unwrap();
+		let logging_enabled = matches.opt_present("verbose");
 		
-		None => {
-			println_err!("Error: Missing input file.\n");
-			println_err!("{}", opts.usage(USAGE));
-		}
+		vm::Cpu::new(&code, logging_enabled).run();
+	}
+	else {
+		eprintln!("Error: Missing input file.\n");
+		eprintln!("{}", opts.usage(USAGE));
 	}
 }
