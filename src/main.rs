@@ -1,7 +1,6 @@
 extern crate getopts;
 extern crate rel_isa as isa;
 
-#[macro_use] mod macros;
 mod vm;
 mod asm;
 
@@ -27,7 +26,7 @@ fn main() {
 	let matches = opts.parse(args).unwrap();
 
 	if matches.opt_present("version") {
-		println!("rel 0.3.0");
+		println!("rel 0.3.1");
 		return;
 	}
 	

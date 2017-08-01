@@ -5,6 +5,12 @@ const SP: Reg = Reg::SP;
 const BP: Reg = Reg::BP;
 const MAX_MEM: usize = 65536;
 
+macro_rules! swap(
+	($left: expr, $right: expr) => {
+		::std::mem::swap(&mut $left, &mut $right);
+	}
+);
+
 pub struct Cpu<'mem> {
 	logging_enabled: bool,
 	
