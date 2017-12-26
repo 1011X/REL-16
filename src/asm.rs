@@ -15,14 +15,16 @@ pub fn parse<I: BufRead>(inp: I) -> Result<Vec<Op>> {
 		.map_err(|e| e.to_string())?;
 	
 	let code = lines.iter()
-		// get everything before the comment marker (semicolon)
-		.map(|l| l.split(';').nth(0).unwrap())
+		// get everything before the comment marker (semicolon) and trim the
+		// remaining whitespace
+		.map(|l| l.split(';').nth(0).unwrap().trim())
 		// keep track of line numbers. MUST go before .filter()
 		.enumerate()
 		// keep non-empty lines
 		.filter(|&(_, l)| !l.is_empty())
 		// try encoding line, report any error with line number
-		.map(|(n, l)| Op::from_str(l)
+		.map(|(n, l)|
+			Op::from_str(l)
 			.map_err(|e| format!("Error at line {}: {}", n + 1, e))
 		)
 		// simplify into a result and try! it

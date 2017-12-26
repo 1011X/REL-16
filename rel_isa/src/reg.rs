@@ -2,9 +2,17 @@ use std::fmt;
 use std::str;
 use std::error::Error;
 
+/// Specifies a machine register.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Reg { R0 = 0, R1, R2, R3, R4, R5, SP, BP }
+pub enum Reg {
+	R0 = 0, R1, R2, R3, R4, R5,
+	/// stack pointer
+	SP,
+	/// base pointer
+	BP
+}
 
+/// Error when parsing register string literal
 #[derive(Debug, PartialEq, Eq)]
 pub struct ParseError(String);
 
@@ -49,7 +57,5 @@ impl fmt::Display for ParseError {
 }
 
 impl Error for ParseError {
-	fn description(&self) -> &str {
-		"invalid register literal"
-	}
+	fn description(&self) -> &'static str { "invalid register literal" }
 }

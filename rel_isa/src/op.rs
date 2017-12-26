@@ -8,6 +8,7 @@ use super::reg::{self, Reg};
 
 type Result<T> = result::Result<T, Error>;
 
+/// Tracks address labels to be converted to offsets later.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Addr {
 	Label(String),
@@ -23,6 +24,8 @@ impl fmt::Display for Addr {
 	}
 }
 
+/// Various things that can go wrong in the process of parsing a string to an
+/// `Op` enum.
 #[derive(Debug)]
 pub enum Error {
 	NoMneumonic,
@@ -32,7 +35,8 @@ pub enum Error {
 	NoRegister,
 	UnknownMneumonic(String),
 	ExtraArgs(Vec<String>),
-	Value(num::ParseIntError),
+	Value(num::ParseIntError, String),
+	Offset(num::ParseIntError, String),
 	Register(reg::ParseError),
 }
 
@@ -46,16 +50,18 @@ impl fmt::Display for Error {
 			Error::NoAddress =>
 				write!(f, "No label or offset found."),
 			Error::ValueTooLarge =>
-				write!(f, "This value is bigger than the maximum value."),
+				write!(f, "Value is bigger than the maximum value."),
 			Error::NoRegister =>
-				write!(f, "A register literal was expected."),
+				write!(f, "Expected a register literal."),
 			
 			Error::UnknownMneumonic(ref m) =>
 				write!(f, "Did not recognize mneumonic: {}", m),
 			Error::ExtraArgs(ref v) => 
 				write!(f, "Found these extra tokens at the end: {:?}", v),
-			Error::Value(ref e) =>
-				write!(f, "Error parsing value: {}", e),
+			Error::Value(ref e, ref s) =>
+				write!(f, "Error parsing integer, got: \"{}\", because {}", s, e),
+			Error::Offset(ref e, ref s) =>
+				write!(f, "Error parsing offset, got: \"{}\", because {}", s, e),
 			Error::Register(ref e) =>
 				write!(f, "Error parsing register literal: {}", e),
 		}
@@ -72,31 +78,46 @@ impl error::Error for Error {
 			Error::NoRegister           => "missing register literal",
 			Error::UnknownMneumonic(..) => "unknown mneumonic",
 			Error::ExtraArgs(..)        => "found extra tokens",
-			Error::Value(ref e)         => e.description(),
+			Error::Value(ref e, _)      => e.description(),
+			Error::Offset(ref e, _)     => e.description(),
 			Error::Register(ref e)      => e.description(),
 		}
 	}
 	
 	fn cause(&self) -> Option<&error::Error> {
 		match *self {
-			Error::Value(ref e)    => Some(e),
-			Error::Register(ref e) => Some(e),
-			_ => None,
+			Error::Value(ref e, _)  => Some(e),
+			Error::Offset(ref e, _) => Some(e),
+			Error::Register(ref e)  => Some(e),
+			_ => None
 		}
 	}
 }
 
-/// Represents a machine instruction in a high-level way.
-/// 
-/// 
-/// 
-/// Bit-field key:
-/// * `_`: leading zero
-/// * `0`/`1`: bit literal
-/// * `o`: opcode field
-/// * `r`/`R`: register field
-/// * `v`: value field
+/**
+High-level machine instruction representation
 
+This enum represents all valid instructions used in the REL-16 architecture. It
+allows for simpler processing compared to string interpretation.
+
+It's required that each variant here has a reversible equivalent. That is, if
+the instruction can't undo its own actions, it must have a partner instruction
+that can. By tying each instruction with its opposite, we can guarantee the
+reversibility property of the architecture.
+
+Being a 16-bit architecture, we must organize the bits so all instructions are
+representable within 16 bits. To ensure this, each instruction is given a
+16-character wide field where each character represents how a specified bit is
+used. The bit-field key is as follows:
+
+* `_`: leading zero; used to organize instructions
+* `0`/`1`: bit literal
+* `o`: sub-opcode value field; its size is important to know how many
+  instructions can fit
+* `r`/`R`: register index field
+* `v`: immediate value field
+
+*/
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Op {
 	/// Stops the machine.
@@ -111,211 +132,217 @@ pub enum Op {
 	
 	/// Flips every bit in the register.
 	///
-	/// Format: `____ ____ _oooorrr`
+	/// Format: `____ ____ 1oooorrr`
 	Not(Reg),
 	
-	/// Gets the two's complement of the value in the register.
+	/// Turns the given register's value into its two's complement.
 	///
-	/// Format: `____ ____ _oooorrr`
+	/// Format: `____ ____ 1oooorrr`
 	Negate(Reg),
 	
-	/// Adds 1 to the register's value, with wrap-around.
+	/// Adds 1 to the register's value, wrapping around on overflow.
 	///
-	/// Format: `____ ____ _oooorrr`
+	/// Format: `____ ____ 1oooorrr`
 	Increment(Reg),
 	
-	/// Subtracts 1 from the register's value, with wrap-around.
+	/// Subtracts 1 from the register's value, wrapping around on underflow.
 	///
-	/// Format: `____ ____ _oooorrr`
+	/// Format: `____ ____ 1oooorrr`
 	Decrement(Reg),
 	
-	/// Increments the stack pointer, then swaps the register's value with the
-	/// value at the stack pointer.
+	/// Decrements the stack pointer, then swaps the register's value with the
+	/// value pointed to in memory by the stack pointer.
 	/// 
 	/// The register's new value should be zero, assuming no values were leaked
-	/// into the memory.
+	/// into memory.
 	///
-	/// Format: `____ ____ _oooorrr`
+	/// Format: `____ ____ 1oooorrr`
 	Push(Reg),
 	
 	/// Swaps the register's value with the value at the stack pointer, then
-	/// decrements the stack pointer.
+	/// increments the stack pointer.
 	/// 
 	/// Register value should be zero before this operation is performed, so
 	/// that the memory stays cleared.
 	///
-	/// Format: `____ ____ _oooorrr`
+	/// Format: `____ ____ 1oooorrr`
 	Pop(Reg),
 	
-	/// Swaps the register and the program counter.
+	/// Swaps the register and the program counter. Used for calling functions.
 	///
-	/// Format: `____ ____ _oooorrr`
+	/// Format: `____ ____ 1oooorrr`
 	SwapPc(Reg),
 	
 	/// Flips direction bit, then swaps the register and the program counter.
+	/// Used when **un**calling functions.
 	///
-	/// Format: `____ ____ _oooorrr`
+	/// Format: `____ ____ 1oooorrr`
 	RevSwapPc(Reg),
 	
 	/// Signed multiplication by 2.
 	/// 
-	/// If the register is between -16384 and 16383, this will double its value.
+	/// If the register's value *r* is less than -16384, you'll get: 2*r* - MIN
+	/// + 1
 	/// 
-	/// If its value *r* is less than -16384, you'll get `2 * r - MIN + 1`.
+	/// If the value is greater than 16383, you'll get: 2*r* - MAX
 	/// 
-	/// Otherwise (i.e. its value *r* is greater than 16384), you'll get
-	/// `2 * r - MAX`.
+	/// Otherwise, it's multiplied by 2 as expected.
 	/// 
-	/// Format: `____ ____ _oooorrr`
+	/// Format: `____ ____ 1oooorrr`
 	Mul2(Reg),
 	
 	/// Signed division by 2.
 	/// 
-	/// If the register's value *r* is odd and greater than 0, you'll get
-	/// `MAX - (MAX - r) / 2`.
+	/// If the register's value *r* is odd and positive (like me), you'll get:
+	/// (*r* + MAX) / 2
 	/// 
-	/// If it's odd and less than 0, you'll get `MIN + (r - MIN - 1) / 2`.
+	/// If it's odd and negative, you'll get: (*r* + MIN - 1) / 2
 	/// 
-	/// Otherwise (i.e. when it's even), you'll get `x / 2`.
+	/// Otherwise (when it's even), it's divided by 2 as expected.
 	///
-	/// Format: `____ ____ _oooorrr`
+	/// Format: `____ ____ 1oooorrr`
 	Div2(Reg),
 	
-	/// Rotates the register's bits to the left by the given amount.
+	/// Moves ("rotates") the register's bits to the left by the given amount,
+	/// moving the last bit's value to the first bit.
 	///
-	/// Format: `____ ____ orrrvvvv`
-	RotLeftImm(Reg, u32),
+	/// Format: `____ ___1 orrrvvvv`
+	RotLeftImm(Reg, u8),
 	
-	/// Rotates the register's bits to the right by the given amount.
+	/// Moves ("rotates") the register's bits to the right by the given amount,
+	/// moving the first bit's value to the last bit.
 	///
-	/// Format: `____ ____ orrrvvvv`
-	RotRightImm(Reg, u32),
+	/// Format: `____ ___1 orrrvvvv`
+	RotRightImm(Reg, u8),
 	
 	/// Swaps the registers' values.
 	///
-	/// Format: `____ ___oooRRRrrr`
+	/// Format: `____ __1oooRRRrrr`
 	Swap(Reg, Reg),
 	
-	/// Flips bits in the first register based on bits in the second register,
-	/// like x86's `xor` instruction.
+	/// Flips bits in the first register based on bits in the second register.
+	/// Exactly like 8086's `xor` instruction.
 	///
-	/// Format: `____ ___oooRRRrrr`
-	CNot(Reg, Reg),
+	/// Format: `____ __1ooossssss`
+	CNot(u8),
 	
-	/// Adds first register with value in second register.
+	/// Adds/increases first register's value by second register's value.
 	///
-	/// Format: `____ ___oooRRRrrr`
-	CAdd(Reg, Reg),
+	/// Format: `____ __1ooossssss`
+	CAdd(u8),
 	
-	/// Subtracts first register with value in second register.
+	/// Subtracts/decreases first register's value by second register's value.
 	///
-	/// Format: `____ ___oooRRRrrr`
-	CSub(Reg, Reg),
-	
-	/// Swaps the first register's value with the value referenced by the
-	/// second register.
-	///
-	/// Format: `____ ___oooRRRrrr`
-	Exchange(Reg, Reg),
+	/// Format: `____ __1ooossssss`
+	CSub(u8),
 	
 	/// Rotates the first register's bits to the left by the value in the
 	/// second register.
 	///
-	/// Format: `____ ___oooRRRrrr`
+	/// Format: `____ __1oooRRRrrr`
 	RotLeft(Reg, Reg),
 	
 	/// Rotates the first register's bits to the right by the value in the
 	/// second register.
 	///
-	/// Format: `____ ___oooRRRrrr`
+	/// Format: `____ __1oooRRRrrr`
 	RotRight(Reg, Reg),
+	
+	/// Swaps the first register's value with the value pointed to in memory by
+	/// the second register.
+	///
+	/// Format: `____ __1oooRRRrrr`
+	Exchange(Reg, Reg),
 	
 	/// Toffoli gate; ANDs first and second registers and flips the bits in the
 	/// third register based on the result.
 	/// 
-	/// To do this, the values are swapped with internal registers, whose
-	/// initial values are zero. After the operation is done, the values are
-	/// swapped back accordingly.
+	/// If a register is in the first or second position here, it *should not*
+	/// be in the third position, and vice-versa.
 	///
-	/// Format: `____ __orrrRRRrrr`
+	/// Format: `____ _1orrrRRRrrr`
 	CCNot(Reg, Reg, Reg),
 	
 	/// Fredkin gate; swaps bits in second and third registers based on bits in
 	/// the first register.
 	/// 
-	/// To do this, the values are swapped with internal registers, whose
-	/// initial values are zero. After the operation is done, the values are
-	/// swapped back accordingly.
+	/// If a register is in the first position, it *should not* be in the
+	/// second or third position, and vice-versa.
 	///
-	/// Format: `____ __orrrRRRrrr`
+	/// Format: `____ _1orrrRRRrrr`
 	CSwap(Reg, Reg, Reg),
 	
 	/// Flips bits in the register's lower half based on the bits of the
 	/// immediate byte value.
 	/// 
-	/// This is usually used to set the register to the given value or to zero
-	/// it out.
+	/// This is usually used to set the register to the given value or to reset
+	/// its value to zero.
 	///
-	/// Format: `____ _rrr vvvvvvvv`
+	/// Format: `____ 1rrr vvvvvvvv`
 	Immediate(Reg, u8),
 	
-	/// Adds an immediate byte offset to the branch register if the register
-	/// is an odd number.
-	///
-	/// Format: `1oorrrvvvvvvvvvv`
-	BranchParityOdd(Reg, Addr),
-	
-	/// Subtracts an immediate byte offset from the branch register if the
-	/// the register is an odd number.
-	///
-	/// Format: `1oorrrvvvvvvvvvv`
-	AssertParityOdd(Reg, Addr),
-	
-	/// Adds an immediate byte offset to the branch register if the register
-	/// is below zero.
-	///
-	/// Format: `1oorrrvvvvvvvvvv`
-	BranchSignNegative(Reg, Addr),
-	
-	/// Subtracts an immediate byte offset from the branch register if the
-	/// register is below zero.
-	///
-	/// Format: `1oorrrvvvvvvvvvv`
-	AssertSignNegative(Reg, Addr),
-	
-	/// Adds an immediate byte offset to the branch register if the register
-	/// is an odd number.
-	///
-	/// Format: `1oorrrvvvvvvvvvv`
-	BranchParityEven(Reg, Addr),
-	
-	/// Subtracts an immediate byte offset from the branch register if the
-	/// the register is an odd number.
-	///
-	/// Format: `1oorrrvvvvvvvvvv`
-	AssertParityEven(Reg, Addr),
-	
-	/// Adds an immediate byte offset to the branch register if the register
-	/// is below zero.
-	///
-	/// Format: `1oorrrvvvvvvvvvv`
-	BranchSignNonneg(Reg, Addr),
-	
-	/// Subtracts an immediate byte offset from the branch register if the
-	/// register is below zero.
-	///
-	/// Format: `1oorrrvvvvvvvvvv`
-	AssertSignNonneg(Reg, Addr),
-	
-	/// Adds a value to the branch register.
+	/// Adds an immediate 14-bit value to the branch register. It is used to
+	/// teleport unconditionally to another instruction. To avoid wonky
+	/// behavior, it's recommended the destination instruction be a ComeFrom
+	/// instruction, so that it goes back to processing the next immediate
+	/// instruction, rather than executing every nth instruction.
 	///
 	/// Format: `_1vvvvvvvvvvvvvv`
 	GoTo(Addr),
 	
-	/// Subtracts a value from the branch register.
+	/// Subtracts an immediate 14-bit value from the branch register. It is
+	/// used to teleport backwards in the code to another instruction. To avoid
+	/// wonky behavior, it's recommended the destination instruction be a GoTo
+	/// instruction, so that it goes back to processing the next immediate
+	/// instruction, rather than executing every nth instruction. 
 	///
 	/// Format: `_1vvvvvvvvvvvvvv`
 	ComeFrom(Addr),
+	
+	/// Adds an offset to the branch register if the register is an odd number.
+	///
+	/// Format: `1oorrrvvvvvvvvvv`
+	BranchParityOdd(Reg, Addr),
+	
+	/// Subtracts an offset from the branch register if the the register is an
+	/// odd number.
+	///
+	/// Format: `1oorrrvvvvvvvvvv`
+	AssertParityOdd(Reg, Addr),
+	
+	/// Adds an offset to the branch register if the register is negative.
+	///
+	/// Format: `1oorrrvvvvvvvvvv`
+	BranchSignNegative(Reg, Addr),
+	
+	/// Subtracts an offset from the branch register if the register is
+	/// negative.
+	///
+	/// Format: `1oorrrvvvvvvvvvv`
+	AssertSignNegative(Reg, Addr),
+	
+	/// Adds an offset to the branch register if the register is an even
+	/// number.
+	///
+	/// Format: `1oorrrvvvvvvvvvv`
+	BranchParityEven(Reg, Addr),
+	
+	/// Subtracts an offset from the branch register if the register is an even
+	/// number.
+	///
+	/// Format: `1oorrrvvvvvvvvvv`
+	AssertParityEven(Reg, Addr),
+	
+	/// Adds an offset to the branch register if the register is not negative.
+	///
+	/// Format: `1oorrrvvvvvvvvvv`
+	BranchSignNonneg(Reg, Addr),
+	
+	/// Subtracts an offset from the branch register if the register is not
+	/// negative.
+	///
+	/// Format: `1oorrrvvvvvvvvvv`
+	AssertSignNonneg(Reg, Addr),
 }
 
 impl Op {
@@ -436,7 +463,7 @@ impl FromStr for Op {
 				Ok(value) if value <= $max => Ok(value),
 
 				Ok(_)  => Err(Error::ValueTooLarge),
-				Err(e) => Err(Error::Value(e)),
+				Err(e) => Err(Error::Value(e, token.to_string())),
 			})?
 		});
 		
@@ -445,6 +472,7 @@ impl FromStr for Op {
 			.ok_or(Error::NoAddress)
 			.and_then(|tok| {
 				// TODO: handle unwrap
+				/*
 				let first = tok.chars().nth(0).unwrap();
 				let is_alpha = |c: char| c.is_alphabetic() || c == '_';
 				let is_alphanum = |c| is_alpha(c) || c.is_digit(10);
@@ -463,6 +491,13 @@ impl FromStr for Op {
 				}
 				else {
 					Err(Error::NoAddress)
+				}*/
+				match tok.parse::<usize>() {
+					Ok(value) if value <= $max =>
+						Ok(Addr::Offset(value)),
+
+					Ok(_)  => Err(Error::ValueTooLarge),
+					Err(e) => Err(Error::Offset(e, tok.to_string())),
 				}
 			})?
 		});
@@ -485,8 +520,8 @@ impl FromStr for Op {
 			"mul2" => Op::Mul2(reg!()),
 			"div2" => Op::Div2(reg!()),
 			
-			"roli" => Op::RotLeftImm(reg!(), val!(u8, 0b_1111) as u32),
-			"rori" => Op::RotRightImm(reg!(), val!(u8, 0b_1111) as u32),
+			"roli" => Op::RotLeftImm(reg!(), val!(u8, 0b_1111)),
+			"rori" => Op::RotRightImm(reg!(), val!(u8, 0b_1111)),
 			
 			"swp"  => Op::Swap(reg!(), reg!()),
 			"xor"  => Op::CNot(reg!(), reg!()),

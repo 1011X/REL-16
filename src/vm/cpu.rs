@@ -270,6 +270,9 @@ impl<'mem> Cpu<'mem> {
 				debug_assert!(r == 0);
 			}
 			
+			// Swap the modified register's value to a zeroed location, so that
+			// in case it's also used as a control register, then this
+			// instruction just becomes a no-op.
 			Op::CCNot(rc0, rc1, rn) => {
 				let mut n = 0;
 				swap!(n, self.reg[rn]);
@@ -280,6 +283,8 @@ impl<'mem> Cpu<'mem> {
 				debug_assert!(n == 0);
 			}
 			
+			// Swap the modified registers' values to zeroed locations, just
+			// like the CCNot instruction.
 			Op::CSwap(rc, rs0, rs1) => {
 				let mut s0 = 0;
 				let mut s1 = 0;
