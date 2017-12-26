@@ -223,18 +223,18 @@ pub enum Op {
 	/// Flips bits in the first register based on bits in the second register.
 	/// Exactly like 8086's `xor` instruction.
 	///
-	/// Format: `____ __1ooossssss`
-	CNot(u8),
+	/// Format: `____ __1oooRRRrrr`
+	CNot(Reg, Reg),
 	
 	/// Adds/increases first register's value by second register's value.
 	///
-	/// Format: `____ __1ooossssss`
-	CAdd(u8),
+	/// Format: `____ __1oooRRRrrr`
+	CAdd(Reg, Reg),
 	
 	/// Subtracts/decreases first register's value by second register's value.
 	///
-	/// Format: `____ __1ooossssss`
-	CSub(u8),
+	/// Format: `____ __1oooRRRrrr`
+	CSub(Reg, Reg),
 	
 	/// Rotates the first register's bits to the left by the value in the
 	/// second register.
