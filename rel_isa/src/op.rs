@@ -130,6 +130,11 @@ pub enum Op {
 	/// Format: `0000 0000 0000 0001`
 	Nop,
 	
+	/// Can be used for debugging purposes.
+	///
+	/// Format: `0000 0000 0000 0010`
+	Debug,
+	
 	/// Flips every bit in the register.
 	///
 	/// Format: `____ ____ 1oooorrr`
@@ -207,13 +212,13 @@ pub enum Op {
 	/// moving the last bit's value to the first bit.
 	///
 	/// Format: `____ ___1 orrrvvvv`
-	RotLeftImm(Reg, u8),
+	LRotateImm(Reg, u8),
 	
 	/// Moves ("rotates") the register's bits to the right by the given amount,
 	/// moving the first bit's value to the last bit.
 	///
 	/// Format: `____ ___1 orrrvvvv`
-	RotRightImm(Reg, u8),
+	RRotateImm(Reg, u8),
 	
 	/// Swaps the registers' values.
 	///
@@ -229,24 +234,24 @@ pub enum Op {
 	/// Adds/increases first register's value by second register's value.
 	///
 	/// Format: `____ __1oooRRRrrr`
-	CAdd(Reg, Reg),
+	Add(Reg, Reg),
 	
 	/// Subtracts/decreases first register's value by second register's value.
 	///
 	/// Format: `____ __1oooRRRrrr`
-	CSub(Reg, Reg),
+	Sub(Reg, Reg),
 	
 	/// Rotates the first register's bits to the left by the value in the
 	/// second register.
 	///
 	/// Format: `____ __1oooRRRrrr`
-	RotLeft(Reg, Reg),
+	LRotate(Reg, Reg),
 	
 	/// Rotates the first register's bits to the right by the value in the
 	/// second register.
 	///
 	/// Format: `____ __1oooRRRrrr`
-	RotRight(Reg, Reg),
+	RRotate(Reg, Reg),
 	
 	/// Swaps the first register's value with the value pointed to in memory by
 	/// the second register.
@@ -350,30 +355,31 @@ impl Op {
 	// Involutory instructions (which are their own inverse) return self.
 	pub fn invert(self) -> Op {
 		match self {
-			Op::Halt               => self,
-			Op::Nop                => self,
-			Op::Not(..)            => self,
-			Op::Negate(..)         => self,
-			Op::Increment(r)       => Op::Decrement(r),
-			Op::Decrement(r)       => Op::Increment(r),
-			Op::Push(r)            => Op::Pop(r),
-			Op::Pop(r)             => Op::Push(r),
-			Op::SwapPc(r)          => Op::RevSwapPc(r),
-			Op::RevSwapPc(r)       => Op::SwapPc(r),
-			Op::Mul2(r)            => Op::Div2(r),
-			Op::Div2(r)            => Op::Mul2(r),
-			Op::RotLeftImm(r, v)   => Op::RotRightImm(r, v),
-			Op::RotRightImm(r, v)  => Op::RotLeftImm(r, v),
-			Op::Swap(..)           => self,
-			Op::CNot(..)           => self,
-			Op::CAdd(rc, ra)       => Op::CSub(rc, ra),
-			Op::CSub(rc, rs)       => Op::CAdd(rc, rs),
-			Op::Exchange(..)       => self,
-			Op::RotLeft(rr, rv)    => Op::RotRight(rr, rv),
-			Op::RotRight(rr, rv)   => Op::RotLeft(rr, rv),
-			Op::CCNot(..)          => self,
-			Op::CSwap(..)          => self,
-			Op::Immediate(..)      => self,
+			Op::Halt             => self,
+			Op::Nop              => self,
+			Op::Debug            => self,
+			Op::Not(..)          => self,
+			Op::Negate(..)       => self,
+			Op::Increment(r)     => Op::Decrement(r),
+			Op::Decrement(r)     => Op::Increment(r),
+			Op::Push(r)          => Op::Pop(r),
+			Op::Pop(r)           => Op::Push(r),
+			Op::SwapPc(r)        => Op::RevSwapPc(r),
+			Op::RevSwapPc(r)     => Op::SwapPc(r),
+			Op::Mul2(r)          => Op::Div2(r),
+			Op::Div2(r)          => Op::Mul2(r),
+			Op::LRotateImm(r, v) => Op::RRotateImm(r, v),
+			Op::RRotateImm(r, v) => Op::LRotateImm(r, v),
+			Op::Swap(..)         => self,
+			Op::CNot(..)         => self,
+			Op::Add(rc, ra)      => Op::Sub(rc, ra),
+			Op::Sub(rc, rs)      => Op::Add(rc, rs),
+			Op::Exchange(..)     => self,
+			Op::LRotate(rr, rv)  => Op::RRotate(rr, rv),
+			Op::RRotate(rr, rv)  => Op::LRotate(rr, rv),
+			Op::CCNot(..)        => self,
+			Op::CSwap(..)        => self,
+			Op::Immediate(..)    => self,
 			
 			Op::BranchParityOdd(r, a)    => Op::AssertParityOdd(r, a),
 			Op::BranchSignNegative(r, a) => Op::AssertSignNegative(r, a),
@@ -392,8 +398,9 @@ impl Op {
 impl fmt::Display for Op {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match *self {
-			Op::Halt => write!(f, "hlt"),
-			Op::Nop => write!(f, "nop"),
+			Op::Halt  => write!(f, "hlt"),
+			Op::Nop   => write!(f, "nop"),
+			Op::Debug => write!(f, "dbg"),
 			
 			Op::Not(r)       => write!(f, "not {}", r),
 			Op::Negate(r)    => write!(f, "neg {}", r),
@@ -406,16 +413,16 @@ impl fmt::Display for Op {
 			Op::Mul2(r)      => write!(f, "mul2 {}", r),
 			Op::Div2(r)      => write!(f, "div2 {}", r),
 			
-			Op::RotLeftImm(r, v)  => write!(f, "roli {} {}", r, v),
-			Op::RotRightImm(r, v) => write!(f, "rori {} {}", r, v),
+			Op::LRotateImm(r, v) => write!(f, "roli {} {}", r, v),
+			Op::RRotateImm(r, v) => write!(f, "rori {} {}", r, v),
 			
 			Op::Swap(rl, rr)     => write!(f, "swp {} {}", rl, rr),
 			Op::CNot(rn, rc)     => write!(f, "xor {} {}", rn, rc),
-			Op::CAdd(ra, rc)     => write!(f, "add {} {}", ra, rc),
-			Op::CSub(rs, rc)     => write!(f, "sub {} {}", rs, rc),
+			Op::Add(ra, rc)      => write!(f, "add {} {}", ra, rc),
+			Op::Sub(rs, rc)      => write!(f, "sub {} {}", rs, rc),
 			Op::Exchange(rr, ra) => write!(f, "xchg {} {}", rr, ra),
-			Op::RotLeft(rr, ro)  => write!(f, "rol {} {}", rr, ro),
-			Op::RotRight(rr, ro) => write!(f, "ror {} {}", rr, ro),
+			Op::LRotate(rr, ro)  => write!(f, "rol {} {}", rr, ro),
+			Op::RRotate(rr, ro)  => write!(f, "ror {} {}", rr, ro),
 			
 			Op::CCNot(rc0, rc1, rn) => write!(f, "ccn {} {} {}", rc0, rc1, rn),
 			Op::CSwap(rc, rs0, rs1) => write!(f, "cswp {} {} {}", rc, rs0, rs1),
@@ -508,6 +515,7 @@ impl FromStr for Op {
 		let op = match mneu {
 			"hlt" => Op::Halt,
 			"nop" => Op::Nop,
+			"dbg" => Op::Debug,
 			
 			"not"  => Op::Not(reg!()),
 			"neg"  => Op::Negate(reg!()),
@@ -520,16 +528,16 @@ impl FromStr for Op {
 			"mul2" => Op::Mul2(reg!()),
 			"div2" => Op::Div2(reg!()),
 			
-			"roli" => Op::RotLeftImm(reg!(), val!(u8, 0b_1111)),
-			"rori" => Op::RotRightImm(reg!(), val!(u8, 0b_1111)),
+			"roli" => Op::LRotateImm(reg!(), val!(u8, 0b_1111)),
+			"rori" => Op::RRotateImm(reg!(), val!(u8, 0b_1111)),
 			
 			"swp"  => Op::Swap(reg!(), reg!()),
 			"xor"  => Op::CNot(reg!(), reg!()),
-			"add"  => Op::CAdd(reg!(), reg!()),
-			"sub"  => Op::CSub(reg!(), reg!()),
+			"add"  => Op::Add(reg!(), reg!()),
+			"sub"  => Op::Sub(reg!(), reg!()),
 			"xchg" => Op::Exchange(reg!(), reg!()),
-			"rol"  => Op::RotLeft(reg!(), reg!()),
-			"ror"  => Op::RotRight(reg!(), reg!()),
+			"rol"  => Op::LRotate(reg!(), reg!()),
+			"ror"  => Op::RRotate(reg!(), reg!()),
 			
 			"ccn"  => Op::CCNot(reg!(), reg!(), reg!()),
 			"cswp" => Op::CSwap(reg!(), reg!(), reg!()),
@@ -538,8 +546,8 @@ impl FromStr for Op {
 			
 			"jpo" => Op::BranchParityOdd(reg!(), addr!(u8::MAX as usize)),
 			"apo" => Op::AssertParityOdd(reg!(), addr!(u8::MAX as usize)),
-			"js" => Op::BranchSignNegative(reg!(), addr!(u8::MAX as usize)),
-			"as" => Op::AssertSignNegative(reg!(), addr!(u8::MAX as usize)),
+			"js"  => Op::BranchSignNegative(reg!(), addr!(u8::MAX as usize)),
+			"as"  => Op::AssertSignNegative(reg!(), addr!(u8::MAX as usize)),
 			
 			"jpe" => Op::BranchParityEven(reg!(), addr!(u8::MAX as usize)),
 			"ape" => Op::AssertParityEven(reg!(), addr!(u8::MAX as usize)),
@@ -572,6 +580,7 @@ mod tests {
 		let ops = vec![
 			Op::Halt,
 			Op::Nop,
+			Op::Debug,
 			Op::Not(Reg::BP),
 			Op::Negate(Reg::BP),
 			Op::Increment(Reg::BP),
@@ -582,15 +591,15 @@ mod tests {
 			Op::RevSwapPc(Reg::BP),
 			Op::Mul2(Reg::BP),
 			Op::Div2(Reg::BP),
-			Op::RotLeftImm(Reg::BP, 0xF),
-			Op::RotRightImm(Reg::BP, 0xF),
+			Op::LRotateImm(Reg::BP, 0xF),
+			Op::RRotateImm(Reg::BP, 0xF),
 			Op::Swap(Reg::BP, Reg::BP),
 			Op::CNot(Reg::BP, Reg::BP),
-			Op::CAdd(Reg::BP, Reg::BP),
-			Op::CSub(Reg::BP, Reg::BP),
+			Op::Add(Reg::BP, Reg::BP),
+			Op::Sub(Reg::BP, Reg::BP),
 			Op::Exchange(Reg::BP, Reg::BP),
-			Op::RotLeft(Reg::BP, Reg::BP),
-			Op::RotRight(Reg::BP, Reg::BP),
+			Op::LRotate(Reg::BP, Reg::BP),
+			Op::RRotate(Reg::BP, Reg::BP),
 			Op::CCNot(Reg::BP, Reg::BP, Reg::BP),
 			Op::CSwap(Reg::BP, Reg::BP, Reg::BP),
 			Op::Immediate(Reg::BP, 0xFF),
