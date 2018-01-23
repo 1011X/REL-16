@@ -24,45 +24,59 @@ impl fmt::Display for Addr {
 	}
 }
 
+#[derive(Debug)]
+enum TokenErr { Missing, Improper, Extra }
+#[derive(Debug)]
+enum Type { Register, Constant, Address }
+
 /// Various things that can go wrong in the process of parsing a string to an
 /// `Op` enum.
 #[derive(Debug)]
 pub enum Error {
-	NoMneumonic,
-	NoArgument,
-	NoAddress,
-	ValueTooLarge,
-	NoRegister,
-	UnknownMneumonic(String),
+	NoMneu, BadMneu,
+	ValueOverflow(usize),
+	ParseInt(num::ParseIntError),
+	Parse(TokenErr, Type),
+}
+/*
+pub enum Error {
+	UnknownMneumonic(&'err str),
 	ExtraArgs(Vec<String>),
 	Value(num::ParseIntError, String),
 	Offset(num::ParseIntError, String),
 	Register(reg::ParseError),
 }
-
+*/
 impl fmt::Display for Error {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		use self::Error::*;
 		match *self {
-			Error::NoMneumonic =>
-				write!(f, "No mneumonic found."),
-			Error::NoArgument =>
-				write!(f, "Missing argument for this mneumonic."),
-			Error::NoAddress =>
-				write!(f, "No label or offset found."),
-			Error::ValueTooLarge =>
-				write!(f, "Value is bigger than the maximum value."),
-			Error::NoRegister =>
+			NoMneu
+				=> write!(f, "No mneumonic given."),
+			BadMneu(ref m)
+				=> write!(f, "No such mneumonic `{}`", m),
+			
+			ValueOverflow(max)
+				=> write!(f, "Value exceeds maximum allowed value of {}", max),
+			
+			
+			
+			MissingRegister =>
+				write!(f, "Missing register for this mneumonic."),
+			NoAddress =>
+				write!(f, "Missing label or offset for mneumonic."),
+			NoRegister =>
 				write!(f, "Expected a register literal."),
 			
-			Error::UnknownMneumonic(ref m) =>
+			UnknownMneumonic(ref m) =>
 				write!(f, "Did not recognize mneumonic: {}", m),
-			Error::ExtraArgs(ref v) => 
+			ExtraArgs(ref v) => 
 				write!(f, "Found these extra tokens at the end: {:?}", v),
-			Error::Value(ref e, ref s) =>
+			Value(ref e, ref s) =>
 				write!(f, "Error parsing integer, got: \"{}\", because {}", s, e),
-			Error::Offset(ref e, ref s) =>
+			Offset(ref e, ref s) =>
 				write!(f, "Error parsing offset, got: \"{}\", because {}", s, e),
-			Error::Register(ref e) =>
+			Register(ref e) =>
 				write!(f, "Error parsing register literal: {}", e),
 		}
 	}
@@ -70,25 +84,27 @@ impl fmt::Display for Error {
 
 impl error::Error for Error {
 	fn description(&self) -> &str {
+		use self::Error::*;
 		match *self {
-			Error::NoMneumonic          => "missing mneumonic",
-			Error::NoArgument           => "missing argument",
-			Error::NoAddress            => "missing address",
-			Error::ValueTooLarge        => "argument value is too big",
-			Error::NoRegister           => "missing register literal",
-			Error::UnknownMneumonic(..) => "unknown mneumonic",
-			Error::ExtraArgs(..)        => "found extra tokens",
-			Error::Value(ref e, _)      => e.description(),
-			Error::Offset(ref e, _)     => e.description(),
-			Error::Register(ref e)      => e.description(),
+			NoMneumonic          => "missing mneumonic",
+			NoArgument           => "missing argument",
+			NoAddress            => "missing address",
+			ValueTooLarge        => "argument value is too big",
+			NoRegister           => "missing register literal",
+			UnknownMneumonic(..) => "unknown mneumonic",
+			ExtraArgs(..)        => "found extra tokens",
+			Value(ref e, _)      => e.description(),
+			Offset(ref e, _)     => e.description(),
+			Register(ref e)      => e.description(),
 		}
 	}
 	
 	fn cause(&self) -> Option<&error::Error> {
+		use self::Error::*;
 		match *self {
-			Error::Value(ref e, _)  => Some(e),
-			Error::Offset(ref e, _) => Some(e),
-			Error::Register(ref e)  => Some(e),
+			Value(ref e, _)  => Some(e),
+			Offset(ref e, _) => Some(e),
+			Register(ref e)  => Some(e),
 			_ => None
 		}
 	}
@@ -393,6 +409,32 @@ impl Op {
 			Op::ComeFrom(addr)           => Op::GoTo(addr),
 		}
 	}
+	
+	fn mneu_usage(s: &str) -> &'static str {
+		match s {
+			"not" | "neg" | "inc" | "dec" | "push" | "pop" | "spc" | "rspc"
+			| "mul2" | "div2"
+				=> "<register>",
+			
+			"roli" | "rori"
+				=> "<register> <4-bit unsigned int>",
+			
+			"swp" | "xor" | "add" | "sub" | "xchg" | "rol" | "ror"
+				=> "<register> <register>",
+			
+			"ccn" | "cswp"
+				=> "<register> <register> <register>",
+			
+			"xori"
+				=> "<register> <8-bit unsigned value>",
+			
+			"jpo" | "apo" | "js" | "as" | "jpe" | "ape" | "jns" | "ans"
+				=> "<register> <label or 10-bit address>",
+			
+			"jmp" | "pmj"
+				=> "<label or 14-bit address>",
+		}
+	}
 }
 
 impl fmt::Display for Op {
@@ -449,13 +491,17 @@ impl FromStr for Op {
 	type Err = Error;
 	
 	fn from_str(s: &str) -> Result<Self> {
-		
 		let mut tokens = s.split_whitespace();
+		
+		// Gets argument types for mneumonic; `mneu` is declared below
+		macro_rules! incorrect_usage(() => {
+			Error::IncorrectUsage(Op::mneu_usage(mneu))
+		});
 		
 		// Parses a register literal. Returns early if an error is found.
 		macro_rules! reg(() => {
 			tokens.next()
-			.ok_or(Error::NoRegister)
+			.ok_or(incorrect_usage!())
 			.and_then(|s| s.parse::<Reg>()
 				.map_err(Error::Register)
 			)?
@@ -465,7 +511,7 @@ impl FromStr for Op {
 		// Returns early if an error is found.
 		macro_rules! val(($t:ty, $max:expr) => {
 			tokens.next()
-			.ok_or(Error::NoArgument)
+			.ok_or(incorrect_usage!())
 			.and_then(|token| match token.parse::<$t>() {
 				Ok(value) if value <= $max => Ok(value),
 
@@ -581,36 +627,36 @@ mod tests {
 			Op::Halt,
 			Op::Nop,
 			Op::Debug,
-			Op::Not(Reg::BP),
-			Op::Negate(Reg::BP),
-			Op::Increment(Reg::BP),
-			Op::Decrement(Reg::BP),
-			Op::Push(Reg::BP),
-			Op::Pop(Reg::BP),
-			Op::SwapPc(Reg::BP),
-			Op::RevSwapPc(Reg::BP),
-			Op::Mul2(Reg::BP),
-			Op::Div2(Reg::BP),
-			Op::LRotateImm(Reg::BP, 0xF),
-			Op::RRotateImm(Reg::BP, 0xF),
-			Op::Swap(Reg::BP, Reg::BP),
-			Op::CNot(Reg::BP, Reg::BP),
-			Op::Add(Reg::BP, Reg::BP),
-			Op::Sub(Reg::BP, Reg::BP),
-			Op::Exchange(Reg::BP, Reg::BP),
-			Op::LRotate(Reg::BP, Reg::BP),
-			Op::RRotate(Reg::BP, Reg::BP),
-			Op::CCNot(Reg::BP, Reg::BP, Reg::BP),
-			Op::CSwap(Reg::BP, Reg::BP, Reg::BP),
-			Op::Immediate(Reg::BP, 0xFF),
-			Op::BranchParityOdd(Reg::BP, Addr::Label("hey".to_string())),
-			Op::AssertParityOdd(Reg::BP, Addr::Label("hi".to_string())),
-			Op::BranchSignNegative(Reg::BP, Addr::Label("hello".to_string())),
-			Op::AssertSignNegative(Reg::BP, Addr::Label("hiya".to_string())),
-			Op::BranchParityEven(Reg::BP, Addr::Label("hey".to_string())),
-			Op::AssertParityEven(Reg::BP, Addr::Label("hi".to_string())),
-			Op::BranchSignNonneg(Reg::BP, Addr::Label("hello".to_string())),
-			Op::AssertSignNonneg(Reg::BP, Addr::Label("hiya".to_string())),
+			Op::Not(Reg::R6),
+			Op::Negate(Reg::R6),
+			Op::Increment(Reg::R6),
+			Op::Decrement(Reg::R6),
+			Op::Push(Reg::R6),
+			Op::Pop(Reg::R6),
+			Op::SwapPc(Reg::R6),
+			Op::RevSwapPc(Reg::R6),
+			Op::Mul2(Reg::R6),
+			Op::Div2(Reg::R6),
+			Op::LRotateImm(Reg::R6, 0xF),
+			Op::RRotateImm(Reg::R6, 0xF),
+			Op::Swap(Reg::R6, Reg::R6),
+			Op::CNot(Reg::R6, Reg::R6),
+			Op::Add(Reg::R6, Reg::R6),
+			Op::Sub(Reg::R6, Reg::R6),
+			Op::Exchange(Reg::R6, Reg::R6),
+			Op::LRotate(Reg::R6, Reg::R6),
+			Op::RRotate(Reg::R6, Reg::R6),
+			Op::CCNot(Reg::R6, Reg::R6, Reg::R6),
+			Op::CSwap(Reg::R6, Reg::R6, Reg::R6),
+			Op::Immediate(Reg::R6, 0xFF),
+			Op::BranchParityOdd(Reg::R6, Addr::Label("hey".to_string())),
+			Op::AssertParityOdd(Reg::R6, Addr::Label("hi".to_string())),
+			Op::BranchSignNegative(Reg::R6, Addr::Label("hello".to_string())),
+			Op::AssertSignNegative(Reg::R6, Addr::Label("hiya".to_string())),
+			Op::BranchParityEven(Reg::R6, Addr::Label("hey".to_string())),
+			Op::AssertParityEven(Reg::R6, Addr::Label("hi".to_string())),
+			Op::BranchSignNonneg(Reg::R6, Addr::Label("hello".to_string())),
+			Op::AssertSignNonneg(Reg::R6, Addr::Label("hiya".to_string())),
 			Op::GoTo(Addr::Label("howdy".to_string())),
 			Op::ComeFrom(Addr::Label("sup".to_string())),
 		];

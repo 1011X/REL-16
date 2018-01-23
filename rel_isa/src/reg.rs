@@ -5,11 +5,13 @@ use std::error::Error;
 /// Specifies a machine register.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Reg {
-	R0 = 0, R1, R2, R3, R4, R5,
+	/// treated as accumulator in some instructions
+	R0 = 0,
+	R1, R2, R3, R4, R5,
+	/// can be used as a stack base register
+	R6,
 	/// stack pointer
-	SP,
-	/// base pointer
-	BP
+	SP
 }
 
 /// Error when parsing register string literal
@@ -25,9 +27,9 @@ impl fmt::Display for Reg {
 			Reg::R3 => write!(f, "r3"),
 			Reg::R4 => write!(f, "r4"),
 			Reg::R5 => write!(f, "r5"),
+			Reg::R6 => write!(f, "r6"),
 			
 			Reg::SP => write!(f, "sp"),
-			Reg::BP => write!(f, "bp"),
 		}
 	}
 }
