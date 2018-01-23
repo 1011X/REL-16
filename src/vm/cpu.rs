@@ -122,6 +122,7 @@ impl<'mem> Cpu<'mem> {
 		match self.ir {
 			Op::Halt => return true,
 			Op::Nop => {}
+			Op::Debug => unimplemented!(),
 			
 			Op::Not(a) =>
 				self.reg[a] = !self.reg[a],
@@ -200,10 +201,10 @@ impl<'mem> Cpu<'mem> {
 				} as u16;
 			}
 			
-			Op::RotLeftImm(r, v) =>
+			Op::LRotateImm(r, v) =>
 				self.reg[r] = self.reg[r].rotate_left(v as u32),
 			
-			Op::RotRightImm(r, v) =>
+			Op::RRotateImm(r, v) =>
 				self.reg[r] = self.reg[r].rotate_right(v as u32),
 			
 			Op::Swap(a, b) =>
@@ -219,7 +220,7 @@ impl<'mem> Cpu<'mem> {
 				debug_assert!(n == 0);
 			}
 			
-			Op::CAdd(ra, rc) => {
+			Op::Add(ra, rc) => {
 				let mut a = 0;
 				swap!(a, self.reg[ra]);
 				
@@ -229,7 +230,7 @@ impl<'mem> Cpu<'mem> {
 				debug_assert!(a == 0);
 			}
 			
-			Op::CSub(rs, rc) => {
+			Op::Sub(rs, rc) => {
 				let mut s = 0;
 				swap!(s, self.reg[rs]);
 				
@@ -250,7 +251,7 @@ impl<'mem> Cpu<'mem> {
 				debug_assert!(d == 0);
 			}
 			
-			Op::RotLeft(rr, ro) => {
+			Op::LRotate(rr, ro) => {
 				let mut r = 0;
 				swap!(r, self.reg[rr]);
 				
@@ -260,7 +261,7 @@ impl<'mem> Cpu<'mem> {
 				debug_assert!(r == 0);
 			}
 			
-			Op::RotRight(rr, ro) => {
+			Op::RRotate(rr, ro) => {
 				let mut r = 0;
 				swap!(r, self.reg[rr]);
 				
@@ -270,6 +271,9 @@ impl<'mem> Cpu<'mem> {
 				debug_assert!(r == 0);
 			}
 			
+			// Swap the modified register's value to a zeroed location, so that
+			// in case it's also used as a control register, then this
+			// instruction just becomes a no-op.
 			Op::CCNot(rc0, rc1, rn) => {
 				let mut n = 0;
 				swap!(n, self.reg[rn]);
@@ -280,6 +284,8 @@ impl<'mem> Cpu<'mem> {
 				debug_assert!(n == 0);
 			}
 			
+			// Swap the modified registers' values to zeroed locations, just
+			// like the CCNot instruction.
 			Op::CSwap(rc, rs0, rs1) => {
 				let mut s0 = 0;
 				let mut s1 = 0;

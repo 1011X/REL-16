@@ -1,13 +1,10 @@
 use std::collections::HashMap;
 use std::io::{self, BufRead};
 use std::str::FromStr;
-use std::result;
 
 use isa::{Op, Addr};
 
-type Result<T> = result::Result<T, String>;
-
-pub fn parse<I: BufRead>(inp: I) -> Result<Vec<Op>> {
+pub fn parse<I: BufRead>(inp: I) -> Result<Vec<Op>, String> {
 	let mut label_indices = HashMap::new();
 	
 	let lines = inp.lines()
@@ -15,18 +12,20 @@ pub fn parse<I: BufRead>(inp: I) -> Result<Vec<Op>> {
 		.map_err(|e| e.to_string())?;
 	
 	let code = lines.iter()
-		// get everything before the comment marker (semicolon)
-		.map(|l| l.split(';').nth(0).unwrap())
+		// get everything before the comment marker (semicolon) and trim the
+		// remaining whitespace
+		.map(|l| l.split(';').nth(0).unwrap().trim())
 		// keep track of line numbers. MUST go before .filter()
 		.enumerate()
 		// keep non-empty lines
 		.filter(|&(_, l)| !l.is_empty())
 		// try encoding line, report any error with line number
-		.map(|(n, l)| Op::from_str(l)
+		.map(|(n, l)|
+			Op::from_str(l)
 			.map_err(|e| format!("Error at line {}: {}", n + 1, e))
 		)
 		// simplify into a result and try! it
-		.collect::<Result<Vec<_>>>()?
+		.collect::<Result<Vec<_>, String>>()?
 		// we're not done!
 		.into_iter()
 		// keep track of instruction addresses

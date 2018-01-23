@@ -2,9 +2,19 @@ use std::fmt;
 use std::str;
 use std::error::Error;
 
+/// Specifies a machine register.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Reg { R0 = 0, R1, R2, R3, R4, R5, SP, BP }
+pub enum Reg {
+	/// treated as accumulator in some instructions
+	R0 = 0,
+	R1, R2, R3, R4, R5,
+	/// can be used as a stack base register
+	R6,
+	/// stack pointer
+	SP
+}
 
+/// Error when parsing register string literal
 #[derive(Debug, PartialEq, Eq)]
 pub struct ParseError(String);
 
@@ -17,9 +27,9 @@ impl fmt::Display for Reg {
 			Reg::R3 => write!(f, "r3"),
 			Reg::R4 => write!(f, "r4"),
 			Reg::R5 => write!(f, "r5"),
+			Reg::R6 => write!(f, "r6"),
 			
 			Reg::SP => write!(f, "sp"),
-			Reg::BP => write!(f, "bp"),
 		}
 	}
 }
@@ -35,8 +45,8 @@ impl str::FromStr for Reg {
 			"r3" => Ok(Reg::R3),
 			"r4" => Ok(Reg::R4),
 			"r5" => Ok(Reg::R5),
-			"r6" | "sp" => Ok(Reg::SP),
-			"r7" | "bp" => Ok(Reg::BP),
+			"r6" | "bp" => Ok(Reg::R6),
+			"r7" | "sp" => Ok(Reg::SP),
 			_ => Err(ParseError(s.to_string()))
 		}
 	}
@@ -49,7 +59,5 @@ impl fmt::Display for ParseError {
 }
 
 impl Error for ParseError {
-	fn description(&self) -> &str {
-		"invalid register literal"
-	}
+	fn description(&self) -> &'static str { "invalid register literal" }
 }
