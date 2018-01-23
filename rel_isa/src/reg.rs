@@ -45,8 +45,8 @@ impl str::FromStr for Reg {
 			"r3" => Ok(Reg::R3),
 			"r4" => Ok(Reg::R4),
 			"r5" => Ok(Reg::R5),
-			"r6" | "sp" => Ok(Reg::SP),
-			"r7" | "bp" => Ok(Reg::BP),
+			"r6" | "bp" => Ok(Reg::R6),
+			"r7" | "sp" => Ok(Reg::SP),
 			_ => Err(ParseError(s.to_string()))
 		}
 	}

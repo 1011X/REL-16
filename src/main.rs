@@ -10,7 +10,8 @@ use std::fs::File;
 use getopts::Options;
 
 
-static USAGE: &'static str = "Usage:
+static USAGE: &str = "\
+Usage:
     rel [--version] [--help]
     rel [--verbose] <file>";
 

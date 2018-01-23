@@ -1,13 +1,10 @@
 use std::collections::HashMap;
 use std::io::{self, BufRead};
 use std::str::FromStr;
-use std::result;
 
 use isa::{Op, Addr};
 
-type Result<T> = result::Result<T, String>;
-
-pub fn parse<I: BufRead>(inp: I) -> Result<Vec<Op>> {
+pub fn parse<I: BufRead>(inp: I) -> Result<Vec<Op>, String> {
 	let mut label_indices = HashMap::new();
 	
 	let lines = inp.lines()
@@ -28,7 +25,7 @@ pub fn parse<I: BufRead>(inp: I) -> Result<Vec<Op>> {
 			.map_err(|e| format!("Error at line {}: {}", n + 1, e))
 		)
 		// simplify into a result and try! it
-		.collect::<Result<Vec<_>>>()?
+		.collect::<Result<Vec<_>, String>>()?
 		// we're not done!
 		.into_iter()
 		// keep track of instruction addresses
