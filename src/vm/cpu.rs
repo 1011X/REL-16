@@ -2,7 +2,7 @@ use isa::{Op, Addr, Reg};
 use super::register_file::RegisterFile;
 
 const SP: Reg = Reg::SP;
-const BP: Reg = Reg::BP;
+const BP: Reg = Reg::R6;
 const MAX_MEM: usize = 65536;
 
 macro_rules! swap(
@@ -57,39 +57,39 @@ impl<'mem> Cpu<'mem> {
 		
 			// print contents of registers
 			print!("registers: [");
-		
+			
 			for &val in &self.reg.0[..BP as usize] {
 				print!("{:04x}, ", val);
 			}
-		
+			
 			print!("{:04x}]\n", self.reg[BP]);
-		
-		
+			
+			
 			// print contents of stack
 			print!("stack: ");
-		
+			
 			use std::cmp::Ordering;
-		
+			
 			match self.reg[BP].cmp(&self.reg[SP]) {
-				Ordering::Equal   => print!("nil\n"),
-				Ordering::Less    => print!("invalid\n"),
+				Ordering::Equal   => println!("nil"),
+				Ordering::Less    => println!("invalid"),
 				Ordering::Greater => {
 					let bp = self.reg[BP] as usize;
 					let sp = self.reg[SP] as usize;
-				
+					
 					print!("<");
-				
+					
 					// log whole stack except for last value
 					for &val in &self.data_mem[sp..bp - 1] {
 						print!("{:04x}, ", val);
 					}
-				
+					
 					// log last value
-					print!("{:04x}]\n", self.data_mem[bp - 1]);
+					println!("{:04x}]", self.data_mem[bp - 1]);
 				}
 			}
-		
-			print!("\n");
+			
+			println!();
 		}
 	
 		/* FETCH */
