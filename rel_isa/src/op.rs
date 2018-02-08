@@ -1,12 +1,13 @@
 use std::fmt;
 use std::num;
-use std::str::FromStr;
-use std::error;
 use std::result;
+use std::convert::From;
+use std::error::Error;
+use std::str::FromStr;
 
 use super::reg::{self, Reg};
 
-type Result<T> = result::Result<T, Error>;
+type Result<T> = result::Result<T, ParseOpError>;
 
 /// Tracks address labels to be converted to offsets later.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,89 +25,76 @@ impl fmt::Display for Addr {
 	}
 }
 
-#[derive(Debug)]
-enum TokenErr { Missing, Improper, Extra }
-#[derive(Debug)]
-enum Type { Register, Constant, Address }
+#[derive(Debug, Clone, Copy)]
+pub enum Type {
+	Mneumonic,
+	Register,
+	Constant,
+	Address
+}
 
 /// Various things that can go wrong in the process of parsing a string to an
 /// `Op` enum.
 #[derive(Debug)]
-pub enum Error {
-	NoMneu, BadMneu,
+pub enum ParseOpError {
+	ExtraToken,
+	NoToken(Type),
+	BadToken(Type),
 	ValueOverflow(usize),
 	ParseInt(num::ParseIntError),
-	Parse(TokenErr, Type),
 }
-/*
-pub enum Error {
-	UnknownMneumonic(&'err str),
-	ExtraArgs(Vec<String>),
-	Value(num::ParseIntError, String),
-	Offset(num::ParseIntError, String),
-	Register(reg::ParseError),
-}
-*/
-impl fmt::Display for Error {
+
+impl fmt::Display for ParseOpError {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		use self::Error::*;
+		use self::ParseOpError::*;
 		match *self {
-			NoMneu
-				=> write!(f, "No mneumonic given."),
-			BadMneu(ref m)
-				=> write!(f, "No such mneumonic `{}`", m),
+			ExtraToken
+			=> write!(f, "Found extra token."),
+			
+			NoToken(t)
+			=> write!(f, "Missing token of type {:?}", t),
+			
+			BadToken(t)
+			=> write!(f, "Bad token; expected a {:?}", t),
 			
 			ValueOverflow(max)
-				=> write!(f, "Value exceeds maximum allowed value of {}", max),
+			=> write!(f, "Value exceeds maximum allowed value of {}", max),
 			
-			
-			
-			MissingRegister =>
-				write!(f, "Missing register for this mneumonic."),
-			NoAddress =>
-				write!(f, "Missing label or offset for mneumonic."),
-			NoRegister =>
-				write!(f, "Expected a register literal."),
-			
-			UnknownMneumonic(ref m) =>
-				write!(f, "Did not recognize mneumonic: {}", m),
-			ExtraArgs(ref v) => 
-				write!(f, "Found these extra tokens at the end: {:?}", v),
-			Value(ref e, ref s) =>
-				write!(f, "Error parsing integer, got: \"{}\", because {}", s, e),
-			Offset(ref e, ref s) =>
-				write!(f, "Error parsing offset, got: \"{}\", because {}", s, e),
-			Register(ref e) =>
-				write!(f, "Error parsing register literal: {}", e),
+			ParseInt(ref pie)
+			=> write!(f, "{}", pie),
 		}
 	}
 }
 
-impl error::Error for Error {
-	fn description(&self) -> &str {
-		use self::Error::*;
+impl Error for ParseOpError {
+	fn description(&self) -> &'static str {
+		use self::ParseOpError::*;
 		match *self {
-			NoMneumonic          => "missing mneumonic",
-			NoArgument           => "missing argument",
-			NoAddress            => "missing address",
-			ValueTooLarge        => "argument value is too big",
-			NoRegister           => "missing register literal",
-			UnknownMneumonic(..) => "unknown mneumonic",
-			ExtraArgs(..)        => "found extra tokens",
-			Value(ref e, _)      => e.description(),
-			Offset(ref e, _)     => e.description(),
-			Register(ref e)      => e.description(),
+			ExtraToken       => "extra token",
+			NoToken(_)       => "missing token",
+			BadToken(_)      => "malformed token",
+			ValueOverflow(_) => "value exceeds maximum",
+			ParseInt(_)      => "value too big to parse",
 		}
 	}
 	
-	fn cause(&self) -> Option<&error::Error> {
-		use self::Error::*;
+	fn cause(&self) -> Option<&Error> {
 		match *self {
-			Value(ref e, _)  => Some(e),
-			Offset(ref e, _) => Some(e),
-			Register(ref e)  => Some(e),
+			ParseOpError::ParseInt(ref pie) => Some(pie),
 			_ => None
 		}
+	}
+}
+
+impl From<reg::ParseError> for ParseOpError {
+	fn from(_: reg::ParseError) -> Self {
+		ParseOpError::BadToken(Type::Register)
+	}
+}
+
+impl From<num::ParseIntError> for ParseOpError {
+	fn from(e: num::ParseIntError) -> Self {
+		ParseOpError::ParseInt(e)
 	}
 }
 
@@ -302,67 +290,67 @@ pub enum Op {
 	/// Format: `____ 1rrr vvvvvvvv`
 	Immediate(Reg, u8),
 	
-	/// Adds an immediate 14-bit value to the branch register. It is used to
+	/// Adds an immediate 13-bit value to the branch register. It is used to
 	/// teleport unconditionally to another instruction. To avoid wonky
 	/// behavior, it's recommended the destination instruction be a ComeFrom
 	/// instruction, so that it goes back to processing the next immediate
 	/// instruction, rather than executing every nth instruction.
 	///
-	/// Format: `_1vvvvvvvvvvvvvv`
+	/// Format: `_1ovvvvvvvvvvvvv`
 	GoTo(Addr),
 	
-	/// Subtracts an immediate 14-bit value from the branch register. It is
+	/// Subtracts an immediate 13-bit value from the branch register. It is
 	/// used to teleport backwards in the code to another instruction. To avoid
 	/// wonky behavior, it's recommended the destination instruction be a GoTo
 	/// instruction, so that it goes back to processing the next immediate
 	/// instruction, rather than executing every nth instruction. 
 	///
-	/// Format: `_1vvvvvvvvvvvvvv`
+	/// Format: `_1ovvvvvvvvvvvvv`
 	ComeFrom(Addr),
 	
-	/// Adds an offset to the branch register if the register is an odd number.
+	/// Adds a 9-bit offset to the branch register if the register is an odd number.
 	///
-	/// Format: `1oorrrvvvvvvvvvv`
+	/// Format: `1ooorrrvvvvvvvvv`
 	BranchParityOdd(Reg, Addr),
 	
-	/// Subtracts an offset from the branch register if the the register is an
+	/// Subtracts a 9-bit offset from the branch register if the the register is an
 	/// odd number.
 	///
-	/// Format: `1oorrrvvvvvvvvvv`
+	/// Format: `1ooorrrvvvvvvvvv`
 	AssertParityOdd(Reg, Addr),
 	
-	/// Adds an offset to the branch register if the register is negative.
+	/// Adds a 9-bit offset to the branch register if the register is negative.
 	///
-	/// Format: `1oorrrvvvvvvvvvv`
+	/// Format: `1ooorrrvvvvvvvvv`
 	BranchSignNegative(Reg, Addr),
 	
-	/// Subtracts an offset from the branch register if the register is
+	/// Subtracts a 9-bit offset from the branch register if the register is
 	/// negative.
 	///
-	/// Format: `1oorrrvvvvvvvvvv`
+	/// Format: `1ooorrrvvvvvvvvv`
 	AssertSignNegative(Reg, Addr),
 	
-	/// Adds an offset to the branch register if the register is an even
+	/// Adds a 9-bit offset to the branch register if the register is an even
 	/// number.
 	///
-	/// Format: `1oorrrvvvvvvvvvv`
+	/// Format: `1ooorrrvvvvvvvvv`
 	BranchParityEven(Reg, Addr),
 	
-	/// Subtracts an offset from the branch register if the register is an even
+	/// Subtracts a 9-bit offset from the branch register if the register is an even
 	/// number.
 	///
-	/// Format: `1oorrrvvvvvvvvvv`
+	/// Format: `1ooorrrvvvvvvvvv`
 	AssertParityEven(Reg, Addr),
 	
-	/// Adds an offset to the branch register if the register is not negative.
+	/// Adds a 9-bit offset to the branch register if the register is not negative.
 	///
-	/// Format: `1oorrrvvvvvvvvvv`
+	/// Format: `1ooorrrvvvvvvvvv`
 	BranchSignNonneg(Reg, Addr),
 	
-	/// Subtracts an offset from the branch register if the register is not
+	/// Subtracts a 9-bit offset from the branch register if the register is not
 	/// negative.
 	///
-	/// Format: `1oorrrvvvvvvvvvv`
+	/// Format: `1ooorrrvvvvvvvvv`
 	AssertSignNonneg(Reg, Addr),
 }
 
@@ -426,13 +414,15 @@ impl Op {
 				=> "<register> <register> <register>",
 			
 			"xori"
-				=> "<register> <8-bit unsigned value>",
+				=> "<register> <8-bit unsigned int>",
 			
 			"jpo" | "apo" | "js" | "as" | "jpe" | "ape" | "jns" | "ans"
 				=> "<register> <label or 10-bit address>",
 			
 			"jmp" | "pmj"
 				=> "<label or 14-bit address>",
+			
+			_ => unreachable!()
 		}
 	}
 }
@@ -452,8 +442,8 @@ impl fmt::Display for Op {
 			Op::Pop(r)       => write!(f, "pop {}", r),
 			Op::SwapPc(r)    => write!(f, "spc {}", r),
 			Op::RevSwapPc(r) => write!(f, "rspc {}", r),
-			Op::Mul2(r)      => write!(f, "mul2 {}", r),
-			Op::Div2(r)      => write!(f, "div2 {}", r),
+			Op::Mul2(r)      => write!(f, "smul2 {}", r),
+			Op::Div2(r)      => write!(f, "sdiv2 {}", r),
 			
 			Op::LRotateImm(r, v) => write!(f, "roli {} {}", r, v),
 			Op::RRotateImm(r, v) => write!(f, "rori {} {}", r, v),
@@ -488,76 +478,62 @@ impl fmt::Display for Op {
 }
 
 impl FromStr for Op {
-	type Err = Error;
+	type Err = ParseOpError;
 	
 	fn from_str(s: &str) -> Result<Self> {
-		let mut tokens = s.split_whitespace();
+		use self::ParseOpError as OpError;
 		
-		// Gets argument types for mneumonic; `mneu` is declared below
-		macro_rules! incorrect_usage(() => {
-			Error::IncorrectUsage(Op::mneu_usage(mneu))
-		});
+		let mut tokens = s.split_whitespace();
 		
 		// Parses a register literal. Returns early if an error is found.
 		macro_rules! reg(() => {
 			tokens.next()
-			.ok_or(incorrect_usage!())
-			.and_then(|s| s.parse::<Reg>()
-				.map_err(Error::Register)
-			)?
+			.ok_or(OpError::NoToken(Type::Register))?
+			.parse::<Reg>()?
 		});
 		
 		// Parses a token as type $t with max value $max.
-		// Returns early if an error is found.
-		macro_rules! val(($t:ty, $max:expr) => {
-			tokens.next()
-			.ok_or(incorrect_usage!())
-			.and_then(|token| match token.parse::<$t>() {
-				Ok(value) if value <= $max => Ok(value),
-
-				Ok(_)  => Err(Error::ValueTooLarge),
-				Err(e) => Err(Error::Value(e, token.to_string())),
-			})?
-		});
+		macro_rules! val(($t:ty, $max:expr) => {{
+			let val = tokens.next()
+			.ok_or(OpError::NoToken(Type::Constant))?
+			.parse::<$t>()?;
+			
+			if val as usize <= $max {
+				val
+			} else {
+				return Err(OpError::ValueOverflow($max));
+			}
+		}});
 		
-		macro_rules! addr(($max:expr) => {
-			tokens.next()
-			.ok_or(Error::NoAddress)
-			.and_then(|tok| {
-				// TODO: handle unwrap
-				/*
-				let first = tok.chars().nth(0).unwrap();
-				let is_alpha = |c: char| c.is_alphabetic() || c == '_';
-				let is_alphanum = |c| is_alpha(c) || c.is_digit(10);
+		macro_rules! addr(($max:expr) => {{
+			let addr_tok = tokens.next()
+			.ok_or(OpError::NoToken(Type::Address))?;
+			
+			let first = addr_tok.chars().nth(0).unwrap();
+			let is_alpha = |c: char| c.is_alphabetic() || c == '_';
+			let is_alphanum = |c| is_alpha(c) || c.is_digit(10);
+			
+			if is_alpha(first) && addr_tok.chars().skip(1).all(is_alphanum) {
+				Addr::Label(addr_tok.to_string())
+			}
+			// only decimal numbers currently supported
+			else if addr_tok.chars().all(|c| c.is_digit(10)) {
+				let value = addr_tok.parse::<usize>()?;
 				
-				if is_alpha(first) && tok.chars().skip(1).all(is_alphanum) {
-					Ok(Addr::Label(tok.to_string()))
+				if value <= $max {
+					Addr::Offset(value)
+				} else {
+					return Err(OpError::ValueOverflow($max));
 				}
-				else if tok.chars().all(|c| c.is_digit(10)) {
-					match tok.parse::<usize>() {
-						Ok(value) if value <= $max =>
-							Ok(Addr::Offset(value)),
-
-						Ok(_)  => Err(Error::ValueTooLarge),
-						Err(e) => Err(Error::Value(e)),
-					}
-				}
-				else {
-					Err(Error::NoAddress)
-				}*/
-				match tok.parse::<usize>() {
-					Ok(value) if value <= $max =>
-						Ok(Addr::Offset(value)),
-
-					Ok(_)  => Err(Error::ValueTooLarge),
-					Err(e) => Err(Error::Offset(e, tok.to_string())),
-				}
-			})?
-		});
+			}
+			else {
+				return Err(OpError::BadToken(Type::Address));
+			}
+		}});
 		
-		use std::u8;
+		let mneu = tokens.next()
+		.ok_or(OpError::NoToken(Type::Mneumonic))?;
 		
-		let mneu = tokens.next().ok_or(Error::NoMneumonic)?;
 		let op = match mneu {
 			"hlt" => Op::Halt,
 			"nop" => Op::Nop,
@@ -571,8 +547,8 @@ impl FromStr for Op {
 			"pop"  => Op::Pop(reg!()),
 			"spc"  => Op::SwapPc(reg!()),
 			"rspc" => Op::RevSwapPc(reg!()),
-			"mul2" => Op::Mul2(reg!()),
-			"div2" => Op::Div2(reg!()),
+			"smul2" => Op::Mul2(reg!()),
+			"sdiv2" => Op::Div2(reg!()),
 			
 			"roli" => Op::LRotateImm(reg!(), val!(u8, 0b_1111)),
 			"rori" => Op::RRotateImm(reg!(), val!(u8, 0b_1111)),
@@ -588,29 +564,30 @@ impl FromStr for Op {
 			"ccn"  => Op::CCNot(reg!(), reg!(), reg!()),
 			"cswp" => Op::CSwap(reg!(), reg!(), reg!()),
 			
-			"xori" => Op::Immediate(reg!(), val!(u8, u8::MAX)),
+			"xori" => Op::Immediate(reg!(), val!(u8, 0xFF)),
 			
-			"jpo" => Op::BranchParityOdd(reg!(), addr!(u8::MAX as usize)),
-			"apo" => Op::AssertParityOdd(reg!(), addr!(u8::MAX as usize)),
-			"js"  => Op::BranchSignNegative(reg!(), addr!(u8::MAX as usize)),
-			"as"  => Op::AssertSignNegative(reg!(), addr!(u8::MAX as usize)),
+			"jpo" => Op::BranchParityOdd(reg!(), addr!(0x01FF)),
+			"apo" => Op::AssertParityOdd(reg!(), addr!(0x01FF)),
+			"js"  => Op::BranchSignNegative(reg!(), addr!(0x01FF)),
+			"as"  => Op::AssertSignNegative(reg!(), addr!(0x01FF)),
 			
-			"jpe" => Op::BranchParityEven(reg!(), addr!(u8::MAX as usize)),
-			"ape" => Op::AssertParityEven(reg!(), addr!(u8::MAX as usize)),
-			"jns" => Op::BranchSignNonneg(reg!(), addr!(u8::MAX as usize)),
-			"ans" => Op::AssertSignNonneg(reg!(), addr!(u8::MAX as usize)),
+			"jpe" => Op::BranchParityEven(reg!(), addr!(0x01FF)),
+			"ape" => Op::AssertParityEven(reg!(), addr!(0x01FF)),
+			"jns" => Op::BranchSignNonneg(reg!(), addr!(0x01FF)),
+			"ans" => Op::AssertSignNonneg(reg!(), addr!(0x01FF)),
 			
-			"jmp" => Op::GoTo(addr!(0b_11_1111_1111_1111)),
-			"pmj" => Op::ComeFrom(addr!(0b_11_1111_1111_1111)),
+			"jmp" => Op::GoTo(addr!(0x1FFF)),
+			"pmj" => Op::ComeFrom(addr!(0x1FFF)),
 			
-			mneu => return Err(Error::UnknownMneumonic(mneu.to_string()))
+			_ => return Err(OpError::BadToken(Type::Mneumonic))
 		};
 		
 		// check to make sure all tokens are exhausted.
-		let leftovers: Vec<_> = tokens.map(|s| s.to_string()).collect();
-		
-		if leftovers.is_empty() { Ok(op) }
-		else { Err(Error::ExtraArgs(leftovers)) }
+		if tokens.count() == 0 {
+			Ok(op)
+		} else {
+			Err(OpError::ExtraToken)
+		}
 	}
 }
 
