@@ -1,8 +1,8 @@
 extern crate getopts;
-extern crate rel_isa as isa;
 
 mod vm;
 mod asm;
+mod isa;
 
 use std::env;
 use std::io::BufReader;

@@ -7,7 +7,3 @@ readme = "README.md"
 
 [dependencies]
 getopts = "0.2.14"
-rel_isa = { version = "0.3.1", path = "rel_isa" }
-
-[profile.release]
-panic = "abort"
