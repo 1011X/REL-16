@@ -52,6 +52,22 @@ impl str::FromStr for Reg {
 	}
 }
 
+impl From<usize> for Reg {
+	fn from(val: usize) -> Self {
+		match val {
+			0 => Reg::R0,
+			1 => Reg::R1,
+			2 => Reg::R2,
+			3 => Reg::R3,
+			4 => Reg::R4,
+			5 => Reg::R5,
+			6 => Reg::R6,
+			7 => Reg::SP,
+			_ => unreachable!()
+		}
+	}
+}
+
 impl fmt::Display for ParseError {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		write!(f, "No such register: {}", self.0)
