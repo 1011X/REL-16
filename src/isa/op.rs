@@ -101,262 +101,214 @@ impl From<num::ParseIntError> for ParseOpError {
 /**
 High-level machine instruction representation
 
-This enum represents all valid instructions used in the REL-16 architecture. It
-allows for simpler processing compared to string interpretation.
+This enum represents all valid instructions used in the REL-16
+architecture. It allows for simpler processing compared to string
+interpretation.
 
-It's required that each variant here has a reversible equivalent. That is, if
-the instruction can't undo its own actions, it must have a partner instruction
-that can. By tying each instruction with its opposite, we can guarantee the
-reversibility property of the architecture.
+It's required that each variant here has a reversible equivalent.
+That is, if the instruction can't undo its own actions, it must have
+a partner instruction that can. By tying each instruction with its
+opposite, we can guarantee the reversibility property of the
+architecture.
 
-Being a 16-bit architecture, we must organize the bits so all instructions are
-representable within 16 bits. To ensure this, each instruction is given a
-16-character wide field where each character represents how a specified bit is
-used. The bit-field key is as follows:
+Being a 16-bit architecture, we must organize the bits so all
+instructions are representable within 16 bits. There are some
+addressing modes:
 
-* `_`: leading zero; used to organize instructions
-* `0`/`1`: bit literal
-* `o`: sub-opcode value field; its size is important to know how many
-  instructions can fit
-* `r`/`R`: register index field
-* `v`: immediate value field
+* Signal (3): nothing [2..]
+* Single (8): 1 register [6..]
+* Double (7): 2 registers [9..]
+* Triple (2): 3 registers, ah ah ah [10..]
+* Immediate (5): register, value [3 + 3..6 + 8]
+* Conditional jump (8): register, address [3 + 3 + y..6 + 8]
+* Unconditional jump (2): address [1 + z..1 + 8]
 
 */
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Op {
 	/// Stops the machine.
-	///
-	/// Format: `0000 0000 0000 0000`
 	Halt,
 	
 	/// Does absolutely nothing.
-	///
-	/// Format: `0000 0000 0000 0001`
 	Nop,
 	
 	/// Can be used for debugging purposes.
-	///
-	/// Format: `0000 0000 0000 0010`
 	Debug,
 	
 	/// Flips every bit in the register.
-	///
-	/// Format: `____ ____ 1oooorrr`
 	Not(Reg),
 	
 	/// Turns the given register's value into its two's complement.
-	///
-	/// Format: `____ ____ 1oooorrr`
 	Negate(Reg),
 	
-	/// Adds 1 to the register's value, wrapping around on overflow.
-	///
-	/// Format: `____ ____ 1oooorrr`
-	Increment(Reg),
-	
-	/// Subtracts 1 from the register's value, wrapping around on underflow.
-	///
-	/// Format: `____ ____ 1oooorrr`
-	Decrement(Reg),
-	
-	/// Decrements the stack pointer, then swaps the register's value with the
-	/// value pointed to in memory by the stack pointer.
+	/// Decrements the stack pointer, then swaps the register's value
+	/// with the value pointed to in memory by the stack pointer.
 	/// 
-	/// The register's new value should be zero, assuming no values were leaked
-	/// into memory.
-	///
-	/// Format: `____ ____ 1oooorrr`
+	/// The register's new value should be zero, assuming no values
+	/// were leaked into memory.
 	Push(Reg),
 	
-	/// Swaps the register's value with the value at the stack pointer, then
-	/// increments the stack pointer.
+	/// Swaps the register's value with the value at the stack
+	/// pointer, then increments the stack pointer.
 	/// 
-	/// Register value should be zero before this operation is performed, so
-	/// that the memory stays cleared.
-	///
-	/// Format: `____ ____ 1oooorrr`
+	/// Register value should be zero before this operation is
+	/// performed, so that the memory stays cleared.
 	Pop(Reg),
 	
-	/// Swaps the register and the program counter. Used for calling functions.
-	///
-	/// Format: `____ ____ 1oooorrr`
+	/// Swaps the register and the program counter. Used for calling
+	/// functions.
 	SwapPc(Reg),
 	
-	/// Flips direction bit, then swaps the register and the program counter.
-	/// Used when **un**calling functions.
-	///
-	/// Format: `____ ____ 1oooorrr`
+	/// Flips direction bit, then swaps the register and the program
+	/// counter. Used when **un**calling functions.
 	RevSwapPc(Reg),
 	
 	/// Signed multiplication by 2.
 	/// 
-	/// If the register's value *r* is less than -16384, you'll get: 2*r* - MIN
-	/// + 1
+	/// If the register's value *r* is less than -16384, you'll get:
 	/// 
-	/// If the value is greater than 16383, you'll get: 2*r* - MAX
+	/// 2*r* - MIN + 1
+	/// 
+	/// If the value is greater than 16383, you'll get:
+	/// 
+	/// 2*r* - MAX
 	/// 
 	/// Otherwise, it's multiplied by 2 as expected.
-	/// 
-	/// Format: `____ ____ 1oooorrr`
 	Mul2(Reg),
 	
 	/// Signed division by 2.
 	/// 
-	/// If the register's value *r* is odd and positive (like me), you'll get:
-	/// (*r* + MAX) / 2
+	/// If the register's value *r* is odd and positive (like me),
+	/// you'll get:
 	/// 
-	/// If it's odd and negative, you'll get: (*r* + MIN - 1) / 2
+	/// (*r* + MAX) / 2.
+	/// 
+	/// If it's odd and negative, you'll get:
+	/// 
+	/// (*r* + MIN - 1) / 2
 	/// 
 	/// Otherwise (when it's even), it's divided by 2 as expected.
-	///
-	/// Format: `____ ____ 1oooorrr`
 	Div2(Reg),
 	
-	/// Moves ("rotates") the register's bits to the left by the given amount,
-	/// moving the last bit's value to the first bit.
-	///
-	/// Format: `____ ___1 orrrvvvv`
-	LRotateImm(Reg, u8),
-	
-	/// Moves ("rotates") the register's bits to the right by the given amount,
-	/// moving the first bit's value to the last bit.
-	///
-	/// Format: `____ ___1 orrrvvvv`
-	RRotateImm(Reg, u8),
-	
 	/// Swaps the registers' values.
-	///
-	/// Format: `____ __1oooRRRrrr`
 	Swap(Reg, Reg),
 	
-	/// Flips bits in the first register based on bits in the second register.
-	/// Exactly like 8086's `xor` instruction.
-	///
-	/// Format: `____ __1oooRRRrrr`
-	CNot(Reg, Reg),
-	
-	/// Adds/increases first register's value by second register's value.
-	///
-	/// Format: `____ __1oooRRRrrr`
-	Add(Reg, Reg),
-	
-	/// Subtracts/decreases first register's value by second register's value.
-	///
-	/// Format: `____ __1oooRRRrrr`
-	Sub(Reg, Reg),
-	
-	/// Rotates the first register's bits to the left by the value in the
-	/// second register.
-	///
-	/// Format: `____ __1oooRRRrrr`
-	LRotate(Reg, Reg),
-	
-	/// Rotates the first register's bits to the right by the value in the
-	/// second register.
-	///
-	/// Format: `____ __1oooRRRrrr`
-	RRotate(Reg, Reg),
-	
-	/// Swaps the first register's value with the value pointed to in memory by
-	/// the second register.
-	///
-	/// Format: `____ __1oooRRRrrr`
+	/// Swaps the first register's value with the value pointed to in
+	/// memory by the second register.
 	Exchange(Reg, Reg),
 	
-	/// Toffoli gate; ANDs first and second registers and flips the bits in the
-	/// third register based on the result.
+	/// Flips bits in first register based on bits in second register.
+	/// Exactly like x86's `xor` instruction.
+	Xor(Reg, Reg),
+	
+	/// Adds/increases first register's value by second register's
+	/// value.
+	Add(Reg, Reg),
+	
+	/// Subtracts/decreases the first register's value by the second
+	/// register's value.
+	Sub(Reg, Reg),
+	
+	/// Rotates the first register's bits leftwards by the value in
+	/// the second register.
 	/// 
-	/// If a register is in the first or second position here, it *should not*
-	/// be in the third position, and vice-versa.
-	///
-	/// Format: `____ _1orrrRRRrrr`
+	/// Only the first 4 bits are necessary/used.
+	LRotate(Reg, Reg),
+	
+	/// Rotates the first register's bits rightwards by the value in
+	/// the second register.
+	/// 
+	/// Only the first 4 bits are necessary/used.
+	RRotate(Reg, Reg),
+	
+	/// Flips bits in the register's lower half based on the bits of
+	/// the immediate byte value.
+	/// 
+	/// This is usually used to set the register to the given value
+	/// or to reset its value to zero.
+	XorImm(Reg, u8),
+	
+	/// Adds/increases first register's value by the value of the
+	/// given immediate.
+	AddImm(Reg, u8),
+	
+	/// Subtracts/decreases first register's value by the value of the
+	/// given immediate.
+	SubImm(Reg, u8),
+	
+	/// Rotates the register's bits leftwards by the given amount. The
+	/// last bit's value is moved to the first bit.
+	LRotateImm(Reg, u8),
+	
+	/// Rotates the register's bits rightwards by the given amount.
+	/// The first bit's value is moved to the last bit.
+	RRotateImm(Reg, u8),
+	
+	/// Toffoli gate; ANDs first and second registers and flips the
+	/// bits in the third register based on the result.
+	/// 
+	/// If a register is in the first or second position, it *should
+	/// not* be in the third position.
 	CCNot(Reg, Reg, Reg),
 	
-	/// Fredkin gate; swaps bits in second and third registers based on bits in
-	/// the first register.
+	/// Fredkin gate; swaps bits in second and third registers based
+	/// on bits in the first register.
 	/// 
-	/// If a register is in the first position, it *should not* be in the
-	/// second or third position, and vice-versa.
-	///
-	/// Format: `____ _1orrrRRRrrr`
+	/// If a register is in the first position, it *should not* be in
+	/// the second or third position.
 	CSwap(Reg, Reg, Reg),
 	
-	/// Flips bits in the register's lower half based on the bits of the
-	/// immediate byte value.
+	/// Adds an immediate value to the branch register.
 	/// 
-	/// This is usually used to set the register to the given value or to reset
-	/// its value to zero.
-	///
-	/// Format: `____ 1rrr vvvvvvvv`
-	Immediate(Reg, u8),
-	
-	/// Adds an immediate 13-bit value to the branch register. It is used to
-	/// teleport unconditionally to another instruction. To avoid wonky
-	/// behavior, it's recommended the destination instruction be a ComeFrom
-	/// instruction, so that it goes back to processing the next immediate
-	/// instruction, rather than executing every nth instruction.
-	///
-	/// Format: `_1ovvvvvvvvvvvvv`
+	/// This is used to teleport unconditionally to another
+	/// instruction. To avoid wonky behavior, the destination should
+	/// be a ComeFrom instruction to avoid skipping instructions.
 	GoTo(Addr),
 	
-	/// Subtracts an immediate 13-bit value from the branch register. It is
-	/// used to teleport backwards in the code to another instruction. To avoid
-	/// wonky behavior, it's recommended the destination instruction be a GoTo
-	/// instruction, so that it goes back to processing the next immediate
-	/// instruction, rather than executing every nth instruction. 
-	///
-	/// Format: `_1ovvvvvvvvvvvvv`
+	/// Subtracts an immediate value from the branch register.
+	/// 
+	/// This is used to teleport unconditionally to another
+	/// instruction. To avoid wonky behavior, the destination should
+	/// be a GoTo instruction to avoid skipping instructions.
 	ComeFrom(Addr),
 	
-	/// Adds a 9-bit offset to the branch register if the register is an odd number.
-	///
-	/// Format: `1ooorrrvvvvvvvvv`
+	/// Adds an offset to the branch register if the register is an
+	/// odd number.
 	BranchParityOdd(Reg, Addr),
 	
-	/// Subtracts a 9-bit offset from the branch register if the the register is an
-	/// odd number.
-	///
-	/// Format: `1ooorrrvvvvvvvvv`
+	/// Subtracts an offset from the branch register if the register
+	/// is an odd number.
 	AssertParityOdd(Reg, Addr),
 	
-	/// Adds a 9-bit offset to the branch register if the register is negative.
-	///
-	/// Format: `1ooorrrvvvvvvvvv`
+	/// Adds an offset to the branch register if the register is
+	/// negative.
 	BranchSignNegative(Reg, Addr),
 	
-	/// Subtracts a 9-bit offset from the branch register if the register is
-	/// negative.
-	///
-	/// Format: `1ooorrrvvvvvvvvv`
+	/// Subtracts an offset from the branch register if the register
+	/// is negative.
 	AssertSignNegative(Reg, Addr),
 	
-	/// Adds a 9-bit offset to the branch register if the register is an even
-	/// number.
-	///
-	/// Format: `1ooorrrvvvvvvvvv`
+	/// Adds an offset to the branch register if the register is an
+	/// even number.
 	BranchParityEven(Reg, Addr),
 	
-	/// Subtracts a 9-bit offset from the branch register if the register is an even
-	/// number.
-	///
-	/// Format: `1ooorrrvvvvvvvvv`
+	/// Subtracts an offset from the branch register if the register
+	/// is an even number.
 	AssertParityEven(Reg, Addr),
 	
-	/// Adds a 9-bit offset to the branch register if the register is not negative.
-	///
-	/// Format: `1ooorrrvvvvvvvvv`
+	/// Adds an offset to the branch register if the register is not
+	/// negative.
 	BranchSignNonneg(Reg, Addr),
 	
-	/// Subtracts a 9-bit offset from the branch register if the register is not
-	/// negative.
-	///
-	/// Format: `1ooorrrvvvvvvvvv`
+	/// Subtracts an offset from the branch register if the register
+	/// is not negative.
 	AssertSignNonneg(Reg, Addr),
 }
 
 impl Op {
-	// To guarantee VM is reversible, every operation must have an inverse.
-	// Involutory instructions (which are their own inverse) return self.
+	// To guarantee VM is reversible, every operation must have an
+	// inverse. Involutory instructions (which are their own inverse)
+	// return self.
 	pub fn invert(self) -> Op {
 		match self {
 			Op::Halt             => self,
@@ -364,8 +316,6 @@ impl Op {
 			Op::Debug            => self,
 			Op::Not(..)          => self,
 			Op::Negate(..)       => self,
-			Op::Increment(r)     => Op::Decrement(r),
-			Op::Decrement(r)     => Op::Increment(r),
 			Op::Push(r)          => Op::Pop(r),
 			Op::Pop(r)           => Op::Push(r),
 			Op::SwapPc(r)        => Op::RevSwapPc(r),
@@ -375,15 +325,17 @@ impl Op {
 			Op::LRotateImm(r, v) => Op::RRotateImm(r, v),
 			Op::RRotateImm(r, v) => Op::LRotateImm(r, v),
 			Op::Swap(..)         => self,
-			Op::CNot(..)         => self,
-			Op::Add(rc, ra)      => Op::Sub(rc, ra),
-			Op::Sub(rc, rs)      => Op::Add(rc, rs),
+			Op::Xor(..)          => self,
+			Op::XorImm(..)       => self,
+			Op::Add(ra, rc)      => Op::Sub(ra, rc),
+			Op::Sub(rs, rc)      => Op::Add(rs, rc),
+			Op::AddImm(rc, i)    => Op::SubImm(rc, i),
+			Op::SubImm(rc, i)    => Op::AddImm(rc, i),
 			Op::Exchange(..)     => self,
 			Op::LRotate(rr, rv)  => Op::RRotate(rr, rv),
 			Op::RRotate(rr, rv)  => Op::LRotate(rr, rv),
 			Op::CCNot(..)        => self,
 			Op::CSwap(..)        => self,
-			Op::Immediate(..)    => self,
 			
 			Op::BranchParityOdd(r, a)    => Op::AssertParityOdd(r, a),
 			Op::BranchSignNegative(r, a) => Op::AssertSignNegative(r, a),
@@ -400,27 +352,28 @@ impl Op {
 	
 	fn mneu_usage(s: &str) -> &'static str {
 		match s {
-			"not" | "neg" | "inc" | "dec" | "push" | "pop" | "spc" | "rspc"
-			| "mul2" | "div2"
-				=> "<register>",
+			"hlt" | "nop" | "dbg"
+			=> "no arguments taken",
 			
-			"roli" | "rori"
-				=> "<register> <4-bit unsigned int>",
+			"not" | "neg" | "push" | "pop" | "spc" | "rspc" | "smul2"
+			| "sdiv2"
+			=> "<register>",
 			
-			"swp" | "xor" | "add" | "sub" | "xchg" | "rol" | "ror"
-				=> "<register> <register>",
+			"swp" | "xchg" | "xor" | "add" | "sub" | "rol" | "ror"
+			=> "<register> <register>",
 			
 			"ccn" | "cswp"
-				=> "<register> <register> <register>",
+			=> "<register> <register> <register>",
 			
-			"xori"
-				=> "<register> <8-bit unsigned int>",
+			"xori" | "addi" | "subi" | "roli" | "rori"
+			=> "<register> <8-bit unsigned int>",
 			
-			"jpo" | "apo" | "js" | "as" | "jpe" | "ape" | "jns" | "ans"
-				=> "<register> <label or 10-bit address>",
+			"jpo" | "apo" | "js" | "as" | "jpe" | "ape" | "jns"
+			| "ans"
+			=> "<register> <label or 10-bit address>",
 			
 			"jmp" | "pmj"
-				=> "<label or 14-bit address>",
+			=> "<label or 14-bit address>",
 			
 			_ => unreachable!()
 		}
@@ -436,8 +389,6 @@ impl fmt::Display for Op {
 			
 			Op::Not(r)       => write!(f, "not {}", r),
 			Op::Negate(r)    => write!(f, "neg {}", r),
-			Op::Increment(r) => write!(f, "inc {}", r),
-			Op::Decrement(r) => write!(f, "dec {}", r),
 			Op::Push(r)      => write!(f, "push {}", r),
 			Op::Pop(r)       => write!(f, "pop {}", r),
 			Op::SwapPc(r)    => write!(f, "spc {}", r),
@@ -445,27 +396,27 @@ impl fmt::Display for Op {
 			Op::Mul2(r)      => write!(f, "smul2 {}", r),
 			Op::Div2(r)      => write!(f, "sdiv2 {}", r),
 			
-			Op::LRotateImm(r, v) => write!(f, "roli {} {}", r, v),
-			Op::RRotateImm(r, v) => write!(f, "rori {} {}", r, v),
-			
 			Op::Swap(rl, rr)     => write!(f, "swp {} {}", rl, rr),
-			Op::CNot(rn, rc)     => write!(f, "xor {} {}", rn, rc),
+			Op::Exchange(rr, ra) => write!(f, "xchg {} {}", rr, ra),
+			Op::Xor(rn, rc)      => write!(f, "xor {} {}", rn, rc),
 			Op::Add(ra, rc)      => write!(f, "add {} {}", ra, rc),
 			Op::Sub(rs, rc)      => write!(f, "sub {} {}", rs, rc),
-			Op::Exchange(rr, ra) => write!(f, "xchg {} {}", rr, ra),
 			Op::LRotate(rr, ro)  => write!(f, "rol {} {}", rr, ro),
 			Op::RRotate(rr, ro)  => write!(f, "ror {} {}", rr, ro),
 			
+			Op::XorImm(r, v)  => write!(f, "xori {} {}", r, v),
+			Op::AddImm(ra, i) => write!(f, "addi {} {}", ra, i),
+			Op::SubImm(rs, i) => write!(f, "subi {} {}", rs, i),
+			Op::LRotateImm(r, v) => write!(f, "roli {} {}", r, v),
+			Op::RRotateImm(r, v) => write!(f, "rori {} {}", r, v),
+			
 			Op::CCNot(rc0, rc1, rn) => write!(f, "ccn {} {} {}", rc0, rc1, rn),
 			Op::CSwap(rc, rs0, rs1) => write!(f, "cswp {} {} {}", rc, rs0, rs1),
-			
-			Op::Immediate(r, v)    => write!(f, "xori {} {}", r, v),
 			
 			Op::BranchParityOdd(r, ref a) => write!(f, "jpo {} {}", r, a),
 			Op::AssertParityOdd(r, ref a) => write!(f, "apo {} {}", r, a),
 			Op::BranchSignNegative(r, ref a)   => write!(f, "js {} {}", r, a),
 			Op::AssertSignNegative(r, ref a)   => write!(f, "as {} {}", r, a),
-			
 			Op::BranchParityEven(r, ref a) => write!(f, "jpe {} {}", r, a),
 			Op::AssertParityEven(r, ref a) => write!(f, "ape {} {}", r, a),
 			Op::BranchSignNonneg(r, ref a)   => write!(f, "jns {} {}", r, a),
@@ -485,7 +436,8 @@ impl FromStr for Op {
 		
 		let mut tokens = s.split_whitespace();
 		
-		// Parses a register literal. Returns early if an error is found.
+		// Parses a register literal. Returns early if an error is
+		// found.
 		macro_rules! reg(() => {
 			tokens.next()
 			.ok_or(OpError::NoToken(Type::Register))?
@@ -541,30 +493,30 @@ impl FromStr for Op {
 			
 			"not"  => Op::Not(reg!()),
 			"neg"  => Op::Negate(reg!()),
-			"inc"  => Op::Increment(reg!()),
-			"dec"  => Op::Decrement(reg!()),
 			"push" => Op::Push(reg!()),
 			"pop"  => Op::Pop(reg!()),
 			"spc"  => Op::SwapPc(reg!()),
 			"rspc" => Op::RevSwapPc(reg!()),
 			"smul2" => Op::Mul2(reg!()),
 			"sdiv2" => Op::Div2(reg!()),
-			
-			"roli" => Op::LRotateImm(reg!(), val!(u8, 0b_1111)),
-			"rori" => Op::RRotateImm(reg!(), val!(u8, 0b_1111)),
-			
+						
 			"swp"  => Op::Swap(reg!(), reg!()),
-			"xor"  => Op::CNot(reg!(), reg!()),
+			"xchg" => Op::Exchange(reg!(), reg!()),
+			
+			"xor"  => Op::Xor(reg!(), reg!()),
 			"add"  => Op::Add(reg!(), reg!()),
 			"sub"  => Op::Sub(reg!(), reg!()),
-			"xchg" => Op::Exchange(reg!(), reg!()),
 			"rol"  => Op::LRotate(reg!(), reg!()),
 			"ror"  => Op::RRotate(reg!(), reg!()),
 			
+			"xori" => Op::XorImm(reg!(), val!(u8, 0xFF)),
+			"addi" => Op::AddImm(reg!(), val!(u8, 0xFF)),
+			"subi" => Op::SubImm(reg!(), val!(u8, 0xFF)),
+			"roli" => Op::LRotateImm(reg!(), val!(u8, 0b_1111)),
+			"rori" => Op::RRotateImm(reg!(), val!(u8, 0b_1111)),
+			
 			"ccn"  => Op::CCNot(reg!(), reg!(), reg!()),
 			"cswp" => Op::CSwap(reg!(), reg!(), reg!()),
-			
-			"xori" => Op::Immediate(reg!(), val!(u8, 0xFF)),
 			
 			"jpo" => Op::BranchParityOdd(reg!(), addr!(0x01FF)),
 			"apo" => Op::AssertParityOdd(reg!(), addr!(0x01FF)),
@@ -606,26 +558,26 @@ mod tests {
 			Op::Debug,
 			Op::Not(Reg::R6),
 			Op::Negate(Reg::R6),
-			Op::Increment(Reg::R6),
-			Op::Decrement(Reg::R6),
 			Op::Push(Reg::R6),
 			Op::Pop(Reg::R6),
 			Op::SwapPc(Reg::R6),
 			Op::RevSwapPc(Reg::R6),
 			Op::Mul2(Reg::R6),
 			Op::Div2(Reg::R6),
-			Op::LRotateImm(Reg::R6, 0xF),
-			Op::RRotateImm(Reg::R6, 0xF),
 			Op::Swap(Reg::R6, Reg::R6),
-			Op::CNot(Reg::R6, Reg::R6),
+			Op::Exchange(Reg::R6, Reg::R6),
+			Op::Xor(Reg::R6, Reg::R6),
 			Op::Add(Reg::R6, Reg::R6),
 			Op::Sub(Reg::R6, Reg::R6),
-			Op::Exchange(Reg::R6, Reg::R6),
 			Op::LRotate(Reg::R6, Reg::R6),
 			Op::RRotate(Reg::R6, Reg::R6),
+			Op::XorImm(Reg::R6, 0xFF),
+			Op::AddImm(Reg::R6, 0xFF),
+			Op::SubImm(Reg::R6, 0xFF),
+			Op::LRotateImm(Reg::R6, 0xF),
+			Op::RRotateImm(Reg::R6, 0xF),
 			Op::CCNot(Reg::R6, Reg::R6, Reg::R6),
 			Op::CSwap(Reg::R6, Reg::R6, Reg::R6),
-			Op::Immediate(Reg::R6, 0xFF),
 			Op::BranchParityOdd(Reg::R6, Addr::Label("hey".to_string())),
 			Op::AssertParityOdd(Reg::R6, Addr::Label("hi".to_string())),
 			Op::BranchSignNegative(Reg::R6, Addr::Label("hello".to_string())),
