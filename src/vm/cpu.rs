@@ -130,12 +130,6 @@ impl<'mem> Cpu<'mem> {
 			Op::Negate(a) =>
 				self.reg[a] = self.reg[a].wrapping_neg(),
 		
-			Op::Increment(a) =>
-				self.reg[a] = self.reg[a].wrapping_add(1),
-		
-			Op::Decrement(a) =>
-				self.reg[a] = self.reg[a].wrapping_sub(1),
-		
 			Op::Push(rr) => {
 				let mut r = 0;
 				let mut sp = 0;
@@ -201,16 +195,21 @@ impl<'mem> Cpu<'mem> {
 				} as u16;
 			}
 			
-			Op::LRotateImm(r, v) =>
-				self.reg[r] = self.reg[r].rotate_left(v as u32),
-			
-			Op::RRotateImm(r, v) =>
-				self.reg[r] = self.reg[r].rotate_right(v as u32),
-			
 			Op::Swap(a, b) =>
 				self.reg.0.swap(a as usize, b as usize),
 			
-			Op::CNot(rn, rc) => {
+			Op::Exchange(rd, ra) => {
+				let mut d = 0;
+				swap!(d, self.reg[rd]);
+				
+				let addr = self.reg[ra] as usize;
+				swap!(d, self.data_mem[addr]);
+				
+				swap!(d, self.reg[rd]);
+				debug_assert!(d == 0);
+			}
+			
+			Op::Xor(rn, rc) => {
 				let mut n = 0;
 				swap!(n, self.reg[rn]);
 				
@@ -240,17 +239,6 @@ impl<'mem> Cpu<'mem> {
 				debug_assert!(s == 0);
 			}
 			
-			Op::Exchange(rd, ra) => {
-				let mut d = 0;
-				swap!(d, self.reg[rd]);
-				
-				let addr = self.reg[ra] as usize;
-				swap!(d, self.data_mem[addr]);
-				
-				swap!(d, self.reg[rd]);
-				debug_assert!(d == 0);
-			}
-			
 			Op::LRotate(rr, ro) => {
 				let mut r = 0;
 				swap!(r, self.reg[rr]);
@@ -271,9 +259,39 @@ impl<'mem> Cpu<'mem> {
 				debug_assert!(r == 0);
 			}
 			
-			// Swap the modified register's value to a zeroed location, so that
-			// in case it's also used as a control register, then this
-			// instruction just becomes a no-op.
+			
+			Op::XorImm(r, v) =>
+				self.reg[r] ^= v as u16,
+			
+			Op::AddImm(r, i) => {
+				let mut a = 0;
+				swap!(a, self.reg[r]);
+				
+				a = a.wrapping_add(i as u16);
+				
+				swap!(a, self.reg[r]);
+				debug_assert!(a == 0);
+			}
+			
+			Op::SubImm(r, i) => {
+				let mut s = 0;
+				swap!(s, self.reg[r]);
+				
+				s = s.wrapping_sub(i as u16);
+				
+				swap!(s, self.reg[r]);
+				debug_assert!(s == 0);
+			}
+			
+			Op::LRotateImm(r, v) =>
+				self.reg[r] = self.reg[r].rotate_left(v as u32),
+			
+			Op::RRotateImm(r, v) =>
+				self.reg[r] = self.reg[r].rotate_right(v as u32),
+			
+			// Swap the modified register's value to a zeroed
+			// location, so that in case it's also used as a control
+			// register, then this instruction just becomes a no-op.
 			Op::CCNot(rc0, rc1, rn) => {
 				let mut n = 0;
 				swap!(n, self.reg[rn]);
@@ -284,8 +302,8 @@ impl<'mem> Cpu<'mem> {
 				debug_assert!(n == 0);
 			}
 			
-			// Swap the modified registers' values to zeroed locations, just
-			// like the CCNot instruction.
+			// Swap the modified registers' values to zeroed
+			// locations, just like the CCNot instruction.
 			Op::CSwap(rc, rs0, rs1) => {
 				let mut s0 = 0;
 				let mut s1 = 0;
@@ -341,9 +359,6 @@ impl<'mem> Cpu<'mem> {
 			if (self.reg[r] as i16) >= 0 {
 				self.br = self.br.wrapping_sub(off as u16);
 			},
-			
-			Op::Immediate(r, v) =>
-				self.reg[r] ^= v as u16,
 		
 			Op::GoTo(Addr::Offset(off)) =>
 				self.br = self.br.wrapping_add(off as u16),
@@ -351,7 +366,8 @@ impl<'mem> Cpu<'mem> {
 			Op::ComeFrom(Addr::Offset(off)) =>
 				self.br = self.br.wrapping_sub(off as u16),
 			
-			// for when branch instrs use labels (which shouldn't happen)
+			// for when branch instrs use labels (which shouldn't 
+			// happen)
 			Op::BranchParityOdd(..)
 			| Op::BranchParityEven(..)
 			| Op::BranchSignNegative(..)
