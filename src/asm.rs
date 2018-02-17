@@ -32,14 +32,14 @@ pub fn parse<I: BufRead>(inp: I) -> Result<Vec<Op>, String> {
 		.enumerate()
 		// write addresses where labels appears in table
 		.inspect(|&(i, ref op)| match *op {
-			Op::BranchParityOdd(_, Addr::Label(ref label))
-			| Op::BranchSignNegative(_, Addr::Label(ref label))
-			| Op::AssertParityOdd(_, Addr::Label(ref label))
-			| Op::AssertSignNegative(_, Addr::Label(ref label))
-			| Op::BranchParityEven(_, Addr::Label(ref label))
-			| Op::BranchSignNonneg(_, Addr::Label(ref label))
-			| Op::AssertParityEven(_, Addr::Label(ref label))
-			| Op::AssertSignNonneg(_, Addr::Label(ref label))
+			Op::BranchOdd(_, Addr::Label(ref label))
+			| Op::BranchNeg(_, Addr::Label(ref label))
+			| Op::AssertOdd(_, Addr::Label(ref label))
+			| Op::AssertNeg(_, Addr::Label(ref label))
+			| Op::BranchEven(_, Addr::Label(ref label))
+			| Op::BranchNotNeg(_, Addr::Label(ref label))
+			| Op::AssertEven(_, Addr::Label(ref label))
+			| Op::AssertNotNeg(_, Addr::Label(ref label))
 			| Op::GoTo(Addr::Label(ref label))
 			| Op::ComeFrom(Addr::Label(ref label)) =>
 				label_indices.entry(label.clone())
@@ -68,22 +68,22 @@ pub fn parse<I: BufRead>(inp: I) -> Result<Vec<Op>, String> {
 	// turn all labels into offsets
 	Ok(code.into_iter()
 		.map(|op| match op {
-			Op::BranchParityOdd(r, Addr::Label(ref label)) =>
-				Op::BranchParityOdd(r, Addr::Offset(ltab[label])),
-			Op::BranchSignNegative(r, Addr::Label(ref label)) =>
-				Op::BranchSignNegative(r, Addr::Offset(ltab[label])),
-			Op::AssertParityOdd(r, Addr::Label(ref label)) =>
-				Op::AssertParityOdd(r, Addr::Offset(ltab[label])),
-			Op::AssertSignNegative(r, Addr::Label(ref label)) =>
-				Op::AssertSignNegative(r, Addr::Offset(ltab[label])),
-			Op::BranchParityEven(r, Addr::Label(ref label)) =>
-				Op::BranchParityEven(r, Addr::Offset(ltab[label])),
-			Op::BranchSignNonneg(r, Addr::Label(ref label)) =>
-				Op::BranchSignNonneg(r, Addr::Offset(ltab[label])),
-			Op::AssertParityEven(r, Addr::Label(ref label)) =>
-				Op::AssertParityEven(r, Addr::Offset(ltab[label])),
-			Op::AssertSignNonneg(r, Addr::Label(ref label)) =>
-				Op::AssertSignNonneg(r, Addr::Offset(ltab[label])),
+			Op::BranchOdd(r, Addr::Label(ref label)) =>
+				Op::BranchOdd(r, Addr::Offset(ltab[label])),
+			Op::BranchNeg(r, Addr::Label(ref label)) =>
+				Op::BranchNeg(r, Addr::Offset(ltab[label])),
+			Op::AssertOdd(r, Addr::Label(ref label)) =>
+				Op::AssertOdd(r, Addr::Offset(ltab[label])),
+			Op::AssertNeg(r, Addr::Label(ref label)) =>
+				Op::AssertNeg(r, Addr::Offset(ltab[label])),
+			Op::BranchEven(r, Addr::Label(ref label)) =>
+				Op::BranchEven(r, Addr::Offset(ltab[label])),
+			Op::BranchNotNeg(r, Addr::Label(ref label)) =>
+				Op::BranchNotNeg(r, Addr::Offset(ltab[label])),
+			Op::AssertEven(r, Addr::Label(ref label)) =>
+				Op::AssertEven(r, Addr::Offset(ltab[label])),
+			Op::AssertNotNeg(r, Addr::Label(ref label)) =>
+				Op::AssertNotNeg(r, Addr::Offset(ltab[label])),
 			Op::GoTo(Addr::Label(ref label)) =>
 				Op::GoTo(Addr::Offset(ltab[label])),
 			Op::ComeFrom(Addr::Label(ref label)) =>

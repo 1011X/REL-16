@@ -141,20 +141,6 @@ pub enum Op {
 	/// Turns the given register's value into its two's complement.
 	Negate(Reg),
 	
-	/// Decrements the stack pointer, then swaps the register's value
-	/// with the value pointed to in memory by the stack pointer.
-	/// 
-	/// The register's new value should be zero, assuming no values
-	/// were leaked into memory.
-	Push(Reg),
-	
-	/// Swaps the register's value with the value at the stack
-	/// pointer, then increments the stack pointer.
-	/// 
-	/// Register value should be zero before this operation is
-	/// performed, so that the memory stays cleared.
-	Pop(Reg),
-	
 	/// Swaps the register and the program counter. Used for calling
 	/// functions.
 	SwapPc(Reg),
@@ -213,13 +199,13 @@ pub enum Op {
 	/// the second register.
 	/// 
 	/// Only the first 4 bits are necessary/used.
-	LRotate(Reg, Reg),
+	LRot(Reg, Reg),
 	
 	/// Rotates the first register's bits rightwards by the value in
 	/// the second register.
 	/// 
 	/// Only the first 4 bits are necessary/used.
-	RRotate(Reg, Reg),
+	RRot(Reg, Reg),
 	
 	/// Flips bits in the register's lower half based on the bits of
 	/// the immediate byte value.
@@ -238,11 +224,11 @@ pub enum Op {
 	
 	/// Rotates the register's bits leftwards by the given amount. The
 	/// last bit's value is moved to the first bit.
-	LRotateImm(Reg, u8),
+	LRotImm(Reg, u8),
 	
 	/// Rotates the register's bits rightwards by the given amount.
 	/// The first bit's value is moved to the last bit.
-	RRotateImm(Reg, u8),
+	RRotImm(Reg, u8),
 	
 	/// Toffoli gate; ANDs first and second registers and flips the
 	/// bits in the third register based on the result.
@@ -274,35 +260,35 @@ pub enum Op {
 	
 	/// Adds an offset to the branch register if the register is an
 	/// odd number.
-	BranchParityOdd(Reg, Addr),
+	BranchOdd(Reg, Addr),
 	
 	/// Subtracts an offset from the branch register if the register
 	/// is an odd number.
-	AssertParityOdd(Reg, Addr),
+	AssertOdd(Reg, Addr),
 	
 	/// Adds an offset to the branch register if the register is
 	/// negative.
-	BranchSignNegative(Reg, Addr),
+	BranchNeg(Reg, Addr),
 	
 	/// Subtracts an offset from the branch register if the register
 	/// is negative.
-	AssertSignNegative(Reg, Addr),
+	AssertNeg(Reg, Addr),
 	
 	/// Adds an offset to the branch register if the register is an
 	/// even number.
-	BranchParityEven(Reg, Addr),
+	BranchEven(Reg, Addr),
 	
 	/// Subtracts an offset from the branch register if the register
 	/// is an even number.
-	AssertParityEven(Reg, Addr),
+	AssertEven(Reg, Addr),
 	
 	/// Adds an offset to the branch register if the register is not
 	/// negative.
-	BranchSignNonneg(Reg, Addr),
+	BranchNotNeg(Reg, Addr),
 	
 	/// Subtracts an offset from the branch register if the register
 	/// is not negative.
-	AssertSignNonneg(Reg, Addr),
+	AssertNotNeg(Reg, Addr),
 }
 
 impl Op {
@@ -311,42 +297,45 @@ impl Op {
 	// return self.
 	pub fn invert(self) -> Op {
 		match self {
-			Op::Halt             => self,
-			Op::Nop              => self,
-			Op::Debug            => self,
-			Op::Not(..)          => self,
-			Op::Negate(..)       => self,
-			Op::Push(r)          => Op::Pop(r),
-			Op::Pop(r)           => Op::Push(r),
-			Op::SwapPc(r)        => Op::RevSwapPc(r),
-			Op::RevSwapPc(r)     => Op::SwapPc(r),
-			Op::Mul2(r)          => Op::Div2(r),
-			Op::Div2(r)          => Op::Mul2(r),
-			Op::LRotateImm(r, v) => Op::RRotateImm(r, v),
-			Op::RRotateImm(r, v) => Op::LRotateImm(r, v),
-			Op::Swap(..)         => self,
-			Op::Xor(..)          => self,
-			Op::XorImm(..)       => self,
-			Op::Add(ra, rc)      => Op::Sub(ra, rc),
-			Op::Sub(rs, rc)      => Op::Add(rs, rc),
-			Op::AddImm(rc, i)    => Op::SubImm(rc, i),
-			Op::SubImm(rc, i)    => Op::AddImm(rc, i),
-			Op::Exchange(..)     => self,
-			Op::LRotate(rr, rv)  => Op::RRotate(rr, rv),
-			Op::RRotate(rr, rv)  => Op::LRotate(rr, rv),
-			Op::CCNot(..)        => self,
-			Op::CSwap(..)        => self,
+			Op::Halt          => self,
+			Op::Nop           => self,
+			Op::Debug         => self,
 			
-			Op::BranchParityOdd(r, a)    => Op::AssertParityOdd(r, a),
-			Op::BranchSignNegative(r, a) => Op::AssertSignNegative(r, a),
-			Op::AssertParityOdd(r, a)    => Op::BranchParityOdd(r, a),
-			Op::AssertSignNegative(r, a) => Op::BranchSignNegative(r, a),
-			Op::BranchParityEven(r, a)   => Op::AssertParityEven(r, a),
-			Op::BranchSignNonneg(r, a)   => Op::AssertSignNonneg(r, a),
-			Op::AssertParityEven(r, a)   => Op::BranchParityEven(r, a),
-			Op::AssertSignNonneg(r, a)   => Op::BranchSignNonneg(r, a),
-			Op::GoTo(addr)               => Op::ComeFrom(addr),
-			Op::ComeFrom(addr)           => Op::GoTo(addr),
+			Op::Not(..)       => self,
+			Op::Negate(..)    => self,
+			Op::SwapPc(r)     => Op::RevSwapPc(r),
+			Op::RevSwapPc(r)  => Op::SwapPc(r),
+			Op::Mul2(r)       => Op::Div2(r),
+			Op::Div2(r)       => Op::Mul2(r),
+			
+			Op::Swap(..)      => self,
+			Op::Exchange(..)  => self,
+			Op::Xor(..)       => self,
+			Op::Add(ra, rc)   => Op::Sub(ra, rc),
+			Op::Sub(rs, rc)   => Op::Add(rs, rc),
+			Op::LRot(rr, rv)  => Op::RRot(rr, rv),
+			Op::RRot(rr, rv)  => Op::LRot(rr, rv),
+			
+			Op::XorImm(..)    => self,
+			Op::AddImm(rc, i) => Op::SubImm(rc, i),
+			Op::SubImm(rc, i) => Op::AddImm(rc, i),
+			Op::LRotImm(r, v) => Op::RRotImm(r, v),
+			Op::RRotImm(r, v) => Op::LRotImm(r, v),
+			
+			Op::CCNot(..)     => self,
+			Op::CSwap(..)     => self,
+			
+			Op::BranchOdd(r, a)    => Op::AssertOdd(r, a),
+			Op::BranchEven(r, a)   => Op::AssertEven(r, a),
+			Op::AssertOdd(r, a)    => Op::BranchOdd(r, a),
+			Op::AssertEven(r, a)   => Op::BranchEven(r, a),
+			Op::BranchNeg(r, a)    => Op::AssertNeg(r, a),
+			Op::BranchNotNeg(r, a) => Op::AssertNotNeg(r, a),
+			Op::AssertNeg(r, a)    => Op::BranchNeg(r, a),
+			Op::AssertNotNeg(r, a) => Op::BranchNotNeg(r, a),
+			
+			Op::GoTo(addr)     => Op::ComeFrom(addr),
+			Op::ComeFrom(addr) => Op::GoTo(addr),
 		}
 	}
 	
@@ -355,8 +344,7 @@ impl Op {
 			"hlt" | "nop" | "dbg"
 			=> "no arguments taken",
 			
-			"not" | "neg" | "push" | "pop" | "spc" | "rspc" | "smul2"
-			| "sdiv2"
+			"not" | "neg" | "spc" | "rspc" | "smul2" | "sdiv2"
 			=> "<register>",
 			
 			"swp" | "xchg" | "xor" | "add" | "sub" | "rol" | "ror"
@@ -389,8 +377,6 @@ impl fmt::Display for Op {
 			
 			Op::Not(r)       => write!(f, "not {}", r),
 			Op::Negate(r)    => write!(f, "neg {}", r),
-			Op::Push(r)      => write!(f, "push {}", r),
-			Op::Pop(r)       => write!(f, "pop {}", r),
 			Op::SwapPc(r)    => write!(f, "spc {}", r),
 			Op::RevSwapPc(r) => write!(f, "rspc {}", r),
 			Op::Mul2(r)      => write!(f, "smul2 {}", r),
@@ -401,26 +387,26 @@ impl fmt::Display for Op {
 			Op::Xor(rn, rc)      => write!(f, "xor {} {}", rn, rc),
 			Op::Add(ra, rc)      => write!(f, "add {} {}", ra, rc),
 			Op::Sub(rs, rc)      => write!(f, "sub {} {}", rs, rc),
-			Op::LRotate(rr, ro)  => write!(f, "rol {} {}", rr, ro),
-			Op::RRotate(rr, ro)  => write!(f, "ror {} {}", rr, ro),
+			Op::LRot(rr, ro)     => write!(f, "rol {} {}", rr, ro),
+			Op::RRot(rr, ro)     => write!(f, "ror {} {}", rr, ro),
 			
 			Op::XorImm(r, v)  => write!(f, "xori {} {}", r, v),
-			Op::AddImm(ra, i) => write!(f, "addi {} {}", ra, i),
-			Op::SubImm(rs, i) => write!(f, "subi {} {}", rs, i),
-			Op::LRotateImm(r, v) => write!(f, "roli {} {}", r, v),
-			Op::RRotateImm(r, v) => write!(f, "rori {} {}", r, v),
+			Op::AddImm(r, v)  => write!(f, "addi {} {}", r, v),
+			Op::SubImm(r, v)  => write!(f, "subi {} {}", r, v),
+			Op::LRotImm(r, v) => write!(f, "roli {} {}", r, v),
+			Op::RRotImm(r, v) => write!(f, "rori {} {}", r, v),
 			
 			Op::CCNot(rc0, rc1, rn) => write!(f, "ccn {} {} {}", rc0, rc1, rn),
 			Op::CSwap(rc, rs0, rs1) => write!(f, "cswp {} {} {}", rc, rs0, rs1),
 			
-			Op::BranchParityOdd(r, ref a) => write!(f, "jpo {} {}", r, a),
-			Op::AssertParityOdd(r, ref a) => write!(f, "apo {} {}", r, a),
-			Op::BranchSignNegative(r, ref a)   => write!(f, "js {} {}", r, a),
-			Op::AssertSignNegative(r, ref a)   => write!(f, "as {} {}", r, a),
-			Op::BranchParityEven(r, ref a) => write!(f, "jpe {} {}", r, a),
-			Op::AssertParityEven(r, ref a) => write!(f, "ape {} {}", r, a),
-			Op::BranchSignNonneg(r, ref a)   => write!(f, "jns {} {}", r, a),
-			Op::AssertSignNonneg(r, ref a)   => write!(f, "ans {} {}", r, a),
+			Op::BranchOdd(r, ref a)    => write!(f, "jpo {} {}", r, a),
+			Op::AssertOdd(r, ref a)    => write!(f, "apo {} {}", r, a),
+			Op::BranchNeg(r, ref a)    => write!(f, "js {} {}", r, a),
+			Op::AssertNeg(r, ref a)    => write!(f, "as {} {}", r, a),
+			Op::BranchEven(r, ref a)   => write!(f, "jpe {} {}", r, a),
+			Op::AssertEven(r, ref a)   => write!(f, "ape {} {}", r, a),
+			Op::BranchNotNeg(r, ref a) => write!(f, "jns {} {}", r, a),
+			Op::AssertNotNeg(r, ref a) => write!(f, "ans {} {}", r, a),
 			
 			Op::GoTo(ref addr)     => write!(f, "jmp {}", addr),
 			Op::ComeFrom(ref addr) => write!(f, "pmj {}", addr),
@@ -493,9 +479,6 @@ impl FromStr for Op {
 			
 			"not"  => Op::Not(reg!()),
 			"neg"  => Op::Negate(reg!()),
-			"push" => Op::Push(reg!()),
-			"pop"  => Op::Pop(reg!()),
-			"spc"  => Op::SwapPc(reg!()),
 			"rspc" => Op::RevSwapPc(reg!()),
 			"smul2" => Op::Mul2(reg!()),
 			"sdiv2" => Op::Div2(reg!()),
@@ -506,27 +489,27 @@ impl FromStr for Op {
 			"xor"  => Op::Xor(reg!(), reg!()),
 			"add"  => Op::Add(reg!(), reg!()),
 			"sub"  => Op::Sub(reg!(), reg!()),
-			"rol"  => Op::LRotate(reg!(), reg!()),
-			"ror"  => Op::RRotate(reg!(), reg!()),
+			"rol"  => Op::LRot(reg!(), reg!()),
+			"ror"  => Op::RRot(reg!(), reg!()),
 			
 			"xori" => Op::XorImm(reg!(), val!(u8, 0xFF)),
 			"addi" => Op::AddImm(reg!(), val!(u8, 0xFF)),
 			"subi" => Op::SubImm(reg!(), val!(u8, 0xFF)),
-			"roli" => Op::LRotateImm(reg!(), val!(u8, 0b_1111)),
-			"rori" => Op::RRotateImm(reg!(), val!(u8, 0b_1111)),
+			"roli" => Op::LRotImm(reg!(), val!(u8, 0b_1111)),
+			"rori" => Op::RRotImm(reg!(), val!(u8, 0b_1111)),
 			
 			"ccn"  => Op::CCNot(reg!(), reg!(), reg!()),
 			"cswp" => Op::CSwap(reg!(), reg!(), reg!()),
 			
-			"jpo" => Op::BranchParityOdd(reg!(), addr!(0x01FF)),
-			"apo" => Op::AssertParityOdd(reg!(), addr!(0x01FF)),
-			"js"  => Op::BranchSignNegative(reg!(), addr!(0x01FF)),
-			"as"  => Op::AssertSignNegative(reg!(), addr!(0x01FF)),
+			"jpo" => Op::BranchOdd(reg!(), addr!(0x01FF)),
+			"apo" => Op::AssertOdd(reg!(), addr!(0x01FF)),
+			"js"  => Op::BranchNeg(reg!(), addr!(0x01FF)),
+			"as"  => Op::AssertNeg(reg!(), addr!(0x01FF)),
 			
-			"jpe" => Op::BranchParityEven(reg!(), addr!(0x01FF)),
-			"ape" => Op::AssertParityEven(reg!(), addr!(0x01FF)),
-			"jns" => Op::BranchSignNonneg(reg!(), addr!(0x01FF)),
-			"ans" => Op::AssertSignNonneg(reg!(), addr!(0x01FF)),
+			"jpe" => Op::BranchEven(reg!(), addr!(0x01FF)),
+			"ape" => Op::AssertEven(reg!(), addr!(0x01FF)),
+			"jns" => Op::BranchNotNeg(reg!(), addr!(0x01FF)),
+			"ans" => Op::AssertNotNeg(reg!(), addr!(0x01FF)),
 			
 			"jmp" => Op::GoTo(addr!(0x1FFF)),
 			"pmj" => Op::ComeFrom(addr!(0x1FFF)),
@@ -551,15 +534,13 @@ mod tests {
 	
 	#[test]
 	fn instruction_encoding() {
-		// Make a vector with all parameters initialized to 1s
+		// Make a vector with all parameters initialized
 		let ops = vec![
 			Op::Halt,
 			Op::Nop,
 			Op::Debug,
 			Op::Not(Reg::R6),
 			Op::Negate(Reg::R6),
-			Op::Push(Reg::R6),
-			Op::Pop(Reg::R6),
 			Op::SwapPc(Reg::R6),
 			Op::RevSwapPc(Reg::R6),
 			Op::Mul2(Reg::R6),
@@ -569,23 +550,23 @@ mod tests {
 			Op::Xor(Reg::R6, Reg::R6),
 			Op::Add(Reg::R6, Reg::R6),
 			Op::Sub(Reg::R6, Reg::R6),
-			Op::LRotate(Reg::R6, Reg::R6),
-			Op::RRotate(Reg::R6, Reg::R6),
+			Op::LRot(Reg::R6, Reg::R6),
+			Op::RRot(Reg::R6, Reg::R6),
 			Op::XorImm(Reg::R6, 0xFF),
 			Op::AddImm(Reg::R6, 0xFF),
 			Op::SubImm(Reg::R6, 0xFF),
-			Op::LRotateImm(Reg::R6, 0xF),
-			Op::RRotateImm(Reg::R6, 0xF),
+			Op::LRotImm(Reg::R6, 0xF),
+			Op::RRotImm(Reg::R6, 0xF),
 			Op::CCNot(Reg::R6, Reg::R6, Reg::R6),
 			Op::CSwap(Reg::R6, Reg::R6, Reg::R6),
-			Op::BranchParityOdd(Reg::R6, Addr::Label("hey".to_string())),
-			Op::AssertParityOdd(Reg::R6, Addr::Label("hi".to_string())),
-			Op::BranchSignNegative(Reg::R6, Addr::Label("hello".to_string())),
-			Op::AssertSignNegative(Reg::R6, Addr::Label("hiya".to_string())),
-			Op::BranchParityEven(Reg::R6, Addr::Label("hey".to_string())),
-			Op::AssertParityEven(Reg::R6, Addr::Label("hi".to_string())),
-			Op::BranchSignNonneg(Reg::R6, Addr::Label("hello".to_string())),
-			Op::AssertSignNonneg(Reg::R6, Addr::Label("hiya".to_string())),
+			Op::BranchOdd(Reg::R6, Addr::Label("hey".to_string())),
+			Op::AssertOdd(Reg::R6, Addr::Label("hi".to_string())),
+			Op::BranchNeg(Reg::R6, Addr::Label("hello".to_string())),
+			Op::AssertNeg(Reg::R6, Addr::Label("hiya".to_string())),
+			Op::BranchEven(Reg::R6, Addr::Label("hey".to_string())),
+			Op::AssertEven(Reg::R6, Addr::Label("hi".to_string())),
+			Op::BranchNotNeg(Reg::R6, Addr::Label("hello".to_string())),
+			Op::AssertNotNeg(Reg::R6, Addr::Label("hiya".to_string())),
 			Op::GoTo(Addr::Label("howdy".to_string())),
 			Op::ComeFrom(Addr::Label("sup".to_string())),
 		];

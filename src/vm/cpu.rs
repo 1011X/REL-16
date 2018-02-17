@@ -130,36 +130,6 @@ impl<'mem> Cpu<'mem> {
 			Op::Negate(a) =>
 				self.reg[a] = self.reg[a].wrapping_neg(),
 		
-			Op::Push(rr) => {
-				let mut r = 0;
-				let mut sp = 0;
-				swap!(r, self.reg[rr]);
-				swap!(sp, self.reg[SP]);
-			
-				sp = sp.wrapping_sub(1);
-				swap!(r, self.data_mem[sp as usize]);
-			
-				swap!(sp, self.reg[SP]);
-				swap!(r, self.reg[rr]);
-				debug_assert!(sp == 0);
-				debug_assert!(r == 0);
-			}
-		
-			Op::Pop(rr) => {
-				let mut r = 0;
-				let mut sp = 0;
-				swap!(r, self.reg[rr]);
-				swap!(sp, self.reg[SP]);
-			
-				swap!(r, self.data_mem[sp as usize]);
-				sp = sp.wrapping_add(1);
-			
-				swap!(sp, self.reg[SP]);
-				swap!(r, self.reg[rr]);
-				debug_assert!(sp == 0);
-				debug_assert!(r == 0);
-			}
-		
 			Op::SwapPc(r) =>
 				swap!(self.pc, self.reg[r]),
 		
@@ -239,7 +209,7 @@ impl<'mem> Cpu<'mem> {
 				debug_assert!(s == 0);
 			}
 			
-			Op::LRotate(rr, ro) => {
+			Op::LRot(rr, ro) => {
 				let mut r = 0;
 				swap!(r, self.reg[rr]);
 				
@@ -249,7 +219,7 @@ impl<'mem> Cpu<'mem> {
 				debug_assert!(r == 0);
 			}
 			
-			Op::RRotate(rr, ro) => {
+			Op::RRot(rr, ro) => {
 				let mut r = 0;
 				swap!(r, self.reg[rr]);
 				
@@ -283,10 +253,10 @@ impl<'mem> Cpu<'mem> {
 				debug_assert!(s == 0);
 			}
 			
-			Op::LRotateImm(r, v) =>
+			Op::LRotImm(r, v) =>
 				self.reg[r] = self.reg[r].rotate_left(v as u32),
 			
-			Op::RRotateImm(r, v) =>
+			Op::RRotImm(r, v) =>
 				self.reg[r] = self.reg[r].rotate_right(v as u32),
 			
 			// Swap the modified register's value to a zeroed
@@ -320,42 +290,42 @@ impl<'mem> Cpu<'mem> {
 				debug_assert!(s0 == 0);
 			}
 			
-			Op::BranchParityOdd(r, Addr::Offset(off)) =>
+			Op::BranchOdd(r, Addr::Offset(off)) =>
 			if (self.reg[r] & 1) == 1 {
 				self.br = self.br.wrapping_add(off as u16);
 			},
 			
-			Op::AssertParityOdd(r, Addr::Offset(off)) =>
+			Op::AssertOdd(r, Addr::Offset(off)) =>
 			if (self.reg[r] & 1) == 1 {
 				self.br = self.br.wrapping_sub(off as u16);
 			},
 			
-			Op::BranchSignNegative(r, Addr::Offset(off)) =>
+			Op::BranchNeg(r, Addr::Offset(off)) =>
 			if (self.reg[r] as i16) < 0 {
 				self.br = self.br.wrapping_add(off as u16);
 			},
 			
-			Op::AssertSignNegative(r, Addr::Offset(off)) =>
+			Op::AssertNeg(r, Addr::Offset(off)) =>
 			if (self.reg[r] as i16) < 0 {
 				self.br = self.br.wrapping_sub(off as u16);
 			},
 			
-			Op::BranchParityEven(r, Addr::Offset(off)) =>
+			Op::BranchEven(r, Addr::Offset(off)) =>
 			if (self.reg[r] & 1) == 0 {
 				self.br = self.br.wrapping_add(off as u16);
 			},
 			
-			Op::AssertParityEven(r, Addr::Offset(off)) =>
+			Op::AssertEven(r, Addr::Offset(off)) =>
 			if (self.reg[r] & 1) == 0 {
 				self.br = self.br.wrapping_sub(off as u16);
 			},
 			
-			Op::BranchSignNonneg(r, Addr::Offset(off)) =>
+			Op::BranchNotNeg(r, Addr::Offset(off)) =>
 			if (self.reg[r] as i16) >= 0 {
 				self.br = self.br.wrapping_add(off as u16);
 			},
 			
-			Op::AssertSignNonneg(r, Addr::Offset(off)) =>
+			Op::AssertNotNeg(r, Addr::Offset(off)) =>
 			if (self.reg[r] as i16) >= 0 {
 				self.br = self.br.wrapping_sub(off as u16);
 			},
@@ -368,14 +338,14 @@ impl<'mem> Cpu<'mem> {
 			
 			// for when branch instrs use labels (which shouldn't 
 			// happen)
-			Op::BranchParityOdd(..)
-			| Op::BranchParityEven(..)
-			| Op::BranchSignNegative(..)
-			| Op::BranchSignNonneg(..)
-			| Op::AssertParityOdd(..)
-			| Op::AssertParityEven(..)
-			| Op::AssertSignNegative(..)
-			| Op::AssertSignNonneg(..)
+			Op::BranchOdd(..)
+			| Op::BranchEven(..)
+			| Op::BranchNeg(..)
+			| Op::BranchNotNeg(..)
+			| Op::AssertOdd(..)
+			| Op::AssertEven(..)
+			| Op::AssertNeg(..)
+			| Op::AssertNotNeg(..)
 			| Op::GoTo(..)
 			| Op::ComeFrom(..) =>
 				unreachable!(),
