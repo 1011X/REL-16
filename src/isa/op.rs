@@ -39,7 +39,7 @@ pub enum Type {
 pub enum ParseOpError {
 	ExtraToken,
 	NoToken(Type),
-	BadToken(Type),
+	BadToken(Type, String),
 	ValueOverflow(usize),
 	ParseInt(num::ParseIntError),
 }
@@ -54,8 +54,8 @@ impl fmt::Display for ParseOpError {
 			NoToken(t)
 			=> write!(f, "Missing token of type {:?}", t),
 			
-			BadToken(t)
-			=> write!(f, "Bad token; expected a {:?}", t),
+			BadToken(t, ref tok)
+			=> write!(f, "Bad token; expected a {:?}, got {:?}", t, tok),
 			
 			ValueOverflow(max)
 			=> write!(f, "Value exceeds maximum allowed value of {}", max),
@@ -72,7 +72,7 @@ impl Error for ParseOpError {
 		match *self {
 			ExtraToken       => "extra token",
 			NoToken(_)       => "missing token",
-			BadToken(_)      => "malformed token",
+			BadToken(..)     => "malformed token",
 			ValueOverflow(_) => "value exceeds maximum",
 			ParseInt(_)      => "value too big to parse",
 		}
@@ -87,8 +87,8 @@ impl Error for ParseOpError {
 }
 
 impl From<reg::ParseError> for ParseOpError {
-	fn from(_: reg::ParseError) -> Self {
-		ParseOpError::BadToken(Type::Register)
+	fn from(e: reg::ParseError) -> Self {
+		ParseOpError::BadToken(Type::Register, e.0.clone())
 	}
 }
 
@@ -115,14 +115,16 @@ Being a 16-bit architecture, we must organize the bits so all
 instructions are representable within 16 bits. There are some
 addressing modes:
 
-* Signal (3): nothing [2..]
-* Single (8): 1 register [6..]
-* Double (7): 2 registers [9..]
-* Triple (2): 3 registers, ah ah ah [10..]
-* Immediate (5): register, value [3 + 3..6 + 8]
-* Conditional jump (8): register, address [3 + 3 + y..6 + 8]
-* Unconditional jump (2): address [1 + z..1 + 8]
+* Signal (3): nothing
+* Register (15): 1-3 registers
+  * Single (6): 1 register
+  * Double (7): 2 registers
+  * Triple (2): 3 registers, ah ah ah
+* Immediate (5): register, 8-bit value
+* Branch (8): register, address
+* Jump (2): address
 
+TODO: decide whether to keep branch instructions using I-form or change them to R-form and have a constant offset.
 */
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Op {
@@ -465,7 +467,7 @@ impl FromStr for Op {
 				}
 			}
 			else {
-				return Err(OpError::BadToken(Type::Address));
+				return Err(OpError::BadToken(Type::Address, addr_tok.to_owned()));
 			}
 		}});
 		
@@ -477,15 +479,15 @@ impl FromStr for Op {
 			"nop" => Op::Nop,
 			"dbg" => Op::Debug,
 			
-			"not"  => Op::Not(reg!()),
-			"neg"  => Op::Negate(reg!()),
-			"rspc" => Op::RevSwapPc(reg!()),
+			"not"   => Op::Not(reg!()),
+			"neg"   => Op::Negate(reg!()),
+			"spc"   => Op::SwapPc(reg!()),
+			"rspc"  => Op::RevSwapPc(reg!()),
 			"smul2" => Op::Mul2(reg!()),
 			"sdiv2" => Op::Div2(reg!()),
 						
 			"swp"  => Op::Swap(reg!(), reg!()),
 			"xchg" => Op::Exchange(reg!(), reg!()),
-			
 			"xor"  => Op::Xor(reg!(), reg!()),
 			"add"  => Op::Add(reg!(), reg!()),
 			"sub"  => Op::Sub(reg!(), reg!()),
@@ -495,8 +497,8 @@ impl FromStr for Op {
 			"xori" => Op::XorImm(reg!(), val!(u8, 0xFF)),
 			"addi" => Op::AddImm(reg!(), val!(u8, 0xFF)),
 			"subi" => Op::SubImm(reg!(), val!(u8, 0xFF)),
-			"roli" => Op::LRotImm(reg!(), val!(u8, 0b_1111)),
-			"rori" => Op::RRotImm(reg!(), val!(u8, 0b_1111)),
+			"roli" => Op::LRotImm(reg!(), val!(u8, 0xFF)),
+			"rori" => Op::RRotImm(reg!(), val!(u8, 0xFF)),
 			
 			"ccn"  => Op::CCNot(reg!(), reg!(), reg!()),
 			"cswp" => Op::CSwap(reg!(), reg!(), reg!()),
@@ -514,7 +516,7 @@ impl FromStr for Op {
 			"jmp" => Op::GoTo(addr!(0x1FFF)),
 			"pmj" => Op::ComeFrom(addr!(0x1FFF)),
 			
-			_ => return Err(OpError::BadToken(Type::Mneumonic))
+			_ => return Err(OpError::BadToken(Type::Mneumonic, mneu.to_owned()))
 		};
 		
 		// check to make sure all tokens are exhausted.
