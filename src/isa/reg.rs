@@ -16,7 +16,7 @@ pub enum Reg {
 
 /// Error when parsing register string literal
 #[derive(Debug, PartialEq, Eq)]
-pub struct ParseError(String);
+pub struct ParseError(pub String);
 
 impl fmt::Display for Reg {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

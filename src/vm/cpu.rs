@@ -129,6 +129,10 @@ impl<'mem> Cpu<'mem> {
 			
 			Op::Negate(a) =>
 				self.reg[a] = self.reg[a].wrapping_neg(),
+			
+			#[cfg(feature = "xor-pc")]
+			Op::XorPc(r) =>
+				self.pc ^= self.reg[r],
 		
 			Op::SwapPc(r) =>
 				swap!(self.pc, self.reg[r]),
@@ -290,46 +294,106 @@ impl<'mem> Cpu<'mem> {
 				debug_assert!(s0 == 0);
 			}
 			
+			#[cfg(not(feature = "short-branch"))]
 			Op::BranchOdd(r, Addr::Offset(off)) =>
-			if (self.reg[r] & 1) == 1 {
-				self.br = self.br.wrapping_add(off as u16);
-			},
+				if (self.reg[r] & 1) == 1 {
+					self.br = self.br.wrapping_add(off as u16);
+				}
 			
+			#[cfg(feature = "short-branch")]
+			Op::BranchOdd(r) =>
+				if (self.reg[r] & 1) == 1 {
+					self.br += 2;
+				}
+			
+			#[cfg(not(feature = "short-branch"))]
 			Op::AssertOdd(r, Addr::Offset(off)) =>
-			if (self.reg[r] & 1) == 1 {
-				self.br = self.br.wrapping_sub(off as u16);
-			},
+				if (self.reg[r] & 1) == 1 {
+					self.br = self.br.wrapping_sub(off as u16);
+				}
 			
+			#[cfg(feature = "short-branch")]
+			Op::AssertOdd(r) =>
+				if (self.reg[r] & 1) == 1 {
+					self.br += 2;
+				}
+			
+			#[cfg(not(feature = "short-branch"))]
 			Op::BranchNeg(r, Addr::Offset(off)) =>
-			if (self.reg[r] as i16) < 0 {
-				self.br = self.br.wrapping_add(off as u16);
-			},
+				if (self.reg[r] as i16) < 0 {
+					self.br = self.br.wrapping_add(off as u16);
+				}
 			
+			#[cfg(feature = "short-branch")]
+			Op::BranchNeg(r) =>
+				if (self.reg[r] as i16) < 0 {
+					self.br += 2;
+				}
+			
+			#[cfg(not(feature = "short-branch"))]
 			Op::AssertNeg(r, Addr::Offset(off)) =>
-			if (self.reg[r] as i16) < 0 {
-				self.br = self.br.wrapping_sub(off as u16);
-			},
+				if (self.reg[r] as i16) < 0 {
+					self.br = self.br.wrapping_sub(off as u16);
+				}
 			
+			#[cfg(feature = "short-branch")]
+			Op::AssertNeg(r) =>
+				if (self.reg[r] as i16) < 0 {
+					self.br += 2;
+				}
+			
+			#[cfg(not(feature = "short-branch"))]
 			Op::BranchEven(r, Addr::Offset(off)) =>
-			if (self.reg[r] & 1) == 0 {
-				self.br = self.br.wrapping_add(off as u16);
-			},
+				if (self.reg[r] & 1) == 0 {
+					self.br = self.br.wrapping_add(off as u16);
+				}
 			
+			#[cfg(feature = "short-branch")]
+			Op::BranchEven(r) =>
+				if (self.reg[r] & 1) == 0 {
+					self.br += 2;
+				}
+			
+			#[cfg(not(feature = "short-branch"))]
 			Op::AssertEven(r, Addr::Offset(off)) =>
-			if (self.reg[r] & 1) == 0 {
-				self.br = self.br.wrapping_sub(off as u16);
-			},
+				if (self.reg[r] & 1) == 0 {
+					self.br = self.br.wrapping_sub(off as u16);
+				}
 			
+			#[cfg(feature = "short-branch")]
+			Op::AssertEven(r) =>
+				if (self.reg[r] & 1) == 0 {
+					self.br += 2;
+				}
+			
+			#[cfg(not(feature = "short-branch"))]
 			Op::BranchNotNeg(r, Addr::Offset(off)) =>
-			if (self.reg[r] as i16) >= 0 {
-				self.br = self.br.wrapping_add(off as u16);
-			},
+				if (self.reg[r] as i16) >= 0 {
+					self.br = self.br.wrapping_add(off as u16);
+				}
 			
+			#[cfg(feature = "short-branch")]
+			Op::BranchNotNeg(r) =>
+				if (self.reg[r] as i16) >= 0 {
+					self.br += 2;
+				}
+			
+			#[cfg(not(feature = "short-branch"))]
 			Op::AssertNotNeg(r, Addr::Offset(off)) =>
-			if (self.reg[r] as i16) >= 0 {
-				self.br = self.br.wrapping_sub(off as u16);
-			},
-		
+				if (self.reg[r] as i16) >= 0 {
+					self.br = self.br.wrapping_sub(off as u16);
+				}
+			
+			#[cfg(feature = "short-branch")]
+			Op::AssertNotNeg(r) =>
+				if (self.reg[r] as i16) >= 0 {
+					self.br += 2;
+				}
+			
+			#[cfg(feature = "teleport")]
+			Op::Teleport(Addr::Offset(off)) =>
+				self.pc ^= off as u16,
+			
 			Op::GoTo(Addr::Offset(off)) =>
 				self.br = self.br.wrapping_add(off as u16),
 		
@@ -338,6 +402,7 @@ impl<'mem> Cpu<'mem> {
 			
 			// for when branch instrs use labels (which shouldn't 
 			// happen)
+			#[cfg(not(feature = "short-branch"))]
 			Op::BranchOdd(..)
 			| Op::BranchEven(..)
 			| Op::BranchNeg(..)
@@ -345,9 +410,14 @@ impl<'mem> Cpu<'mem> {
 			| Op::AssertOdd(..)
 			| Op::AssertEven(..)
 			| Op::AssertNeg(..)
-			| Op::AssertNotNeg(..)
-			| Op::GoTo(..)
-			| Op::ComeFrom(..) =>
+			| Op::AssertNotNeg(..) =>
+				unreachable!(),
+			
+			Op::GoTo(_) | Op::ComeFrom(_) =>
+				unreachable!(),
+			
+			#[cfg(feature = "teleport")]
+			Op::Teleport(_) =>
 				unreachable!(),
 		}
 		

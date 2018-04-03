@@ -143,6 +143,14 @@ pub enum Op {
 	/// Turns the given register's value into its two's complement.
 	Negate(Reg),
 	
+	#[cfg(feature = "xor-pc")]
+	/// Flips bits in PC register based on given register.
+	/// 
+	/// The destination instruction has no restrictions. The only
+	/// restriction is that this is dependent on code/memory
+	/// position.
+	XorPc(Reg),
+	
 	/// Swaps the register and the program counter. Used for calling
 	/// functions.
 	SwapPc(Reg),
@@ -248,49 +256,105 @@ pub enum Op {
 	
 	/// Adds an immediate value to the branch register.
 	/// 
-	/// This is used to teleport unconditionally to another
-	/// instruction. To avoid wonky behavior, the destination should
-	/// be a ComeFrom instruction to avoid skipping instructions.
+	/// This is used to jump unconditionally to another instruction.
+	/// To avoid wonky behavior, the destination should be a ComeFrom
+	/// instruction to avoid skipping instructions.
 	GoTo(Addr),
 	
 	/// Subtracts an immediate value from the branch register.
 	/// 
-	/// This is used to teleport unconditionally to another
-	/// instruction. To avoid wonky behavior, the destination should
-	/// be a GoTo instruction to avoid skipping instructions.
+	/// This is used to jump unconditionally to another instruction.
+	/// To avoid wonky behavior, the destination should be a GoTo
+	/// instruction to avoid skipping instructions.
 	ComeFrom(Addr),
+	
+	#[cfg(feature = "teleport")]
+	/// XORs an immediate value to the PC register.
+	/// 
+	/// The destination instruction has no restrictions. The only
+	/// restrictions are that this is dependent on code/memory
+	/// position, and the higher bits of PC can't be reached.
+	Teleport(Addr),
 	
 	/// Adds an offset to the branch register if the register is an
 	/// odd number.
+	#[cfg(not(feature = "short-branch"))]
 	BranchOdd(Reg, Addr),
+	
+	/// Adds 2 to the branch register if the given register is an
+	/// odd number.
+	#[cfg(feature = "short-branch")]
+	BranchOdd(Reg),
 	
 	/// Subtracts an offset from the branch register if the register
 	/// is an odd number.
+	#[cfg(not(feature = "short-branch"))]
 	AssertOdd(Reg, Addr),
+	
+	/// Subtracts 2 from the branch register if the given register
+	/// is an odd number.
+	#[cfg(feature = "short-branch")]
+	AssertOdd(Reg),
 	
 	/// Adds an offset to the branch register if the register is
 	/// negative.
+	#[cfg(not(feature = "short-branch"))]
 	BranchNeg(Reg, Addr),
+	
+	/// Adds 2 to the branch register if the given register is
+	/// negative.
+	#[cfg(feature = "short-branch")]
+	BranchNeg(Reg),
 	
 	/// Subtracts an offset from the branch register if the register
 	/// is negative.
+	#[cfg(not(feature = "short-branch"))]
 	AssertNeg(Reg, Addr),
+	
+	/// Subtracts 2 from the branch register if the given register
+	/// is negative.
+	#[cfg(feature = "short-branch")]
+	AssertNeg(Reg),
 	
 	/// Adds an offset to the branch register if the register is an
 	/// even number.
+	#[cfg(not(feature = "short-branch"))]
 	BranchEven(Reg, Addr),
+	
+	/// Adds 2 to the branch register if the register is an
+	/// even number.
+	#[cfg(feature = "short-branch")]
+	BranchEven(Reg),
 	
 	/// Subtracts an offset from the branch register if the register
 	/// is an even number.
+	#[cfg(not(feature = "short-branch"))]
 	AssertEven(Reg, Addr),
+	
+	/// Subtracts 2 from the branch register if the given register
+	/// is an even number.
+	#[cfg(feature = "short-branch")]
+	AssertEven(Reg),
 	
 	/// Adds an offset to the branch register if the register is not
 	/// negative.
+	#[cfg(not(feature = "short-branch"))]
 	BranchNotNeg(Reg, Addr),
+	
+	/// Adds 2 to the branch register if the given register is not
+	/// negative.
+	#[cfg(feature = "short-branch")]
+	BranchNotNeg(Reg),
 	
 	/// Subtracts an offset from the branch register if the register
 	/// is not negative.
+	#[cfg(not(feature = "short-branch"))]
 	AssertNotNeg(Reg, Addr),
+	
+	/// Subtracts 2 from the branch register if the given register
+	/// is not negative.
+	#[cfg(feature = "short-branch")]
+	AssertNotNeg(Reg),
 }
 
 impl Op {
@@ -303,8 +367,10 @@ impl Op {
 			Op::Nop           => self,
 			Op::Debug         => self,
 			
-			Op::Not(..)       => self,
-			Op::Negate(..)    => self,
+			Op::Not(_)        => self,
+			Op::Negate(_)     => self,
+			#[cfg(feature = "xor-pc")]
+			Op::XorPc(_)      => self,
 			Op::SwapPc(r)     => Op::RevSwapPc(r),
 			Op::RevSwapPc(r)  => Op::SwapPc(r),
 			Op::Mul2(r)       => Op::Div2(r),
@@ -327,15 +393,42 @@ impl Op {
 			Op::CCNot(..)     => self,
 			Op::CSwap(..)     => self,
 			
+			#[cfg(not(feature = "short-branch"))]
 			Op::BranchOdd(r, a)    => Op::AssertOdd(r, a),
+			#[cfg(not(feature = "short-branch"))]
 			Op::BranchEven(r, a)   => Op::AssertEven(r, a),
+			#[cfg(not(feature = "short-branch"))]
 			Op::AssertOdd(r, a)    => Op::BranchOdd(r, a),
+			#[cfg(not(feature = "short-branch"))]
 			Op::AssertEven(r, a)   => Op::BranchEven(r, a),
+			#[cfg(not(feature = "short-branch"))]
 			Op::BranchNeg(r, a)    => Op::AssertNeg(r, a),
+			#[cfg(not(feature = "short-branch"))]
 			Op::BranchNotNeg(r, a) => Op::AssertNotNeg(r, a),
+			#[cfg(not(feature = "short-branch"))]
 			Op::AssertNeg(r, a)    => Op::BranchNeg(r, a),
+			#[cfg(not(feature = "short-branch"))]
 			Op::AssertNotNeg(r, a) => Op::BranchNotNeg(r, a),
 			
+			#[cfg(feature = "short-branch")]
+			Op::BranchOdd(r)    => Op::AssertOdd(r),
+			#[cfg(feature = "short-branch")]
+			Op::BranchEven(r)   => Op::AssertEven(r),
+			#[cfg(feature = "short-branch")]
+			Op::AssertOdd(r)    => Op::BranchOdd(r),
+			#[cfg(feature = "short-branch")]
+			Op::AssertEven(r)   => Op::BranchEven(r),
+			#[cfg(feature = "short-branch")]
+			Op::BranchNeg(r)    => Op::AssertNeg(r),
+			#[cfg(feature = "short-branch")]
+			Op::BranchNotNeg(r) => Op::AssertNotNeg(r),
+			#[cfg(feature = "short-branch")]
+			Op::AssertNeg(r)    => Op::BranchNeg(r),
+			#[cfg(feature = "short-branch")]
+			Op::AssertNotNeg(r) => Op::BranchNotNeg(r),
+			
+			#[cfg(feature = "teleport")]
+			Op::Teleport(_)    => self,
 			Op::GoTo(addr)     => Op::ComeFrom(addr),
 			Op::ComeFrom(addr) => Op::GoTo(addr),
 		}
@@ -349,6 +442,15 @@ impl Op {
 			"not" | "neg" | "spc" | "rspc" | "smul2" | "sdiv2"
 			=> "<register>",
 			
+			#[cfg(feature = "xor-pc")]
+			"xpc"
+			=> "<register>",
+			
+			#[cfg(feature = "short-branch")]
+			"jpo" | "apo" | "js" | "as" | "jpe" | "ape" | "jns"
+			| "ans"
+			=> "<register>",
+			
 			"swp" | "xchg" | "xor" | "add" | "sub" | "rol" | "ror"
 			=> "<register> <register>",
 			
@@ -358,11 +460,16 @@ impl Op {
 			"xori" | "addi" | "subi" | "roli" | "rori"
 			=> "<register> <8-bit unsigned int>",
 			
+			#[cfg(not(feature = "short-branch"))]
 			"jpo" | "apo" | "js" | "as" | "jpe" | "ape" | "jns"
 			| "ans"
 			=> "<register> <label or 10-bit address>",
 			
 			"jmp" | "pmj"
+			=> "<label or 14-bit address>",
+			
+			#[cfg(feature = "teleport")]
+			"tp"
 			=> "<label or 14-bit address>",
 			
 			_ => unreachable!()
@@ -379,6 +486,8 @@ impl fmt::Display for Op {
 			
 			Op::Not(r)       => write!(f, "not {}", r),
 			Op::Negate(r)    => write!(f, "neg {}", r),
+			#[cfg(feature = "xor-pc")]
+			Op::XorPc(r)     => write!(f, "xpc {}", r),
 			Op::SwapPc(r)    => write!(f, "spc {}", r),
 			Op::RevSwapPc(r) => write!(f, "rspc {}", r),
 			Op::Mul2(r)      => write!(f, "smul2 {}", r),
@@ -401,15 +510,43 @@ impl fmt::Display for Op {
 			Op::CCNot(rc0, rc1, rn) => write!(f, "ccn {} {} {}", rc0, rc1, rn),
 			Op::CSwap(rc, rs0, rs1) => write!(f, "cswp {} {} {}", rc, rs0, rs1),
 			
+			#[cfg(not(feature = "short-branch"))]
 			Op::BranchOdd(r, ref a)    => write!(f, "jpo {} {}", r, a),
+			#[cfg(not(feature = "short-branch"))]
 			Op::AssertOdd(r, ref a)    => write!(f, "apo {} {}", r, a),
+			#[cfg(not(feature = "short-branch"))]
 			Op::BranchNeg(r, ref a)    => write!(f, "js {} {}", r, a),
+			#[cfg(not(feature = "short-branch"))]
 			Op::AssertNeg(r, ref a)    => write!(f, "as {} {}", r, a),
+			#[cfg(not(feature = "short-branch"))]
 			Op::BranchEven(r, ref a)   => write!(f, "jpe {} {}", r, a),
+			#[cfg(not(feature = "short-branch"))]
 			Op::AssertEven(r, ref a)   => write!(f, "ape {} {}", r, a),
+			#[cfg(not(feature = "short-branch"))]
 			Op::BranchNotNeg(r, ref a) => write!(f, "jns {} {}", r, a),
+			#[cfg(not(feature = "short-branch"))]
 			Op::AssertNotNeg(r, ref a) => write!(f, "ans {} {}", r, a),
 			
+			
+			#[cfg(feature = "short-branch")]
+			Op::BranchOdd(r)    => write!(f, "jpo {}", r),
+			#[cfg(feature = "short-branch")]
+			Op::AssertOdd(r)    => write!(f, "apo {}", r),
+			#[cfg(feature = "short-branch")]
+			Op::BranchNeg(r)    => write!(f, "js {}", r),
+			#[cfg(feature = "short-branch")]
+			Op::AssertNeg(r)    => write!(f, "as {}", r),
+			#[cfg(feature = "short-branch")]
+			Op::BranchEven(r)   => write!(f, "jpe {}", r),
+			#[cfg(feature = "short-branch")]
+			Op::AssertEven(r)   => write!(f, "ape {}", r),
+			#[cfg(feature = "short-branch")]
+			Op::BranchNotNeg(r) => write!(f, "jns {}", r),
+			#[cfg(feature = "short-branch")]
+			Op::AssertNotNeg(r) => write!(f, "ans {}", r),
+			
+			#[cfg(feature = "teleport")]
+			Op::Teleport(ref addr) => write!(f, "tp {}", addr),
 			Op::GoTo(ref addr)     => write!(f, "jmp {}", addr),
 			Op::ComeFrom(ref addr) => write!(f, "pmj {}", addr),
 		}
@@ -481,6 +618,8 @@ impl FromStr for Op {
 			
 			"not"   => Op::Not(reg!()),
 			"neg"   => Op::Negate(reg!()),
+			#[cfg(feature = "xor-pc")]
+			"xpc"   => Op::XorPc(reg!()),
 			"spc"   => Op::SwapPc(reg!()),
 			"rspc"  => Op::RevSwapPc(reg!()),
 			"smul2" => Op::Mul2(reg!()),
@@ -503,16 +642,42 @@ impl FromStr for Op {
 			"ccn"  => Op::CCNot(reg!(), reg!(), reg!()),
 			"cswp" => Op::CSwap(reg!(), reg!(), reg!()),
 			
+			#[cfg(not(feature = "short-branch"))]
 			"jpo" => Op::BranchOdd(reg!(), addr!(0x01FF)),
+			#[cfg(not(feature = "short-branch"))]
 			"apo" => Op::AssertOdd(reg!(), addr!(0x01FF)),
+			#[cfg(not(feature = "short-branch"))]
 			"js"  => Op::BranchNeg(reg!(), addr!(0x01FF)),
+			#[cfg(not(feature = "short-branch"))]
 			"as"  => Op::AssertNeg(reg!(), addr!(0x01FF)),
-			
+			#[cfg(not(feature = "short-branch"))]
 			"jpe" => Op::BranchEven(reg!(), addr!(0x01FF)),
+			#[cfg(not(feature = "short-branch"))]
 			"ape" => Op::AssertEven(reg!(), addr!(0x01FF)),
+			#[cfg(not(feature = "short-branch"))]
 			"jns" => Op::BranchNotNeg(reg!(), addr!(0x01FF)),
+			#[cfg(not(feature = "short-branch"))]
 			"ans" => Op::AssertNotNeg(reg!(), addr!(0x01FF)),
 			
+			#[cfg(feature = "short-branch")]
+			"jpo" => Op::BranchOdd(reg!()),
+			#[cfg(feature = "short-branch")]
+			"apo" => Op::AssertOdd(reg!()),
+			#[cfg(feature = "short-branch")]
+			"js"  => Op::BranchNeg(reg!()),
+			#[cfg(feature = "short-branch")]
+			"as"  => Op::AssertNeg(reg!()),
+			#[cfg(feature = "short-branch")]
+			"jpe" => Op::BranchEven(reg!()),
+			#[cfg(feature = "short-branch")]
+			"ape" => Op::AssertEven(reg!()),
+			#[cfg(feature = "short-branch")]
+			"jns" => Op::BranchNotNeg(reg!()),
+			#[cfg(feature = "short-branch")]
+			"ans" => Op::AssertNotNeg(reg!()),
+			
+			#[cfg(feature = "teleport")]
+			"tp"  => Op::Teleport(addr!(0x1FFF)),
 			"jmp" => Op::GoTo(addr!(0x1FFF)),
 			"pmj" => Op::ComeFrom(addr!(0x1FFF)),
 			
@@ -537,6 +702,7 @@ mod tests {
 	#[test]
 	fn instruction_encoding() {
 		// Make a vector with all parameters initialized
+		#[cfg(not(feature = "short-branch"))]
 		let ops = vec![
 			Op::Halt,
 			Op::Nop,
@@ -569,6 +735,43 @@ mod tests {
 			Op::AssertEven(Reg::R6, Addr::Label("hi".to_string())),
 			Op::BranchNotNeg(Reg::R6, Addr::Label("hello".to_string())),
 			Op::AssertNotNeg(Reg::R6, Addr::Label("hiya".to_string())),
+			Op::GoTo(Addr::Label("howdy".to_string())),
+			Op::ComeFrom(Addr::Label("sup".to_string())),
+		];
+		
+		#[cfg(feature = "short-branch")]
+		let ops = vec![
+			Op::Halt,
+			Op::Nop,
+			Op::Debug,
+			Op::Not(Reg::R6),
+			Op::Negate(Reg::R6),
+			Op::SwapPc(Reg::R6),
+			Op::RevSwapPc(Reg::R6),
+			Op::Mul2(Reg::R6),
+			Op::Div2(Reg::R6),
+			Op::Swap(Reg::R6, Reg::R6),
+			Op::Exchange(Reg::R6, Reg::R6),
+			Op::Xor(Reg::R6, Reg::R6),
+			Op::Add(Reg::R6, Reg::R6),
+			Op::Sub(Reg::R6, Reg::R6),
+			Op::LRot(Reg::R6, Reg::R6),
+			Op::RRot(Reg::R6, Reg::R6),
+			Op::XorImm(Reg::R6, 0xFF),
+			Op::AddImm(Reg::R6, 0xFF),
+			Op::SubImm(Reg::R6, 0xFF),
+			Op::LRotImm(Reg::R6, 0xF),
+			Op::RRotImm(Reg::R6, 0xF),
+			Op::CCNot(Reg::R6, Reg::R6, Reg::R6),
+			Op::CSwap(Reg::R6, Reg::R6, Reg::R6),
+			Op::BranchOdd(Reg::R6),
+			Op::AssertOdd(Reg::R6),
+			Op::BranchNeg(Reg::R6),
+			Op::AssertNeg(Reg::R6),
+			Op::BranchEven(Reg::R6),
+			Op::AssertEven(Reg::R6),
+			Op::BranchNotNeg(Reg::R6),
+			Op::AssertNotNeg(Reg::R6),
 			Op::GoTo(Addr::Label("howdy".to_string())),
 			Op::ComeFrom(Addr::Label("sup".to_string())),
 		];
