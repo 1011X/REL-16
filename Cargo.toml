@@ -1,13 +1,14 @@
 [package]
 name = "rel"
-version = "0.3.1"
+version = "0.5.0"
 authors = ["1011X <1011XXXXX@gmail.com>"]
 repository = "https://github.com/1011X/REL-16"
 readme = "README.md"
 
 [dependencies]
 getopts = "0.2.14"
-rel_isa = { version = "0.3.1", path = "rel_isa" }
 
-[profile.release]
-panic = "abort"
+[features]
+short-branch = []
+xor-pc = []
+teleport = []

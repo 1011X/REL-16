@@ -2,7 +2,7 @@ use isa::{Op, Addr, Reg};
 use super::register_file::RegisterFile;
 
 const SP: Reg = Reg::SP;
-const BP: Reg = Reg::BP;
+const BP: Reg = Reg::R6;
 const MAX_MEM: usize = 65536;
 
 macro_rules! swap(
@@ -57,39 +57,39 @@ impl<'mem> Cpu<'mem> {
 		
 			// print contents of registers
 			print!("registers: [");
-		
+			
 			for &val in &self.reg.0[..BP as usize] {
 				print!("{:04x}, ", val);
 			}
-		
+			
 			print!("{:04x}]\n", self.reg[BP]);
-		
-		
+			
+			
 			// print contents of stack
 			print!("stack: ");
-		
+			
 			use std::cmp::Ordering;
-		
+			
 			match self.reg[BP].cmp(&self.reg[SP]) {
-				Ordering::Equal   => print!("nil\n"),
-				Ordering::Less    => print!("invalid\n"),
+				Ordering::Equal   => println!("nil"),
+				Ordering::Less    => println!("invalid"),
 				Ordering::Greater => {
 					let bp = self.reg[BP] as usize;
 					let sp = self.reg[SP] as usize;
-				
+					
 					print!("<");
-				
+					
 					// log whole stack except for last value
 					for &val in &self.data_mem[sp..bp - 1] {
 						print!("{:04x}, ", val);
 					}
-				
+					
 					// log last value
-					print!("{:04x}]\n", self.data_mem[bp - 1]);
+					println!("{:04x}]", self.data_mem[bp - 1]);
 				}
 			}
-		
-			print!("\n");
+			
+			println!();
 		}
 	
 		/* FETCH */
@@ -129,42 +129,10 @@ impl<'mem> Cpu<'mem> {
 			
 			Op::Negate(a) =>
 				self.reg[a] = self.reg[a].wrapping_neg(),
-		
-			Op::Increment(a) =>
-				self.reg[a] = self.reg[a].wrapping_add(1),
-		
-			Op::Decrement(a) =>
-				self.reg[a] = self.reg[a].wrapping_sub(1),
-		
-			Op::Push(rr) => {
-				let mut r = 0;
-				let mut sp = 0;
-				swap!(r, self.reg[rr]);
-				swap!(sp, self.reg[SP]);
 			
-				sp = sp.wrapping_sub(1);
-				swap!(r, self.data_mem[sp as usize]);
-			
-				swap!(sp, self.reg[SP]);
-				swap!(r, self.reg[rr]);
-				debug_assert!(sp == 0);
-				debug_assert!(r == 0);
-			}
-		
-			Op::Pop(rr) => {
-				let mut r = 0;
-				let mut sp = 0;
-				swap!(r, self.reg[rr]);
-				swap!(sp, self.reg[SP]);
-			
-				swap!(r, self.data_mem[sp as usize]);
-				sp = sp.wrapping_add(1);
-			
-				swap!(sp, self.reg[SP]);
-				swap!(r, self.reg[rr]);
-				debug_assert!(sp == 0);
-				debug_assert!(r == 0);
-			}
+			#[cfg(feature = "xor-pc")]
+			Op::XorPc(r) =>
+				self.pc ^= self.reg[r],
 		
 			Op::SwapPc(r) =>
 				swap!(self.pc, self.reg[r]),
@@ -201,16 +169,21 @@ impl<'mem> Cpu<'mem> {
 				} as u16;
 			}
 			
-			Op::LRotateImm(r, v) =>
-				self.reg[r] = self.reg[r].rotate_left(v as u32),
-			
-			Op::RRotateImm(r, v) =>
-				self.reg[r] = self.reg[r].rotate_right(v as u32),
-			
 			Op::Swap(a, b) =>
 				self.reg.0.swap(a as usize, b as usize),
 			
-			Op::CNot(rn, rc) => {
+			Op::Exchange(rd, ra) => {
+				let mut d = 0;
+				swap!(d, self.reg[rd]);
+				
+				let addr = self.reg[ra] as usize;
+				swap!(d, self.data_mem[addr]);
+				
+				swap!(d, self.reg[rd]);
+				debug_assert!(d == 0);
+			}
+			
+			Op::Xor(rn, rc) => {
 				let mut n = 0;
 				swap!(n, self.reg[rn]);
 				
@@ -240,18 +213,7 @@ impl<'mem> Cpu<'mem> {
 				debug_assert!(s == 0);
 			}
 			
-			Op::Exchange(rd, ra) => {
-				let mut d = 0;
-				swap!(d, self.reg[rd]);
-				
-				let addr = self.reg[ra] as usize;
-				swap!(d, self.data_mem[addr]);
-				
-				swap!(d, self.reg[rd]);
-				debug_assert!(d == 0);
-			}
-			
-			Op::LRotate(rr, ro) => {
+			Op::LRot(rr, ro) => {
 				let mut r = 0;
 				swap!(r, self.reg[rr]);
 				
@@ -261,7 +223,7 @@ impl<'mem> Cpu<'mem> {
 				debug_assert!(r == 0);
 			}
 			
-			Op::RRotate(rr, ro) => {
+			Op::RRot(rr, ro) => {
 				let mut r = 0;
 				swap!(r, self.reg[rr]);
 				
@@ -271,9 +233,39 @@ impl<'mem> Cpu<'mem> {
 				debug_assert!(r == 0);
 			}
 			
-			// Swap the modified register's value to a zeroed location, so that
-			// in case it's also used as a control register, then this
-			// instruction just becomes a no-op.
+			
+			Op::XorImm(r, v) =>
+				self.reg[r] ^= v as u16,
+			
+			Op::AddImm(r, i) => {
+				let mut a = 0;
+				swap!(a, self.reg[r]);
+				
+				a = a.wrapping_add(i as u16);
+				
+				swap!(a, self.reg[r]);
+				debug_assert!(a == 0);
+			}
+			
+			Op::SubImm(r, i) => {
+				let mut s = 0;
+				swap!(s, self.reg[r]);
+				
+				s = s.wrapping_sub(i as u16);
+				
+				swap!(s, self.reg[r]);
+				debug_assert!(s == 0);
+			}
+			
+			Op::LRotImm(r, v) =>
+				self.reg[r] = self.reg[r].rotate_left(v as u32),
+			
+			Op::RRotImm(r, v) =>
+				self.reg[r] = self.reg[r].rotate_right(v as u32),
+			
+			// Swap the modified register's value to a zeroed
+			// location, so that in case it's also used as a control
+			// register, then this instruction just becomes a no-op.
 			Op::CCNot(rc0, rc1, rn) => {
 				let mut n = 0;
 				swap!(n, self.reg[rn]);
@@ -284,8 +276,8 @@ impl<'mem> Cpu<'mem> {
 				debug_assert!(n == 0);
 			}
 			
-			// Swap the modified registers' values to zeroed locations, just
-			// like the CCNot instruction.
+			// Swap the modified registers' values to zeroed
+			// locations, just like the CCNot instruction.
 			Op::CSwap(rc, rs0, rs1) => {
 				let mut s0 = 0;
 				let mut s1 = 0;
@@ -302,66 +294,130 @@ impl<'mem> Cpu<'mem> {
 				debug_assert!(s0 == 0);
 			}
 			
-			Op::BranchParityOdd(r, Addr::Offset(off)) =>
-			if (self.reg[r] & 1) == 1 {
-				self.br = self.br.wrapping_add(off as u16);
-			},
+			#[cfg(not(feature = "short-branch"))]
+			Op::BranchOdd(r, Addr::Offset(off)) =>
+				if (self.reg[r] & 1) == 1 {
+					self.br = self.br.wrapping_add(off as u16);
+				}
 			
-			Op::AssertParityOdd(r, Addr::Offset(off)) =>
-			if (self.reg[r] & 1) == 1 {
-				self.br = self.br.wrapping_sub(off as u16);
-			},
+			#[cfg(feature = "short-branch")]
+			Op::BranchOdd(r) =>
+				if (self.reg[r] & 1) == 1 {
+					self.br += 2;
+				}
 			
-			Op::BranchSignNegative(r, Addr::Offset(off)) =>
-			if (self.reg[r] as i16) < 0 {
-				self.br = self.br.wrapping_add(off as u16);
-			},
+			#[cfg(not(feature = "short-branch"))]
+			Op::AssertOdd(r, Addr::Offset(off)) =>
+				if (self.reg[r] & 1) == 1 {
+					self.br = self.br.wrapping_sub(off as u16);
+				}
 			
-			Op::AssertSignNegative(r, Addr::Offset(off)) =>
-			if (self.reg[r] as i16) < 0 {
-				self.br = self.br.wrapping_sub(off as u16);
-			},
+			#[cfg(feature = "short-branch")]
+			Op::AssertOdd(r) =>
+				if (self.reg[r] & 1) == 1 {
+					self.br += 2;
+				}
 			
-			Op::BranchParityEven(r, Addr::Offset(off)) =>
-			if (self.reg[r] & 1) == 0 {
-				self.br = self.br.wrapping_add(off as u16);
-			},
+			#[cfg(not(feature = "short-branch"))]
+			Op::BranchNeg(r, Addr::Offset(off)) =>
+				if (self.reg[r] as i16) < 0 {
+					self.br = self.br.wrapping_add(off as u16);
+				}
 			
-			Op::AssertParityEven(r, Addr::Offset(off)) =>
-			if (self.reg[r] & 1) == 0 {
-				self.br = self.br.wrapping_sub(off as u16);
-			},
+			#[cfg(feature = "short-branch")]
+			Op::BranchNeg(r) =>
+				if (self.reg[r] as i16) < 0 {
+					self.br += 2;
+				}
 			
-			Op::BranchSignNonneg(r, Addr::Offset(off)) =>
-			if (self.reg[r] as i16) >= 0 {
-				self.br = self.br.wrapping_add(off as u16);
-			},
+			#[cfg(not(feature = "short-branch"))]
+			Op::AssertNeg(r, Addr::Offset(off)) =>
+				if (self.reg[r] as i16) < 0 {
+					self.br = self.br.wrapping_sub(off as u16);
+				}
 			
-			Op::AssertSignNonneg(r, Addr::Offset(off)) =>
-			if (self.reg[r] as i16) >= 0 {
-				self.br = self.br.wrapping_sub(off as u16);
-			},
+			#[cfg(feature = "short-branch")]
+			Op::AssertNeg(r) =>
+				if (self.reg[r] as i16) < 0 {
+					self.br += 2;
+				}
 			
-			Op::Immediate(r, v) =>
-				self.reg[r] ^= v as u16,
-		
+			#[cfg(not(feature = "short-branch"))]
+			Op::BranchEven(r, Addr::Offset(off)) =>
+				if (self.reg[r] & 1) == 0 {
+					self.br = self.br.wrapping_add(off as u16);
+				}
+			
+			#[cfg(feature = "short-branch")]
+			Op::BranchEven(r) =>
+				if (self.reg[r] & 1) == 0 {
+					self.br += 2;
+				}
+			
+			#[cfg(not(feature = "short-branch"))]
+			Op::AssertEven(r, Addr::Offset(off)) =>
+				if (self.reg[r] & 1) == 0 {
+					self.br = self.br.wrapping_sub(off as u16);
+				}
+			
+			#[cfg(feature = "short-branch")]
+			Op::AssertEven(r) =>
+				if (self.reg[r] & 1) == 0 {
+					self.br += 2;
+				}
+			
+			#[cfg(not(feature = "short-branch"))]
+			Op::BranchNotNeg(r, Addr::Offset(off)) =>
+				if (self.reg[r] as i16) >= 0 {
+					self.br = self.br.wrapping_add(off as u16);
+				}
+			
+			#[cfg(feature = "short-branch")]
+			Op::BranchNotNeg(r) =>
+				if (self.reg[r] as i16) >= 0 {
+					self.br += 2;
+				}
+			
+			#[cfg(not(feature = "short-branch"))]
+			Op::AssertNotNeg(r, Addr::Offset(off)) =>
+				if (self.reg[r] as i16) >= 0 {
+					self.br = self.br.wrapping_sub(off as u16);
+				}
+			
+			#[cfg(feature = "short-branch")]
+			Op::AssertNotNeg(r) =>
+				if (self.reg[r] as i16) >= 0 {
+					self.br += 2;
+				}
+			
+			#[cfg(feature = "teleport")]
+			Op::Teleport(Addr::Offset(off)) =>
+				self.pc ^= off as u16,
+			
 			Op::GoTo(Addr::Offset(off)) =>
 				self.br = self.br.wrapping_add(off as u16),
 		
 			Op::ComeFrom(Addr::Offset(off)) =>
 				self.br = self.br.wrapping_sub(off as u16),
 			
-			// for when branch instrs use labels (which shouldn't happen)
-			Op::BranchParityOdd(..)
-			| Op::BranchParityEven(..)
-			| Op::BranchSignNegative(..)
-			| Op::BranchSignNonneg(..)
-			| Op::AssertParityOdd(..)
-			| Op::AssertParityEven(..)
-			| Op::AssertSignNegative(..)
-			| Op::AssertSignNonneg(..)
-			| Op::GoTo(..)
-			| Op::ComeFrom(..) =>
+			// for when branch instrs use labels (which shouldn't 
+			// happen)
+			#[cfg(not(feature = "short-branch"))]
+			Op::BranchOdd(..)
+			| Op::BranchEven(..)
+			| Op::BranchNeg(..)
+			| Op::BranchNotNeg(..)
+			| Op::AssertOdd(..)
+			| Op::AssertEven(..)
+			| Op::AssertNeg(..)
+			| Op::AssertNotNeg(..) =>
+				unreachable!(),
+			
+			Op::GoTo(_) | Op::ComeFrom(_) =>
+				unreachable!(),
+			
+			#[cfg(feature = "teleport")]
+			Op::Teleport(_) =>
 				unreachable!(),
 		}
 		

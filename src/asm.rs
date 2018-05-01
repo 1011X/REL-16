@@ -1,13 +1,10 @@
 use std::collections::HashMap;
 use std::io::{self, BufRead};
 use std::str::FromStr;
-use std::result;
 
 use isa::{Op, Addr};
 
-type Result<T> = result::Result<T, String>;
-
-pub fn parse<I: BufRead>(inp: I) -> Result<Vec<Op>> {
+pub fn parse<I: BufRead>(inp: I) -> Result<Vec<Op>, String> {
 	let mut label_indices = HashMap::new();
 	
 	let lines = inp.lines()
@@ -28,23 +25,34 @@ pub fn parse<I: BufRead>(inp: I) -> Result<Vec<Op>> {
 			.map_err(|e| format!("Error at line {}: {}", n + 1, e))
 		)
 		// simplify into a result and try! it
-		.collect::<Result<Vec<_>>>()?
+		.collect::<Result<Vec<_>, String>>()?
 		// we're not done!
 		.into_iter()
 		// keep track of instruction addresses
 		.enumerate()
 		// write addresses where labels appears in table
 		.inspect(|&(i, ref op)| match *op {
-			Op::BranchParityOdd(_, Addr::Label(ref label))
-			| Op::BranchSignNegative(_, Addr::Label(ref label))
-			| Op::AssertParityOdd(_, Addr::Label(ref label))
-			| Op::AssertSignNegative(_, Addr::Label(ref label))
-			| Op::BranchParityEven(_, Addr::Label(ref label))
-			| Op::BranchSignNonneg(_, Addr::Label(ref label))
-			| Op::AssertParityEven(_, Addr::Label(ref label))
-			| Op::AssertSignNonneg(_, Addr::Label(ref label))
-			| Op::GoTo(Addr::Label(ref label))
+			#[cfg(not(feature = "short-branch"))]
+			Op::BranchOdd(_, Addr::Label(ref label))
+			| Op::BranchNeg(_, Addr::Label(ref label))
+			| Op::AssertOdd(_, Addr::Label(ref label))
+			| Op::AssertNeg(_, Addr::Label(ref label))
+			| Op::BranchEven(_, Addr::Label(ref label))
+			| Op::BranchNotNeg(_, Addr::Label(ref label))
+			| Op::AssertEven(_, Addr::Label(ref label))
+			| Op::AssertNotNeg(_, Addr::Label(ref label)) =>
+				label_indices.entry(label.clone())
+				.or_insert(Vec::with_capacity(2))
+				.push(i),
+			
+			Op::GoTo(Addr::Label(ref label))
 			| Op::ComeFrom(Addr::Label(ref label)) =>
+				label_indices.entry(label.clone())
+				.or_insert(Vec::with_capacity(2))
+				.push(i),
+			
+			#[cfg(feature = "teleport")]
+			Op::Teleport(Addr::Label(ref label)) =>
 				label_indices.entry(label.clone())
 				.or_insert(Vec::with_capacity(2))
 				.push(i),
@@ -71,22 +79,34 @@ pub fn parse<I: BufRead>(inp: I) -> Result<Vec<Op>> {
 	// turn all labels into offsets
 	Ok(code.into_iter()
 		.map(|op| match op {
-			Op::BranchParityOdd(r, Addr::Label(ref label)) =>
-				Op::BranchParityOdd(r, Addr::Offset(ltab[label])),
-			Op::BranchSignNegative(r, Addr::Label(ref label)) =>
-				Op::BranchSignNegative(r, Addr::Offset(ltab[label])),
-			Op::AssertParityOdd(r, Addr::Label(ref label)) =>
-				Op::AssertParityOdd(r, Addr::Offset(ltab[label])),
-			Op::AssertSignNegative(r, Addr::Label(ref label)) =>
-				Op::AssertSignNegative(r, Addr::Offset(ltab[label])),
-			Op::BranchParityEven(r, Addr::Label(ref label)) =>
-				Op::BranchParityEven(r, Addr::Offset(ltab[label])),
-			Op::BranchSignNonneg(r, Addr::Label(ref label)) =>
-				Op::BranchSignNonneg(r, Addr::Offset(ltab[label])),
-			Op::AssertParityEven(r, Addr::Label(ref label)) =>
-				Op::AssertParityEven(r, Addr::Offset(ltab[label])),
-			Op::AssertSignNonneg(r, Addr::Label(ref label)) =>
-				Op::AssertSignNonneg(r, Addr::Offset(ltab[label])),
+			#[cfg(not(feature = "short-branch"))]
+			Op::BranchOdd(r, Addr::Label(ref label)) =>
+				Op::BranchOdd(r, Addr::Offset(ltab[label])),
+			#[cfg(not(feature = "short-branch"))]
+			Op::BranchNeg(r, Addr::Label(ref label)) =>
+				Op::BranchNeg(r, Addr::Offset(ltab[label])),
+			#[cfg(not(feature = "short-branch"))]
+			Op::AssertOdd(r, Addr::Label(ref label)) =>
+				Op::AssertOdd(r, Addr::Offset(ltab[label])),
+			#[cfg(not(feature = "short-branch"))]
+			Op::AssertNeg(r, Addr::Label(ref label)) =>
+				Op::AssertNeg(r, Addr::Offset(ltab[label])),
+			#[cfg(not(feature = "short-branch"))]
+			Op::BranchEven(r, Addr::Label(ref label)) =>
+				Op::BranchEven(r, Addr::Offset(ltab[label])),
+			#[cfg(not(feature = "short-branch"))]
+			Op::BranchNotNeg(r, Addr::Label(ref label)) =>
+				Op::BranchNotNeg(r, Addr::Offset(ltab[label])),
+			#[cfg(not(feature = "short-branch"))]
+			Op::AssertEven(r, Addr::Label(ref label)) =>
+				Op::AssertEven(r, Addr::Offset(ltab[label])),
+			#[cfg(not(feature = "short-branch"))]
+			Op::AssertNotNeg(r, Addr::Label(ref label)) =>
+				Op::AssertNotNeg(r, Addr::Offset(ltab[label])),
+			
+			#[cfg(feature = "teleport")]
+			Op::Teleport(Addr::Label(ref label)) =>
+				Op::Teleport(Addr::Offset(ltab[label])),
 			Op::GoTo(Addr::Label(ref label)) =>
 				Op::GoTo(Addr::Offset(ltab[label])),
 			Op::ComeFrom(Addr::Label(ref label)) =>
