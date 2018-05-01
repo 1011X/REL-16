@@ -3,7 +3,7 @@ use std::str;
 use std::error::Error;
 
 /// Specifies a machine register.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Reg {
 	/// treated as accumulator in some instructions
 	R0 = 0,
