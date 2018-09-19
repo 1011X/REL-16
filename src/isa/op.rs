@@ -18,8 +18,8 @@ pub enum Addr {
 
 impl fmt::Display for Addr {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		match *self {
-			Addr::Label(ref label) => write!(f, "{}", label),
+		match self {
+			Addr::Label(label) => write!(f, "{}", label),
 			Addr::Offset(offset)   => write!(f, "{}", offset),
 		}
 	}
@@ -47,19 +47,15 @@ pub enum ParseOpError {
 impl fmt::Display for ParseOpError {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		use self::ParseOpError::*;
-		match *self {
+		match self {
 			ExtraToken =>
 				write!(f, "Found extra token."),
-			
 			NoToken(t) =>
 				write!(f, "Missing token of type {:?}", t),
-			
 			BadToken(t, ref tok) =>
 				write!(f, "Bad token; expected a {:?}, got {:?}", t, tok),
-			
 			ValueOverflow(max) =>
 				write!(f, "Value exceeds maximum allowed value of {}", max),
-			
 			ParseInt(ref pie) =>
 				write!(f, "{}", pie),
 		}
@@ -69,7 +65,7 @@ impl fmt::Display for ParseOpError {
 impl Error for ParseOpError {
 	fn description(&self) -> &'static str {
 		use self::ParseOpError::*;
-		match *self {
+		match self {
 			ExtraToken       => "extra token",
 			NoToken(_)       => "missing token",
 			BadToken(..)     => "malformed token",
@@ -79,8 +75,8 @@ impl Error for ParseOpError {
 	}
 	
 	fn cause(&self) -> Option<&Error> {
-		match *self {
-			ParseOpError::ParseInt(ref pie) => Some(pie),
+		match self {
+			ParseOpError::ParseInt(pie) => Some(pie),
 			_ => None
 		}
 	}
@@ -398,7 +394,7 @@ impl Op {
 
 impl fmt::Display for Op {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		match *self {
+		match self {
 			Op::Halt  => write!(f, "hlt"),
 			Op::Nop   => write!(f, "nop"),
 			Op::Debug => write!(f, "dbg"),
@@ -439,9 +435,9 @@ impl fmt::Display for Op {
 			Op::AssertNotNeg(r, ref a) => write!(f, "ans {} {}", r, a),
 			
 			#[cfg(feature = "teleport")]
-			Op::Teleport(ref addr) => write!(f, "tp {}", addr),
-			Op::GoTo(ref addr)     => write!(f, "jmp {}", addr),
-			Op::ComeFrom(ref addr) => write!(f, "pmj {}", addr),
+			Op::Teleport(addr) => write!(f, "tp {}", addr),
+			Op::GoTo(addr)     => write!(f, "jmp {}", addr),
+			Op::ComeFrom(addr) => write!(f, "pmj {}", addr),
 		}
 	}
 }

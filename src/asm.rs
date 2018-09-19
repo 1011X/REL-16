@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use isa::{Op, Addr};
 
-pub fn parse<I: BufRead>(inp: I) -> Result<Vec<Op>, String> {
+pub fn parse(inp: impl BufRead) -> Result<Vec<Op>, String> {
 	let mut label_indices = HashMap::new();
 	
 	let lines = inp.lines()
@@ -31,27 +31,27 @@ pub fn parse<I: BufRead>(inp: I) -> Result<Vec<Op>, String> {
 		// keep track of instruction addresses
 		.enumerate()
 		// write addresses where labels appears in table
-		.inspect(|&(i, ref op)| match *op {
-			Op::BranchOdd(_, Addr::Label(ref label))
-			| Op::BranchNeg(_, Addr::Label(ref label))
-			| Op::AssertOdd(_, Addr::Label(ref label))
-			| Op::AssertNeg(_, Addr::Label(ref label))
-			| Op::BranchEven(_, Addr::Label(ref label))
-			| Op::BranchNotNeg(_, Addr::Label(ref label))
-			| Op::AssertEven(_, Addr::Label(ref label))
-			| Op::AssertNotNeg(_, Addr::Label(ref label)) =>
+		.inspect(|&(i, ref op)| match op {
+			Op::BranchOdd(_, Addr::Label(label))
+			| Op::BranchNeg(_, Addr::Label(label))
+			| Op::AssertOdd(_, Addr::Label(label))
+			| Op::AssertNeg(_, Addr::Label(label))
+			| Op::BranchEven(_, Addr::Label(label))
+			| Op::BranchNotNeg(_, Addr::Label(label))
+			| Op::AssertEven(_, Addr::Label(label))
+			| Op::AssertNotNeg(_, Addr::Label(label)) =>
 				label_indices.entry(label.clone())
 				.or_insert_with(|| Vec::with_capacity(2))
 				.push(i),
 			
-			Op::GoTo(Addr::Label(ref label))
-			| Op::ComeFrom(Addr::Label(ref label)) =>
+			Op::GoTo(Addr::Label(label))
+			| Op::ComeFrom(Addr::Label(label)) =>
 				label_indices.entry(label.clone())
 				.or_insert_with(|| Vec::with_capacity(2))
 				.push(i),
 			
 			#[cfg(feature = "teleport")]
-			Op::Teleport(Addr::Label(ref label)) =>
+			Op::Teleport(Addr::Label(label)) =>
 				label_indices.entry(label.clone())
 				.or_insert_with(|| Vec::with_capacity(2))
 				.push(i),

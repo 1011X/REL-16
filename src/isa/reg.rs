@@ -3,16 +3,22 @@ use std::str;
 use std::error::Error;
 
 /// Specifies a machine register.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Reg {
+	/// stack pointer
+	SP = 7,
+	/// can be used as a stack base register
+	R6 = 6,
+	
+	R5 = 5, R4 = 4, R3 = 3, R2 = 2, R1 = 1,
 	/// treated as accumulator in some instructions
 	R0 = 0,
-	R1, R2, R3, R4, R5,
-	/// can be used as a stack base register
-	R6,
-	/// stack pointer
-	SP
 }
+
+pub static ALL_REGISTERS: [Reg; 8] = [
+	Reg::R0, Reg::R1, Reg::R2, Reg::R3, Reg::R4, Reg::R5,
+	Reg::R6, Reg::SP,
+];
 
 /// Error when parsing register string literal
 #[derive(Debug, PartialEq, Eq)]
@@ -20,7 +26,7 @@ pub struct ParseError(pub String);
 
 impl fmt::Display for Reg {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		match *self {
+		match self {
 			Reg::R0 => write!(f, "r0"),
 			Reg::R1 => write!(f, "r1"),
 			Reg::R2 => write!(f, "r2"),
