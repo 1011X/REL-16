@@ -112,13 +112,13 @@ instructions are representable within 16 bits. There are some
 addressing modes:
 
 * Signal (3): nothing
-* Register (15): 1-3 registers
-  * Single (6): 1 register
+* Register (3): 1-3 registers
+  * Single (4-5): 1 register
   * Double (7): 2 registers
   * Triple (2): 3 registers, ah ah ah
-* Immediate (5): register, 8-bit value
+* Immediate (6): register, 8-bit value
 * Branch (8): register, address
-* Jump (2): address
+* Jump (2-3): address
 */
 // TODO: decide whether to keep branch instructions using I-form or change them
 // to R-form and have a constant offset.
@@ -154,33 +154,6 @@ pub enum Op {
 	/// Flips direction bit, then swaps the register and the program
 	/// counter. Used when **un**calling functions.
 	RevSwapPc(Reg),
-	
-	/// Signed multiplication by 2.
-	/// 
-	/// If the register's value *r* is less than -16384, you'll get:
-	/// 
-	/// 2*r* - MIN + 1
-	/// 
-	/// If the value is greater than 16383, you'll get:
-	/// 
-	/// 2*r* - MAX
-	/// 
-	/// Otherwise, it's multiplied by 2 as expected.
-	Mul2(Reg),
-	
-	/// Signed division by 2.
-	/// 
-	/// If the register's value *r* is odd and positive (like me),
-	/// you'll get:
-	/// 
-	/// (*r* + MAX) / 2.
-	/// 
-	/// If it's odd and negative, you'll get:
-	/// 
-	/// (*r* + MIN - 1) / 2
-	/// 
-	/// Otherwise (when it's even), it's divided by 2 as expected.
-	Div2(Reg),
 	
 	/// Swaps the registers' values.
 	Swap(Reg, Reg),
@@ -302,6 +275,13 @@ pub enum Op {
 	/// Subtracts an offset from the branch register if the register
 	/// is not negative.
 	AssertNotNeg(Reg, Addr),
+	
+	/// Swaps data at given register to the device at the given port.
+	///
+	/// Devices can often be used as a way of getting rid of unwanted
+	/// garbage, so swapping becomes the preferred method. If one
+	/// wishes to keep a copy of the data sent, `xor` it first.
+	IO(Reg, u8),
 }
 
 impl Op {
@@ -320,8 +300,6 @@ impl Op {
 			Op::XorPc(_)      => self,
 			Op::SwapPc(r)     => Op::RevSwapPc(r),
 			Op::RevSwapPc(r)  => Op::SwapPc(r),
-			Op::Mul2(r)       => Op::Div2(r),
-			Op::Div2(r)       => Op::Mul2(r),
 			
 			Op::Swap(..)      => self,
 			Op::Exchange(..)  => self,
@@ -351,8 +329,10 @@ impl Op {
 			
 			#[cfg(feature = "teleport")]
 			Op::Teleport(_)    => self,
+			
 			Op::GoTo(addr)     => Op::ComeFrom(addr),
 			Op::ComeFrom(addr) => Op::GoTo(addr),
+			Op::IO(r, p)       => Op::IO(r, p),
 		}
 	}
 	
@@ -361,7 +341,7 @@ impl Op {
 			"hlt" | "nop" | "dbg" =>
 				"no arguments taken",
 			
-			"not" | "neg" | "spc" | "rspc" | "smul2" | "sdiv2" =>
+			"not" | "neg" | "spc" | "rspc" =>
 				"<register>",
 			
 			#[cfg(feature = "xor-pc")]
@@ -388,6 +368,9 @@ impl Op {
 			"tp" =>
 				"<label or 14-bit address>",
 			
+			"io" =>
+			    "<register> <port number>",
+			
 			_ => unreachable!()
 		}
 	}
@@ -396,9 +379,9 @@ impl Op {
 impl fmt::Display for Op {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match self {
-			Op::Halt  => write!(f, "hlt"),
-			Op::Nop   => write!(f, "nop"),
-			Op::Debug => write!(f, "dbg"),
+			Op::Halt  => f.write_str("hlt"),
+			Op::Nop   => f.write_str("nop"),
+			Op::Debug => f.write_str("dbg"),
 			
 			Op::Not(r)       => write!(f, "not {}", r),
 			Op::Negate(r)    => write!(f, "neg {}", r),
@@ -406,8 +389,6 @@ impl fmt::Display for Op {
 			Op::XorPc(r)     => write!(f, "xpc {}", r),
 			Op::SwapPc(r)    => write!(f, "spc {}", r),
 			Op::RevSwapPc(r) => write!(f, "rspc {}", r),
-			Op::Mul2(r)      => write!(f, "smul2 {}", r),
-			Op::Div2(r)      => write!(f, "sdiv2 {}", r),
 			
 			Op::Swap(rl, rr)     => write!(f, "swp {} {}", rl, rr),
 			Op::Exchange(rr, ra) => write!(f, "xchg {} {}", rr, ra),
@@ -422,6 +403,7 @@ impl fmt::Display for Op {
 			Op::SubImm(r, v)  => write!(f, "subi {} {}", r, v),
 			Op::LRotImm(r, v) => write!(f, "roli {} {}", r, v),
 			Op::RRotImm(r, v) => write!(f, "rori {} {}", r, v),
+			Op::IO(r, v)      => write!(f, "io {} {}", r, v),
 			
 			Op::CCNot(rc0, rc1, rn) => write!(f, "ccn {} {} {}", rc0, rc1, rn),
 			Op::CSwap(rc, rs0, rs1) => write!(f, "cswp {} {} {}", rc, rs0, rs1),
@@ -512,8 +494,6 @@ impl FromStr for Op {
 			"xpc"   => Op::XorPc(reg!()),
 			"spc"   => Op::SwapPc(reg!()),
 			"rspc"  => Op::RevSwapPc(reg!()),
-			"smul2" => Op::Mul2(reg!()),
-			"sdiv2" => Op::Div2(reg!()),
 						
 			"swp"  => Op::Swap(reg!(), reg!()),
 			"xchg" => Op::Exchange(reg!(), reg!()),
@@ -528,6 +508,7 @@ impl FromStr for Op {
 			"subi" => Op::SubImm(reg!(), val!(u8, 0xFF)),
 			"roli" => Op::LRotImm(reg!(), val!(u8, 0xFF)),
 			"rori" => Op::RRotImm(reg!(), val!(u8, 0xFF)),
+			"io"   => Op::IO(reg!(), val!(u8, 0xFF)),
 			
 			"ccn"  => Op::CCNot(reg!(), reg!(), reg!()),
 			"cswp" => Op::CSwap(reg!(), reg!(), reg!()),
@@ -575,8 +556,6 @@ mod tests {
 			Op::Negate(Reg::R6),
 			Op::SwapPc(Reg::R6),
 			Op::RevSwapPc(Reg::R6),
-			Op::Mul2(Reg::R6),
-			Op::Div2(Reg::R6),
 			Op::Swap(Reg::R6, Reg::R6),
 			Op::Exchange(Reg::R6, Reg::R6),
 			Op::Xor(Reg::R6, Reg::R6),
@@ -587,6 +566,7 @@ mod tests {
 			Op::XorImm(Reg::R6, 0xFF),
 			Op::AddImm(Reg::R6, 0xFF),
 			Op::SubImm(Reg::R6, 0xFF),
+			Op::IO(Reg::R6, 0xFF),
 			Op::LRotImm(Reg::R6, 0xF),
 			Op::RRotImm(Reg::R6, 0xF),
 			Op::CCNot(Reg::R6, Reg::R6, Reg::R6),

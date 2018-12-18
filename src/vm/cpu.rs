@@ -142,33 +142,6 @@ impl<'mem> Cpu<'mem> {
 				self.dir = !self.dir;
 			}
 		
-			Op::Mul2(ri) => {
-				use std::i16;
-				
-				let r = self.reg[ri] as i16;
-				
-				self.reg[ri] = match r {
-					-16384...16383    => r * 2,
-					16384...i16::MAX  => r - (i16::MAX - r),
-					i16::MIN...-16385 => r + (r - i16::MIN + 1),
-					
-					_ => unreachable!()
-				} as u16;
-			}
-			
-			Op::Div2(ri) => {
-				use std::i16;
-				
-				let r = self.reg[ri] as i16;
-				let odd = |r| r & 1 == 1;
-				
-				self.reg[ri] = match r {
-					0...i16::MAX if odd(r) => i16::MAX - (i16::MAX - r) / 2,
-					i16::MIN...0 if odd(r) => i16::MIN + (r + i16::MAX) / 2,
-					_ /* even */           => r / 2
-				} as u16;
-			}
-			
 			Op::Swap(a, b) =>
 				self.reg.0.swap(a as usize, b as usize),
 			
@@ -263,6 +236,10 @@ impl<'mem> Cpu<'mem> {
 			Op::RRotImm(r, v) =>
 				self.reg[r] = self.reg[r].rotate_right(v as u32),
 			
+			Op::IO(r, p) => {
+			    unimplemented!();
+			}
+			
 			// Swap the modified register's value to a zeroed
 			// location, so that in case it's also used as a control
 			// register, then this instruction just becomes a no-op.
@@ -346,7 +323,6 @@ impl<'mem> Cpu<'mem> {
 			
 			// for when branch instrs use labels (which shouldn't 
 			// happen)
-			#[cfg(not(feature = "short-branch"))]
 			Op::BranchOdd(..)
 			| Op::BranchEven(..)
 			| Op::BranchNeg(..)
