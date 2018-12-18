@@ -120,7 +120,8 @@ addressing modes:
 * Branch (8): register, address
 * Jump (2): address
 */
-// TODO: decide whether to keep branch instructions using I-form or change them to R-form and have a constant offset.
+// TODO: decide whether to keep branch instructions using I-form or change them
+// to R-form and have a constant offset.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Op {
 	/// Stops the machine.
