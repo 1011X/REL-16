@@ -1,7 +1,7 @@
 pub mod isa;
 
-pub use isa::op;
-pub use isa::reg;
+pub use crate::isa::op;
+pub use crate::isa::reg;
 
-pub use isa::op::{Op, Addr};
-pub use isa::reg::Reg;
+pub use crate::isa::op::{Op, Addr};
+pub use crate::isa::reg::Reg;

@@ -4,6 +4,7 @@ version = "0.5.1"
 authors = ["1011X <1011XXXXX@gmail.com>"]
 repository = "https://github.com/1011X/REL-16"
 readme = "README.md"
+edition = "2018"
 
 [dependencies]
 getopts = "0.2.14"

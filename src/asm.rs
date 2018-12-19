@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::io::{self, BufRead};
 use std::str::FromStr;
 
-use isa::{Op, Addr};
+use crate::isa::{Op, Addr};
 
 pub fn parse(inp: impl BufRead) -> Result<Vec<Op>, String> {
 	let mut label_indices = HashMap::new();

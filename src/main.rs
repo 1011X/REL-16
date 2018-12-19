@@ -23,6 +23,7 @@ fn main() {
 	opts.optflag("V", "version", "Print program version");
 	opts.optflag("h", "help",    "Print this help menu");
 	opts.optflag("v", "verbose", "Log each step the VM takes");
+	opts.optflag("", "garbage-stack", "Add garbage stack device to device manager");
 	
 	let matches = opts.parse(args).unwrap();
 
@@ -40,8 +41,16 @@ fn main() {
 		let reader = BufReader::new(File::open(arg).unwrap());
 		let code = asm::parse(reader).unwrap();
 		let logging_enabled = matches.opt_present("verbose");
+		let mut dm = vm::DeviceManager::new();
 		
-		vm::Cpu::new(&code, logging_enabled).run();
+		if matches.opt_present("garbage-stack") {
+		    dm.add(vm::Device::Stack(Vec::new()));
+		}
+		
+	    let mut cpu = vm::Cpu::new(&code, &mut dm, logging_enabled);
+	    cpu.run();
+		
+		dm.debug_devices();
 	}
 	else {
 		eprintln!("Error: Missing input file.\n");

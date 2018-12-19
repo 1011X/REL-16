@@ -1,17 +1,19 @@
-use isa::{Op, Addr, Reg};
+use crate::isa::{Op, Addr, Reg};
 use super::register_file::RegisterFile;
+use super::device::DeviceManager;
 
 const SP: Reg = Reg::SP;
 const BP: Reg = Reg::R6;
-const MAX_MEM: usize = 65536;
+
+pub const MAX_MEM: usize = 65536;
 
 macro_rules! swap(
 	($left: expr, $right: expr) => {
-		::std::mem::swap(&mut $left, &mut $right);
+		std::mem::swap(&mut $left, &mut $right);
 	}
 );
 
-pub struct Cpu<'mem> {
+pub struct Cpu<'pm, 'dev> {
 	logging_enabled: bool,
 	
 	// when dir is true, it is in reverse mode
@@ -26,12 +28,13 @@ pub struct Cpu<'mem> {
 	// r7 is the stack base pointer (bp)
 	reg: RegisterFile,
 	
-	prog_mem: &'mem [Op], // ROM
+	prog_mem: &'pm [Op],      // ROM
 	data_mem: [u16; MAX_MEM], // RAM
+	devices: &'dev mut DeviceManager,
 }
 
-impl<'mem> Cpu<'mem> {
-	pub fn new(prog: &[Op], log: bool) -> Cpu {
+impl Cpu<'_, '_> {
+	pub fn new<'pm, 'dev>(prog: &'pm [Op], dev: &'dev mut DeviceManager, log: bool) -> Cpu<'pm, 'dev> {
 		Cpu {
 			logging_enabled: log,
 			
@@ -40,8 +43,10 @@ impl<'mem> Cpu<'mem> {
 			pc: 0,
 			ir: Op::Halt,
 			reg: RegisterFile([0; 8]),
+			
 			prog_mem: prog,
 			data_mem: [0; MAX_MEM],
+			devices: dev,
 		}
 	}
 	
@@ -80,7 +85,7 @@ impl<'mem> Cpu<'mem> {
 					print!("<");
 					
 					// log whole stack except for last value
-					for &val in &self.data_mem[sp..bp - 1] {
+					for val in &self.data_mem[sp..bp - 1] {
 						print!("{:04x}, ", val);
 					}
 					
@@ -108,21 +113,18 @@ impl<'mem> Cpu<'mem> {
 			self.ir = self.ir.clone().invert();
 		}
 		
-		// macro to log only when self.logging_enabled is true
-		macro_rules! log(($($t:tt)*) => {
-			if self.logging_enabled {
-				print!($($t)*);
-			}
-		});
-		
 		
 		// show which instruction is being executed
-		log!("ir: {:?}\n\n", self.ir);
+		if self.logging_enabled {
+			println!("ir: {:?}\n", self.ir);
+		}
 	
 		match self.ir {
 			Op::Halt => return true,
 			Op::Nop => {}
-			Op::Debug => unimplemented!(),
+			Op::Debug => {
+			    unimplemented!();
+		    }
 			
 			Op::Not(a) =>
 				self.reg[a] = !self.reg[a],
@@ -237,7 +239,11 @@ impl<'mem> Cpu<'mem> {
 				self.reg[r] = self.reg[r].rotate_right(v as u32),
 			
 			Op::IO(r, p) => {
-			    unimplemented!();
+			    if self.devices.call(self.dir, &mut self.reg[r], p) {
+			        eprintln!("Error while trying to call device.");
+			        eprintln!("reg = {}  data = {}  port = {}", r, self.reg[r], p);
+			        return true;
+			    }
 			}
 			
 			// Swap the modified register's value to a zeroed
