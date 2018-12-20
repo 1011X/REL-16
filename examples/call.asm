@@ -1,37 +1,40 @@
+; example of how calling a function works.
+
 ; initialize stack registers
-not sp
-not bp
+not r7; sp = 0xffff
+not r6; bp = 0xffff
 
-jmp main
+; fn push(r0): addr = 3, len = 2
+jmp 4
+spc r5
+    subi r7 1  ; sp -= 1
+    xchg r0 r7 ; r0 <=> mem[sp]
+spc r5
+pmj 4
+; fn pop(r0): addr = 6
 
-; push(sp, val)
-spc r2
-pop r1; val
-pop r0; sp
-inc r0
-xchg r1 r0
-push r0
-push r1
-spc r2
-; pop(sp, val)
-
-pmj main
-
+; values to be pushed
 xori r0 255; r0 = 255
 xori r1  10; r1 = 10
 
-push r0
-push r1
+; call setup.
+; the actual address of push is 4, but remember
+; that PC auto-increments, so we use 3 (+ 1)
+xori r5 3; r5 = &push
 
-; the actual address of push is 0x0004, but
-; we must consider that the pc takes an extra
-; step of its own, so it's 0x0003 (+ 1)
-xori r2 3
+; push values
+spc r5   ; push(255)
+swp r0 r1; r0 <> r1
+spc r5   ; push(10)
 
-spc r2; push(r0, r1)
-; r2 = 0x0004, address where push() ends
+spc r5; push(r0, r1)
 
-rspc r2; pop(r0, r1)
-; perfectly undoes the previous call
+; the address left at r5 after the call is equal to:
+; addr(push) + len(push) + 1
+xori r5 6; reset call register
+
+; when above instruction is commented out, this will
+; perfectly undo the last function call.
+;rspc r5
 
 hlt

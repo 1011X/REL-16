@@ -513,14 +513,14 @@ impl FromStr for Op {
 			"ccn"  => Op::CCNot(reg!(), reg!(), reg!()),
 			"cswp" => Op::CSwap(reg!(), reg!(), reg!()),
 			
-			"jpo" => Op::BranchOdd(reg!(), addr!(0x01FF)),
-			"apo" => Op::AssertOdd(reg!(), addr!(0x01FF)),
-			"js"  => Op::BranchNeg(reg!(), addr!(0x01FF)),
-			"as"  => Op::AssertNeg(reg!(), addr!(0x01FF)),
-			"jpe" => Op::BranchEven(reg!(), addr!(0x01FF)),
-			"ape" => Op::AssertEven(reg!(), addr!(0x01FF)),
-			"jns" => Op::BranchNotNeg(reg!(), addr!(0x01FF)),
-			"ans" => Op::AssertNotNeg(reg!(), addr!(0x01FF)),
+			"jpo" => Op::BranchOdd(reg!(), addr!(0xFF)),
+			"apo" => Op::AssertOdd(reg!(), addr!(0xFF)),
+			"js"  => Op::BranchNeg(reg!(), addr!(0xFF)),
+			"as"  => Op::AssertNeg(reg!(), addr!(0xFF)),
+			"jpe" => Op::BranchEven(reg!(), addr!(0xFF)),
+			"ape" => Op::AssertEven(reg!(), addr!(0xFF)),
+			"jns" => Op::BranchNotNeg(reg!(), addr!(0xFF)),
+			"ans" => Op::AssertNotNeg(reg!(), addr!(0xFF)),
 			
 			#[cfg(feature = "teleport")]
 			"tp"  => Op::Teleport(addr!(0x1FFF)),

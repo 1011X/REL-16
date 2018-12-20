@@ -7,6 +7,7 @@ pub struct DeviceManager {
     
     /// Stores device and its starting port on the ports array.
     devices: Vec<(Device, usize)>,
+    status: u16,
 }
 
 impl DeviceManager {
@@ -14,6 +15,7 @@ impl DeviceManager {
         DeviceManager {
             ports: [0; 256],
             devices: Vec::new(),
+            status: 0,
         }
     }
     
@@ -26,11 +28,63 @@ impl DeviceManager {
         let port = port as usize;
         std::mem::swap(reg, &mut self.ports[port]);
         
-        for &mut (ref mut device, start) in &mut self.devices {
-            let end = start + device.ports();
-            if start <= port && port < end {
-                device.io(rev, &mut self.ports[start..end]);
-                return false;
+        if port == 0 || port == 1 {
+            self.ports[1] = match self.ports[0] {
+                // do nothing
+                0x0000 => 0,
+                
+                // return device manager status
+                0x0001 => self.status,
+                
+                // return number of devices
+                0x0002 => self.devices.len() as u16,
+                
+                // return type of device N
+                0x0100..=0x01FF => {
+                    let devn = (self.ports[0] & 0xFF) as usize;
+                    
+                    self.devices.get(devn)
+                        .map(|(dev, _)| match dev {
+                            Device::Stack(..)    => 1,
+                            Device::Disk(..)     => 2,
+                            Device::Keyboard     => 3,
+                            Device::Display      => 4,
+                        })
+                        .unwrap_or(0)
+                }
+                
+                // return start port of device N
+                0x0200..=0x02FF => {
+                    let devn = (self.ports[0] & 0xFF) as usize;
+                    
+                    self.devices.get(devn)
+                        .map(|&(_, start)| start as u16)
+                        .unwrap_or(0)
+                }
+                
+                // return device width (number of ports) of device N
+                0x0300..=0x03FF => {
+                    let devn = (self.ports[0] & 0xFF) as usize;
+                    
+                    self.devices.get(devn)
+                        .map(|(dev, _)| dev.ports() as u16)
+                        .unwrap_or(0)
+                }
+                
+                // anything else is unimplemented
+                _ => unimplemented!()
+            };
+            
+            return false;
+        }
+        else {
+            for &mut (ref mut device, start) in &mut self.devices {
+                let end = start + device.ports();
+                
+                if start <= port && port < end {
+                    device.io(rev, &mut self.ports[start..end]);
+                    return false;
+                }
             }
         }
         
@@ -38,7 +92,8 @@ impl DeviceManager {
     }
     
     fn end(&self) -> usize {
-        self.devices.iter().map(|(_, len)| len).sum()
+        // device manager uses first 2 ports to describe connected devices
+        self.devices.iter().map(|(_, len)| len).sum::<usize>() + 2
     }
     
     pub fn debug_devices(&self) {
@@ -69,6 +124,9 @@ impl Device {
                 // POP = 2
                 // nothing = _
                 match (reverse, data) {
+                    // do nothing
+                    (_, &mut [0, _]) => {}
+                    
                     // push
                     (false, &mut [1, ref mut data]) |
                     (true,  &mut [2,  ref mut data]) => {
@@ -82,8 +140,8 @@ impl Device {
                         *data = store.pop().unwrap();
                     }
                     
-                    // unknown command, do nothing
-                    (_, &mut [_, _]) => {}
+                    // unknown command, crash
+                    (_, &mut [_, _]) => unimplemented!(),
                     
                     (_, _) => unreachable!()
                 }

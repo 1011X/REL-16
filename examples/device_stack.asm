@@ -7,15 +7,16 @@ xori r2 0 ; NOP
 
 io r1 1   ; port[1] <- 3
 io r0 0   ; port[0] <- PUSH
-io r0 0   ; port[0] <- NOP; // stops stack from auto-pushing afterwards, since
-          ;                 // otherwise IO would be invoked and the command
-          ;                 // port would still be set to PUSH.
+io r0 0   ; port[0] <- NOP; // Stops stack from auto-pushing afterwards.
+          ;                 // Otherwise, the IO instruction is invoked, the
+          ;                 // device still sees PUSH in the command port, and
+          ;                 // would push again.
 
 xori r1 5 ; data
 
-io r1 1   ; port[1] = 5
-io r0 0   ; port[0] = PUSH
-io r0 0   ; port[0] = NOP
+io r1 1   ; port[1] <- 5
+io r0 0   ; port[0] <- PUSH
+io r0 0   ; port[0] <- NOP
 
 hlt
 

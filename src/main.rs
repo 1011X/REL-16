@@ -1,5 +1,3 @@
-extern crate getopts;
-
 mod vm;
 mod asm;
 mod isa;
@@ -22,13 +20,16 @@ fn main() {
 	let mut opts = Options::new();
 	opts.optflag("V", "version", "Print program version");
 	opts.optflag("h", "help",    "Print this help menu");
+	// TODO: verbosity levels
+	// "v" => show cpu info when encountering a debug instruction
+	// "vv" => show cpu info at every step
 	opts.optflag("v", "verbose", "Log each step the VM takes");
 	opts.optflag("", "garbage-stack", "Add garbage stack device to device manager");
 	
 	let matches = opts.parse(args).unwrap();
 
 	if matches.opt_present("version") {
-		println!("rel 0.3.1");
+		println!("rel 0.6.0");
 		return;
 	}
 	

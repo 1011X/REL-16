@@ -63,11 +63,11 @@ impl Cpu<'_, '_> {
 			// print contents of registers
 			print!("registers: [");
 			
-			for &val in &self.reg.0[..BP as usize] {
+			for &val in &self.reg.0[..SP as usize] {
 				print!("{:04x}, ", val);
 			}
 			
-			print!("{:04x}]\n", self.reg[BP]);
+			print!("{:04x}]\n", self.reg[SP]);
 			
 			
 			// print contents of stack
