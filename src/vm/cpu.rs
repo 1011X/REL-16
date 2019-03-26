@@ -63,7 +63,7 @@ impl Cpu<'_, '_> {
 			// print contents of registers
 			print!("registers: [");
 			
-			for &val in &self.reg.0[..SP as usize] {
+			for val in &self.reg.0[..SP as usize] {
 				print!("{:4x}, ", val);
 			}
 			
@@ -71,28 +71,20 @@ impl Cpu<'_, '_> {
 			
 			
 			// print contents of stack
-			print!("stack: ");
+			/*{
+    			print!("stack: <");
 			
-			use std::cmp::Ordering;
-			
-			match self.reg[BP].cmp(&self.reg[SP]) {
-				Ordering::Equal   => println!("nil"),
-				Ordering::Less    => println!("invalid"),
-				Ordering::Greater => {
-					let bp = self.reg[BP] as usize;
-					let sp = self.reg[SP] as usize;
-					
-					print!("<");
-					
-					// log whole stack except for last value
-					for val in &self.data_mem[sp..bp - 1] {
-						print!("{:4x}, ", val);
-					}
-					
-					// log last value
-					println!("{:4x}]", self.data_mem[bp - 1]);
+				let bp = self.reg[BP] as usize;
+				let sp = self.reg[SP] as usize;
+				
+				// log whole stack except for last value
+				for val in &self.data_mem[sp..bp - 1] {
+					print!("{:4x}, ", val);
 				}
-			}
+				
+				// log last value
+				println!("{:4x}]", self.data_mem[bp - 1]);
+			}*/
 			
 			println!();
 		}
@@ -312,7 +304,7 @@ impl Cpu<'_, '_> {
 			
 			#[cfg(feature = "teleport")]
 			Op::Teleport(Addr::Offset(off)) =>
-				self.pc ^= off as u16,
+				self.br ^= off as u16,
 			
 			Op::GoTo(Addr::Offset(off)) =>
 				self.br = self.br.wrapping_add(off as u16),
