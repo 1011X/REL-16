@@ -33,7 +33,7 @@ You can also disassemble built files similarly using:
 ## Manual
 
 Components:
-+ General purpose registers: `r0`-`r5`, `r6` = `bp`, `r7` = `sp`.
++ General purpose registers: `r0 - r5`, `r6 = bp`, `r7 = sp`.
 + Program counter register (PC)
 + Branch register (BR)
 + Direction bit (DIR)
@@ -42,15 +42,16 @@ Upon initialization, everything is set to zero, except BR which is set to 1. Whe
 
 Addresses to memory point to word-sized (16-bit) locations. This means the largest address is still `0xFFFF`, but the maximum size of the memory is 128 KiB.
 
+When the DIR bit is active, the CPU is running in reverse mode. This means that instructions are inverted before being executed, and BR is *subtracted* from PC when fetching.
+
 Instruction     | Special syntax | Description
 ----------------|----------------|----------------------
 `hlt`           | N/A            | Halts the machine
 `nop`           | N/A            | Does nothing at all
 `dbg`           | N/A            | Special instruction for debugging purposes (unimplemented)
-`swp r0 r1`     | `r0 <> r1`     | Swaps values of `r0` and `r1`
-`xchg r0 r1`    | N/A            | Exchanges value in `r0` and value pointed to in memory by `r1`
-`io r0 PORT`    | N/A            | Exchanges value in `r0` and value at `PORT` in IO buffer
+||
 `not r0`        | N/A            | NOTs all bits in `r0`
+`swp r0 r1`     | `r0 <> r1`     | Swaps values of `r0` and `r1`
 `xor r0 r1`     | `r0 := r1`     | XORs `r0` with `r1`
 `add r0 r1`     | `r0 += r1`     | Adds `r1` to `r0`
 `sub r0 r1`     | `r0 -= r1`     | Subtracts `r1` from `r0`
@@ -64,11 +65,15 @@ Instruction     | Special syntax | Description
 `ccn r0 r1 r2`  | N/A            | XORs `r0` with result of `r1 AND r2`
 `cswp r0 r1 r2` | N/A            | Swaps bits of `r1` and `r2` based on `r0`
 ||
+`xchg r0 r1`    | N/A            | Exchanges value in `r0` and value pointed to in memory by `r1`
+`io r0 PORT`    | N/A            | Exchanges value in `r0` and value at `PORT` in IO buffer (unimplemented)
+||
+`spc r0`        | N/A            | Swaps values of `r0` and PC
+`rspc r0`       | N/A            | Swaps values of `r0` and PC, and flips DIR
+||
 `jmp ADD`       | N/A            | Increases BR by `ADD`
 `pmj SUB`       | N/A            | Decreases BR by `SUB`
 `tp MASK`       | N/A            | XORs BR with `MASK` (experimental)
-`spc r0`        | N/A            | Swaps values of `r0` and PC
-`rspc r0`       | N/A            | Swaps values of `r0` and PC, and flips DIR
 `jpo r0 OFFSET` | N/A            | Increases BR by `OFFSET` if `r0` is odd
 `jpe r0 OFFSET` | N/A            | Increases BR by `OFFSET` if `r0` is even
 `js r0 OFFSET`  | N/A            | Increases BR by `OFFSET` if `r0` is less than zero
@@ -78,6 +83,12 @@ Instruction     | Special syntax | Description
 `as r0 OFFSET`  | N/A            | Decreases BR by `OFFSET` if `r0` is less than zero
 `ans r0 OFFSET` | N/A            | Decreases BR by `OFFSET` if `r0` is greater than or equal to zero
 
+## TODO
+
+- [ ] Add special syntax for more instructions
+- [ ] Improve label resolution
+- [ ] Implement register allocation
+- [ ] Implement register spillage?
 
 ## License
 
