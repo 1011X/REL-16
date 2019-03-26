@@ -64,10 +64,10 @@ impl Cpu<'_, '_> {
 			print!("registers: [");
 			
 			for &val in &self.reg.0[..SP as usize] {
-				print!("{:04x}, ", val);
+				print!("{:4x}, ", val);
 			}
 			
-			print!("{:04x}]\n", self.reg[SP]);
+			print!("{:4x}]\n", self.reg[SP]);
 			
 			
 			// print contents of stack
@@ -86,11 +86,11 @@ impl Cpu<'_, '_> {
 					
 					// log whole stack except for last value
 					for val in &self.data_mem[sp..bp - 1] {
-						print!("{:04x}, ", val);
+						print!("{:4x}, ", val);
 					}
 					
 					// log last value
-					println!("{:04x}]", self.data_mem[bp - 1]);
+					println!("{:4x}]", self.data_mem[bp - 1]);
 				}
 			}
 			
@@ -131,10 +131,6 @@ impl Cpu<'_, '_> {
 			
 			Op::Negate(a) =>
 				self.reg[a] = self.reg[a].wrapping_neg(),
-			
-			#[cfg(feature = "xor-pc")]
-			Op::XorPc(r) =>
-				self.pc ^= self.reg[r],
 		
 			Op::SwapPc(r) =>
 				swap!(self.pc, self.reg[r]),

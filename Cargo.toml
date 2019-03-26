@@ -10,5 +10,4 @@ edition = "2018"
 getopts = "0.2.14"
 
 [features]
-xor-pc = []
 teleport = []

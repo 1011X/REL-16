@@ -1,20 +1,18 @@
 # REL-16
 
-REL-16 stands for Reversible/Entropy-Less 16-bit, and is an instruction set designed to be able to run both forwards and backwards. This virtual machine and assembler allow for emulation of such an architecture as an example of [reversible computing](https://en.wikipedia.org/wiki/Reversible_computing "Wikipedia - Reversible computing"), and is intended as an example of what a reversible CPU would be like.
+**REL-16** is an instruction set designed to run both forwards and backwards. This virtual machine and assembler allow for emulation of such an architecture as an example of [reversible computing](https://en.wikipedia.org/wiki/Reversible_computing "Wikipedia - Reversible computing"), and is intended as an example of what a reversible CPU and toolchain would be like.
+
+REL stands for **R**eversible and **E**ntropy-**L**ess.
 
 ## Install
 
-Before installing, you'll first need to install [the Rust compiler, along with Cargo](https://www.rust-lang.org/ "Rust Homepage"). Because this crate isn't on the registry yet, you'll need to download it to install it. Download the project however you want, extracting it if necessary. Then, `cd` into the project and run the following:
+Before installing, you'll first need to install [the Rust compiler, along with Cargo](https://www.rust-lang.org/ "Rust Homepage"). Because this crate isn't on the registry yet, you'll need to clone this repository and install it. Once you've cloned it, `cd` into the project and run the following:
 
-	cargo install
-
-To get a standalone executable, run:
-
-	cargo build --release
-
-You can find the executable in `target/release/`.
+	cargo install --path .
 
 ## Usage
+
+⚠️ **Note**: the project is currently in flux, so this may not be accurate.
 
 You can compile an assembly file from the terminal using
 
@@ -31,6 +29,55 @@ When using the `--verbose` option with the `run` command, the VM will show the r
 You can also disassemble built files similarly using:
 
 	rel dasm FILE -o OUTPUT_FILE
+
+## Manual
+
+Components:
++ General purpose registers: `r0`-`r5`, `r6` = `bp`, `r7` = `sp`.
++ Program counter register (PC)
++ Branch register (BR)
++ Direction bit (DIR)
+
+Upon initialization, everything is set to zero, except BR which is set to 1. When an instruction is done executing, the value of BR will be added to PC, and the instruction at that location will execute.
+
+Addresses to memory point to word-sized (16-bit) locations. This means the largest address is still `0xFFFF`, but the maximum size of the memory is 128 KiB.
+
+Instruction     | Special syntax | Description
+----------------|----------------|----------------------
+`hlt`           | N/A            | Halts the machine
+`nop`           | N/A            | Does nothing at all
+`dbg`           | N/A            | Special instruction for debugging purposes (unimplemented)
+`swp r0 r1`     | `r0 <> r1`     | Swaps values of `r0` and `r1`
+`xchg r0 r1`    | N/A            | Exchanges value in `r0` and value pointed to in memory by `r1`
+`io r0 PORT`    | N/A            | Exchanges value in `r0` and value at `PORT` in IO buffer
+`not r0`        | N/A            | NOTs all bits in `r0`
+`xor r0 r1`     | `r0 := r1`     | XORs `r0` with `r1`
+`add r0 r1`     | `r0 += r1`     | Adds `r1` to `r0`
+`sub r0 r1`     | `r0 -= r1`     | Subtracts `r1` from `r0`
+`rol r0 r1`     | N/A            | Rotates `r0` to the left by `r1` bits
+`ror r0 r1`     | N/A            | Rotates `r0` to the right by `r1` bits
+`xori r0 37`    | `r0 := 37`     | XORs `r0` with 37
+`addi r0 37`    | `r0 += 37`     | Adds 37 to `r0`
+`subi r0 37`    | `r0 -= 37`     | Subtracts 37 from `r0`
+`roli r0 5`     | N/A            | Rotates `r0` to the left by 5 bits
+`rori r0 5`     | N/A            | Rotates `r0` to the right by 5 bits
+`ccn r0 r1 r2`  | N/A            | XORs `r0` with result of `r1 AND r2`
+`cswp r0 r1 r2` | N/A            | Swaps bits of `r1` and `r2` based on `r0`
+||
+`jmp ADD`       | N/A            | Increases BR by `ADD`
+`pmj SUB`       | N/A            | Decreases BR by `SUB`
+`tp MASK`       | N/A            | XORs BR with `MASK` (experimental)
+`spc r0`        | N/A            | Swaps values of `r0` and PC
+`rspc r0`       | N/A            | Swaps values of `r0` and PC, and flips DIR
+`jpo r0 OFFSET` | N/A            | Increases BR by `OFFSET` if `r0` is odd
+`jpe r0 OFFSET` | N/A            | Increases BR by `OFFSET` if `r0` is even
+`js r0 OFFSET`  | N/A            | Increases BR by `OFFSET` if `r0` is less than zero
+`jns r0 OFFSET` | N/A            | Increases BR by `OFFSET` if `r0` is greater than or equal to zero
+`apo r0 OFFSET` | N/A            | Decreases BR by `OFFSET` if `r0` is odd
+`ape r0 OFFSET` | N/A            | Decreases BR by `OFFSET` if `r0` is even
+`as r0 OFFSET`  | N/A            | Decreases BR by `OFFSET` if `r0` is less than zero
+`ans r0 OFFSET` | N/A            | Decreases BR by `OFFSET` if `r0` is greater than or equal to zero
+
 
 ## License
 
