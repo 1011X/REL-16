@@ -128,9 +128,6 @@ impl Cpu<'_, '_> {
 			
 			Op::Not(a) =>
 				self.reg[a] = !self.reg[a],
-			
-			Op::Negate(a) =>
-				self.reg[a] = self.reg[a].wrapping_neg(),
 		
 			Op::SwapPc(r) =>
 				swap!(self.pc, self.reg[r]),
