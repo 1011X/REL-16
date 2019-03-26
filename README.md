@@ -92,4 +92,4 @@ Instruction     | Special syntax | Description
 
 ## License
 
-The default license is GPLv3, but if desired, an MIT license is available for commercial uses at a price. Contact this repository's owner if you're interested.
+This project is licensed under the [BSD Zero Clause License](https://choosealicense.com/licenses/0bsd/). In general it means you can do whatever you want with it, but there are no warranties and I'm not held liable for whatever happens.
