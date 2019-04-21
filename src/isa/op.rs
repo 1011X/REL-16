@@ -306,7 +306,7 @@ impl Op {
 impl fmt::Display for Op {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match self {
-			Op::Halt  => f.write_str("hlt"),
+			Op::Halt  => f.write_str("halt"),
 			Op::Nop   => f.write_str("nop"),
 			Op::Debug => f.write_str("dbg"),
 			
@@ -442,7 +442,7 @@ impl FromStr for Op {
 		}
 		else {
 		    match token {
-			    "hlt" => Op::Halt,
+			    "halt" => Op::Halt,
 			    "nop" => Op::Nop,
 			    "dbg" => Op::Debug,
 			    

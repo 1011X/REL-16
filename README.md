@@ -26,11 +26,13 @@ in the terminal, where FILE is the path to the input file.
 
 When using the `--verbose` option with the `run` command, the VM will show the raw and pretty-printed instruction being executed, and the contents of the registers and stack at each step of the program.
 
+<!-- 
 You can also disassemble built files similarly using:
 
 	rel dasm FILE -o OUTPUT_FILE
+-->
 
-## Manual
+## Quick Introduction
 
 Components:
 + General purpose registers: `r0 - r5`, `r6 = bp`, `r7 = sp`.
