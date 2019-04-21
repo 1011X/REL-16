@@ -46,42 +46,38 @@ When the DIR bit is active, the CPU is running in reverse mode. This means that 
 
 Instruction     | Special syntax | Description
 ----------------|----------------|----------------------
-`hlt`           | N/A            | Halts the machine
+`halt`          | N/A            | Halts the machine
 `nop`           | N/A            | Does nothing at all
-`dbg`           | N/A            | Special instruction for debugging purposes (unimplemented)
-||
-`not r0`        | N/A            | NOTs all bits in `r0`
+`dbg`           | N/A            | For debugging purposes (unimplemented)
+`not r0`        | None           | NOTs all bits in `r0`
 `swp r0 r1`     | `r0 <> r1`     | Swaps values of `r0` and `r1`
 `xor r0 r1`     | `r0 := r1`     | XORs `r0` with `r1`
 `add r0 r1`     | `r0 += r1`     | Adds `r1` to `r0`
 `sub r0 r1`     | `r0 -= r1`     | Subtracts `r1` from `r0`
-`rol r0 r1`     | N/A            | Rotates `r0` to the left by `r1` bits
-`ror r0 r1`     | N/A            | Rotates `r0` to the right by `r1` bits
+`rol r0 r1`     | None           | Rotates `r0` to the left by `r1` bits
+`ror r0 r1`     | None           | Rotates `r0` to the right by `r1` bits
 `xori r0 37`    | `r0 := 37`     | XORs `r0` with 37
 `addi r0 37`    | `r0 += 37`     | Adds 37 to `r0`
 `subi r0 37`    | `r0 -= 37`     | Subtracts 37 from `r0`
-`roli r0 5`     | N/A            | Rotates `r0` to the left by 5 bits
-`rori r0 5`     | N/A            | Rotates `r0` to the right by 5 bits
-`ccn r0 r1 r2`  | N/A            | XORs `r0` with result of `r1 AND r2`
-`cswp r0 r1 r2` | N/A            | Swaps bits of `r1` and `r2` based on `r0`
-||
-`xchg r0 r1`    | N/A            | Exchanges value in `r0` and value pointed to in memory by `r1`
-`io r0 PORT`    | N/A            | Exchanges value in `r0` and value at `PORT` in IO buffer (unimplemented)
-||
-`spc r0`        | N/A            | Swaps values of `r0` and PC
-`rspc r0`       | N/A            | Swaps values of `r0` and PC, and flips DIR
-||
-`jmp ADD`       | N/A            | Increases BR by `ADD`
-`pmj SUB`       | N/A            | Decreases BR by `SUB`
-`tp MASK`       | N/A            | XORs BR with `MASK` (experimental)
-`jpo r0 OFFSET` | N/A            | Increases BR by `OFFSET` if `r0` is odd
-`jpe r0 OFFSET` | N/A            | Increases BR by `OFFSET` if `r0` is even
-`js r0 OFFSET`  | N/A            | Increases BR by `OFFSET` if `r0` is less than zero
-`jns r0 OFFSET` | N/A            | Increases BR by `OFFSET` if `r0` is greater than or equal to zero
-`apo r0 OFFSET` | N/A            | Decreases BR by `OFFSET` if `r0` is odd
-`ape r0 OFFSET` | N/A            | Decreases BR by `OFFSET` if `r0` is even
-`as r0 OFFSET`  | N/A            | Decreases BR by `OFFSET` if `r0` is less than zero
-`ans r0 OFFSET` | N/A            | Decreases BR by `OFFSET` if `r0` is greater than or equal to zero
+`roli r0 5`     | None           | Rotates `r0` to the left by 5 bits
+`rori r0 5`     | None           | Rotates `r0` to the right by 5 bits
+`ccn r0 r1 r2`  | None           | XORs `r0` with result of `r1 AND r2`
+`cswp r0 r1 r2` | None           | Swaps bits of `r1` and `r2` based on `r0`
+`xchg r0 r1`    | None           | Exchanges value in `r0` and value pointed to in memory by `r1`
+`io r0 PORT`    | None           | Exchanges value in `r0` and value at `PORT` in IO buffer (unimplemented)
+`spc r0`        | None           | Swaps values of `r0` and PC
+`rspc r0`       | None           | Swaps values of `r0` and PC, and flips DIR
+`jmp ADD`       | None           | Increases BR by `ADD`
+`pmj SUB`       | None           | Decreases BR by `SUB`
+`tp MASK`       | None           | XORs BR with `MASK` (experimental)
+`jpo r0 OFFSET` | None           | Increases BR by `OFFSET` if `r0` is odd
+`jpe r0 OFFSET` | None           | Increases BR by `OFFSET` if `r0` is even
+`js r0 OFFSET`  | None           | Increases BR by `OFFSET` if `r0` is less than zero
+`jns r0 OFFSET` | None           | Increases BR by `OFFSET` if `r0` is greater than or equal to zero
+`apo r0 OFFSET` | None           | Decreases BR by `OFFSET` if `r0` is odd
+`ape r0 OFFSET` | None           | Decreases BR by `OFFSET` if `r0` is even
+`as r0 OFFSET`  | None           | Decreases BR by `OFFSET` if `r0` is less than zero
+`ans r0 OFFSET` | None           | Decreases BR by `OFFSET` if `r0` is greater than or equal to zero
 
 ## TODO
 
