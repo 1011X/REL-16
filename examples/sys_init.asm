@@ -16,7 +16,7 @@ xchg r0 r7    ; r0 <> mem[sp]
 
 ; push and pop the stack. enforces stack boundary.
 ; fn push(r0): addr = 0x0007, len = 10
-jmp 12
+jmp +12
 spc r5
     ; boundary check. check that next address is in range.
     ; can't check SP directly bc then the assertion afterwards won't hold.
@@ -26,17 +26,17 @@ spc r5
     ; r1 is decremented bc we're checking the *next* address is valid.
     subi r1 1      ; r1 -= 1
 
-    js r1 2        ; if r1 < 0x8000
+    bs r1 +2       ; if r1 < 0x8000 // stack overflow
         hlt        ;     halt
-    jns r1 3
-    as r1 2        ; else
+    jmp +3
+    jmp -2         ; else
         subi r7 1  ;     sp -= 1
         xchg r0 r7 ;     r0 <=> mem[sp]
-    ans r1 3       ; fi r1 < 0x8000
+    bn r1 -3       ; fi r1 < 0x8000
 
     xor r1 r7      ; r1 ^= sp
 spc r5
-pmj 12
+pmj -12
 ; fn pop(r0): addr = 0x0012
 
 
@@ -155,14 +155,14 @@ subi r7 16
     ; r ^= s
 
 ; fn level(size: r1, lvl: r0)
-jmp X
+jmp :func_level
 spc r5
     subi r1 1; size -= 1
-    jns r1    ; if size[15] = 1:
+    bn r1 :here   ; if size[15] = 1:
         xori r0 8
-    ans r1    ; fi size[15] = 1
+    bn r1 :here   ; fi size[15] = 1
     addi r1 1
 spc r5
-pmj X
+pmj :func_level
 
 hlt

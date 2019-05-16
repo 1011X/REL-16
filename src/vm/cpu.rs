@@ -1,4 +1,4 @@
-use crate::isa::{Op, Addr, Reg};
+use crate::isa::{Op, Offset, Reg};
 use super::register_file::RegisterFile;
 use super::device::DeviceManager;
 
@@ -262,71 +262,50 @@ impl Cpu<'_, '_> {
 				debug_assert!(s0 == 0);
 			}
 			
-			Op::BranchOdd(r, Addr::Offset(off)) =>
-				if (self.reg[r] & 1) == 1 {
-					self.br = self.br.wrapping_add(off as u16);
+			Op::BranchParity(val, r, ref offset) =>
+				if (self.reg[r] & 1) == val as u16 {
+				    match *offset {
+				        Offset::Forward(off) =>
+        					self.br = self.br.wrapping_add(off as u16),
+				        Offset::Backward(off) =>
+        					self.br = self.br.wrapping_sub(off as u16),
+                        #[cfg(feature = "labels")]
+    					Offset::Label(_) =>
+    					    panic!("found label while running vm"),
+					}
 				}
 			
-			Op::AssertOdd(r, Addr::Offset(off)) =>
-				if (self.reg[r] & 1) == 1 {
-					self.br = self.br.wrapping_sub(off as u16);
-				}
-			
-			Op::BranchNeg(r, Addr::Offset(off)) =>
-				if (self.reg[r] as i16) < 0 {
-					self.br = self.br.wrapping_add(off as u16);
-				}
-			
-			Op::AssertNeg(r, Addr::Offset(off)) =>
-				if (self.reg[r] as i16) < 0 {
-					self.br = self.br.wrapping_sub(off as u16);
-				}
-			
-			Op::BranchEven(r, Addr::Offset(off)) =>
-				if (self.reg[r] & 1) == 0 {
-					self.br = self.br.wrapping_add(off as u16);
-				}
-			
-			Op::AssertEven(r, Addr::Offset(off)) =>
-				if (self.reg[r] & 1) == 0 {
-					self.br = self.br.wrapping_sub(off as u16);
-				}
-			
-			Op::BranchNotNeg(r, Addr::Offset(off)) =>
-				if (self.reg[r] as i16) >= 0 {
-					self.br = self.br.wrapping_add(off as u16);
-				}
-			
-			Op::AssertNotNeg(r, Addr::Offset(off)) =>
-				if (self.reg[r] as i16) >= 0 {
-					self.br = self.br.wrapping_sub(off as u16);
+			Op::BranchSign(val, r, ref offset) =>
+				if (self.reg[r] >> 15) == val as u16 {
+				    match *offset {
+				        Offset::Forward(off) =>
+        					self.br = self.br.wrapping_add(off as u16),
+				        Offset::Backward(off) =>
+        					self.br = self.br.wrapping_sub(off as u16),
+                        #[cfg(feature = "labels")]
+    					Offset::Label(_) =>
+    					    panic!("found label while running vm"),
+					}
 				}
 			
 			#[cfg(feature = "teleport")]
-			Op::Teleport(Addr::Offset(off)) =>
+			Op::Teleport(Offset::Forward(off))
+			| Op::Teleport(Offset::Backward(off)) =>
 				self.br ^= off as u16,
 			
-			Op::GoTo(Addr::Offset(off)) =>
-				self.br = self.br.wrapping_add(off as u16),
-		
-			Op::ComeFrom(Addr::Offset(off)) =>
-				self.br = self.br.wrapping_sub(off as u16),
+			Op::Jump(ref offset) =>
+			    match *offset {
+			        Offset::Forward(off) =>
+    					self.br = self.br.wrapping_add(off as u16),
+			        Offset::Backward(off) =>
+    					self.br = self.br.wrapping_sub(off as u16),
+                    #[cfg(feature = "labels")]
+					Offset::Label(_) =>
+					    panic!("found label while running vm"),
+				}
 			
 			// for when branch instrs use labels (which shouldn't 
 			// happen)
-			Op::BranchOdd(..)
-			| Op::BranchEven(..)
-			| Op::BranchNeg(..)
-			| Op::BranchNotNeg(..)
-			| Op::AssertOdd(..)
-			| Op::AssertEven(..)
-			| Op::AssertNeg(..)
-			| Op::AssertNotNeg(..) =>
-				unreachable!(),
-			
-			Op::GoTo(_) | Op::ComeFrom(_) =>
-				unreachable!(),
-			
 			#[cfg(feature = "teleport")]
 			Op::Teleport(_) =>
 				unreachable!(),

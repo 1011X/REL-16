@@ -69,22 +69,21 @@ Instruction     | Special syntax | Description
 `io r0 PORT`    | None           | Exchanges value in `r0` and value at `PORT` in IO buffer (unimplemented)
 `spc r0`        | None           | Swaps values of `r0` and PC
 `rspc r0`       | None           | Swaps values of `r0` and PC, and flips DIR
-`jmp ADD`       | None           | Increases BR by `ADD`
-`pmj SUB`       | None           | Decreases BR by `SUB`
+`jmp OFF`       | None           | Offsets BR by `OFF` unconditionally
 `tp MASK`       | None           | XORs BR with `MASK` (experimental)
-`jpo r0 OFFSET` | None           | Increases BR by `OFFSET` if `r0` is odd
-`jpe r0 OFFSET` | None           | Increases BR by `OFFSET` if `r0` is even
-`js r0 OFFSET`  | None           | Increases BR by `OFFSET` if `r0` is less than zero
-`jns r0 OFFSET` | None           | Increases BR by `OFFSET` if `r0` is greater than or equal to zero
-`apo r0 OFFSET` | None           | Decreases BR by `OFFSET` if `r0` is odd
-`ape r0 OFFSET` | None           | Decreases BR by `OFFSET` if `r0` is even
-`as r0 OFFSET`  | None           | Decreases BR by `OFFSET` if `r0` is less than zero
-`ans r0 OFFSET` | None           | Decreases BR by `OFFSET` if `r0` is greater than or equal to zero
+`bo r0 OFF`     | None           | Offsets BR by `OFF` if `r0` is odd
+`be r0 OFF`     | None           | Offsets BR by `OFF` if `r0` is even
+`bs r0 OFF`     | None           | Offsets BR by `OFF` if `r0` is negative
+`bn r0 OFF`     | None           | Offsets BR by `OFF` if `r0` is non-negative
 
 ## TODO
 
-- [ ] Add special syntax for more instructions
-- [ ] Improve label resolution
+- [ ] ~~Add special syntax for more instructions~~
+  + Special syntax is being reconsidered while some design changes are being
+    made.
+- [ ] ~~Improve label resolution~~
+  + Labels have been moved to their own feature called "labels" that is disabled
+    by default. They haven't been completely implemented.
 - [ ] Implement register allocation
 - [ ] Implement register spillage?
 
