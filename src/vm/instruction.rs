@@ -17,23 +17,29 @@ the architecture.
 
 Being a 16-bit architecture, we must organize the bits so all instructions are
 representable within 16 bits. There are some addressing modes:
-* Register (3): 1-3 registers
-  * Single (3): 1 register
-  * Double (7): 2 registers
-    * Swap: 2 mut regs
-    * Controlled-op (6): 1 mut reg, 1 const reg
-  * Triple (2): 3 registers
-    * CCNot: 2 const regs, 1 mut reg
-    * CSwap: 1 const reg, 2 mut regs
-* Immediate (5): register, 8-bit value
-  * low immediate
-  * high immediate
-  * jump-odd
-  * jump-negative
-  * I/O ports
-* Jump (2): 11-bit value
-  * jump
-  * halt / jump-void / jump-eternal / bail / see-ya
+* Immediate: register, 8-bit value
+  * low immediate (op = 0x00)
+  * high immediate (op = 0x01)
+  * jump-odd (op = 0x02)
+  * jump-negative (op = 0x03)
+  * I/O ports (op = 0x04)
+* Double registers (op = 0x05): 2 registers
+  * Xor: func = 0x00
+  * Swap: func = 0x01
+  * Add: func = 0x02
+  * Sub: func = 0x03
+  * LRot: func = 0x04
+  * RRot: func = 0x05
+  * Exchange: func = 0x06
+  * Not: func = 0x07
+  * Swap-PC: func = 0x08
+  * Rev-Swap-PC: func = 0x09
+* Triple registers (op = 0x06): 3 registers
+  * CCNot: func = 0x0
+  * CSwap: func = 0x1
+* Jump: 11-bit value
+  * jump (op = 0x07)
+  * halt (op = 0x1F)
 */
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Instr {
@@ -155,17 +161,32 @@ impl Instr {
 			Instr::Jump(val) if val > 0x7FF => todo!(),
 			
 			Instr::Halt(code) => Ok((code as u16) << 5 | 0x1F),
-			Instr::Jump(addr) => Ok((addr as u16) << 5 | 0x1E),
+			Instr::Jump(addr) => Ok((addr as u16) << 5 | 0x08),
 			
 			Instr::ImmLow(reg, imm) => Ok(
 				(imm as u16) << 8
 				| (reg as u16) << 5
-				| 0x02
+				| 0x00
 			),
 			Instr::ImmHigh(reg, imm) => Ok(
 				(imm as u16) << 8
 				| (reg as u16) << 5
+				| 0x01
+			),
+			Instr::JumpOdd(reg, imm) => Ok(
+				(imm as u16) << 8
+				| (reg as u16) << 5
+				| 0x02
+			),
+			Instr::JumpNeg(reg, imm) => Ok(
+				(imm as u16) << 8
+				| (reg as u16) << 5
 				| 0x03
+			),
+			Instr::IO(reg, imm) => Ok(
+				(imm as u16) << 8
+				| (reg as u16) << 5
+				| 0x04
 			),
 			
 			_ => todo!(),
