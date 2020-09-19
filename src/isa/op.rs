@@ -19,8 +19,8 @@ pub enum Addr {
 impl fmt::Display for Addr {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match self {
-			Addr::Label(label) => write!(f, "{}", label),
-			Addr::Offset(offset)   => write!(f, "{}", offset),
+			Addr::Label(label) => label.fmt(f),
+			Addr::Offset(offset) => offset.fmt(f),
 		}
 	}
 }
@@ -49,7 +49,7 @@ impl fmt::Display for ParseOpError {
 		use self::ParseOpError::*;
 		match self {
 			ExtraToken =>
-				write!(f, "Found extra token."),
+				f.write_str("Found extra token."),
 			NoToken(t) =>
 				write!(f, "Missing token of type {:?}", t),
 			BadToken(t, ref tok) =>
@@ -57,24 +57,13 @@ impl fmt::Display for ParseOpError {
 			ValueOverflow(max) =>
 				write!(f, "Value exceeds maximum allowed value of {}", max),
 			ParseInt(ref pie) =>
-				write!(f, "{}", pie),
+				pie.fmt(f),
 		}
 	}
 }
 
 impl Error for ParseOpError {
-	fn description(&self) -> &'static str {
-		use self::ParseOpError::*;
-		match self {
-			ExtraToken       => "extra token",
-			NoToken(_)       => "missing token",
-			BadToken(..)     => "malformed token",
-			ValueOverflow(_) => "value exceeds maximum",
-			ParseInt(_)      => "value too big to parse",
-		}
-	}
-	
-	fn cause(&self) -> Option<&Error> {
+	fn source(&self) -> Option<&(dyn Error + 'static)> {
 		match self {
 			ParseOpError::ParseInt(pie) => Some(pie),
 			_ => None

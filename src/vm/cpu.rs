@@ -122,9 +122,7 @@ impl Cpu<'_, '_> {
 		match self.ir {
 			Op::Halt => return true,
 			Op::Nop => {}
-			Op::Debug => {
-			    unimplemented!();
-		    }
+			Op::Debug => todo!(),
 			
 			Op::Not(a) =>
 				self.reg[a] = !self.reg[a],

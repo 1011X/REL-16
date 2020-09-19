@@ -81,5 +81,4 @@ impl fmt::Display for ParseError {
 }
 
 impl Error for ParseError {
-	fn description(&self) -> &'static str { "invalid register literal" }
 }
