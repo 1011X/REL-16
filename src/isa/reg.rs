@@ -16,8 +16,7 @@ pub enum Reg {
 }
 
 pub static ALL_REGISTERS: [Reg; 8] = [
-	Reg::R0, Reg::R1, Reg::R2, Reg::R3, Reg::R4, Reg::R5,
-	Reg::R6, Reg::SP,
+	Reg::R0, Reg::R1, Reg::R2, Reg::R3, Reg::R4, Reg::R5, Reg::R6, Reg::SP,
 ];
 
 /// Error when parsing register string literal
