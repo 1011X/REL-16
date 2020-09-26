@@ -1,6 +1,7 @@
-use crate::isa::{Op, Addr, Reg};
+use super::reg::Reg;
 use super::register_file::RegisterFile;
 use super::device::DeviceManager;
+use super::instruction::Instr;
 
 const SP: Reg = Reg::SP;
 const BP: Reg = Reg::R6;
@@ -20,7 +21,7 @@ pub struct Cpu<'pm, 'dev> {
 	dir: bool,
 	br: u16,
 	pc: u16,
-	ir: Op,
+	ir: Instr,
 	
 	// Some conventions on registers:
 	// r0 can be treated like an accumulator register
@@ -28,20 +29,20 @@ pub struct Cpu<'pm, 'dev> {
 	// r7 is the stack base pointer (bp)
 	reg: RegisterFile,
 	
-	prog_mem: &'pm [Op],      // ROM
+	prog_mem: &'pm [Instr],      // ROM
 	data_mem: [u16; MAX_MEM], // RAM
 	devices: &'dev mut DeviceManager,
 }
 
 impl Cpu<'_, '_> {
-	pub fn new<'pm, 'dev>(prog: &'pm [Op], dev: &'dev mut DeviceManager, log: bool) -> Cpu<'pm, 'dev> {
+	pub fn new<'pm, 'dev>(prog: &'pm [Instr], dev: &'dev mut DeviceManager, log: bool) -> Cpu<'pm, 'dev> {
 		Cpu {
 			logging_enabled: log,
 			
 			dir: false,
 			br: 1,
 			pc: 0,
-			ir: Op::Halt,
+			ir: Instr::Halt(0),
 			reg: RegisterFile([0; 8]),
 			
 			prog_mem: prog,
@@ -120,43 +121,34 @@ impl Cpu<'_, '_> {
 		}
 	
 		match self.ir {
-			Op::Halt => return true,
-			Op::Nop => {}
-			Op::Debug => todo!(),
+			Instr::Halt(_) => return true,
 			
-			Op::Not(a) =>
+			Instr::Not(a, _) =>
 				self.reg[a] = !self.reg[a],
 			
-			Op::Negate(a) =>
-				self.reg[a] = self.reg[a].wrapping_neg(),
-			
-			#[cfg(feature = "xor-pc")]
-			Op::XorPc(r) =>
-				self.pc ^= self.reg[r],
-		
-			Op::SwapPc(r) =>
+			Instr::SwapPc(r, _) =>
 				swap!(self.pc, self.reg[r]),
 		
-			Op::RevSwapPc(r) => {
+			Instr::RevSwapPc(r, _) => {
 				swap!(self.pc, self.reg[r]);
 				self.dir = !self.dir;
 			}
 		
-			Op::Swap(a, b) =>
+			Instr::Swap(a, b) =>
 				self.reg.0.swap(a as usize, b as usize),
 			
-			Op::Exchange(rd, ra) => {
+			Instr::Exchange(rd, raddr) => {
 				let mut d = 0;
 				swap!(d, self.reg[rd]);
 				
-				let addr = self.reg[ra] as usize;
+				let addr = self.reg[raddr] as usize;
 				swap!(d, self.data_mem[addr]);
 				
 				swap!(d, self.reg[rd]);
 				debug_assert!(d == 0);
 			}
 			
-			Op::Xor(rn, rc) => {
+			Instr::Xor(rn, rc) => {
 				let mut n = 0;
 				swap!(n, self.reg[rn]);
 				
@@ -166,7 +158,7 @@ impl Cpu<'_, '_> {
 				debug_assert!(n == 0);
 			}
 			
-			Op::Add(ra, rc) => {
+			Instr::Add(ra, rc) => {
 				let mut a = 0;
 				swap!(a, self.reg[ra]);
 				
@@ -176,7 +168,7 @@ impl Cpu<'_, '_> {
 				debug_assert!(a == 0);
 			}
 			
-			Op::Sub(rs, rc) => {
+			Instr::Sub(rs, rc) => {
 				let mut s = 0;
 				swap!(s, self.reg[rs]);
 				
@@ -186,7 +178,7 @@ impl Cpu<'_, '_> {
 				debug_assert!(s == 0);
 			}
 			
-			Op::LRot(rr, ro) => {
+			Instr::LRot(rr, ro) => {
 				let mut r = 0;
 				swap!(r, self.reg[rr]);
 				
@@ -196,7 +188,7 @@ impl Cpu<'_, '_> {
 				debug_assert!(r == 0);
 			}
 			
-			Op::RRot(rr, ro) => {
+			Instr::RRot(rr, ro) => {
 				let mut r = 0;
 				swap!(r, self.reg[rr]);
 				
@@ -207,47 +199,25 @@ impl Cpu<'_, '_> {
 			}
 			
 			
-			Op::XorImm(r, v) =>
+			Instr::ImmLow(r, v) =>
 				self.reg[r] ^= v as u16,
 			
-			Op::AddImm(r, i) => {
-				let mut a = 0;
-				swap!(a, self.reg[r]);
-				
-				a = a.wrapping_add(i as u16);
-				
-				swap!(a, self.reg[r]);
-				debug_assert!(a == 0);
-			}
+			Instr::ImmHigh(r, v) =>
+				self.reg[r] ^= (v as u16) << 8,
 			
-			Op::SubImm(r, i) => {
-				let mut s = 0;
-				swap!(s, self.reg[r]);
-				
-				s = s.wrapping_sub(i as u16);
-				
-				swap!(s, self.reg[r]);
-				debug_assert!(s == 0);
-			}
-			
-			Op::LRotImm(r, v) =>
-				self.reg[r] = self.reg[r].rotate_left(v as u32),
-			
-			Op::RRotImm(r, v) =>
-				self.reg[r] = self.reg[r].rotate_right(v as u32),
-			
-			Op::IO(r, p) => {
+			Instr::IO(r, p) => {
 			    if self.devices.call(self.dir, &mut self.reg[r], p) {
 			        eprintln!("Error while trying to call device.");
 			        eprintln!("reg = {}  data = {}  port = {}", r, self.reg[r], p);
 			        return true;
 			    }
+			    todo!()
 			}
 			
 			// Swap the modified register's value to a zeroed
 			// location, so that in case it's also used as a control
 			// register, then this instruction just becomes a no-op.
-			Op::CCNot(rc0, rc1, rn) => {
+			Instr::CCNot(rc0, rc1, rn) => {
 				let mut n = 0;
 				swap!(n, self.reg[rn]);
 				
@@ -259,7 +229,7 @@ impl Cpu<'_, '_> {
 			
 			// Swap the modified registers' values to zeroed
 			// locations, just like the CCNot instruction.
-			Op::CSwap(rc, rs0, rs1) => {
+			Instr::CSwap(rc, rs0, rs1) => {
 				let mut s0 = 0;
 				let mut s1 = 0;
 				swap!(s0, self.reg[rs0]);
@@ -275,74 +245,18 @@ impl Cpu<'_, '_> {
 				debug_assert!(s0 == 0);
 			}
 			
-			Op::BranchOdd(r, Addr::Offset(off)) =>
+			Instr::JumpOdd(r, off) =>
 				if (self.reg[r] & 1) == 1 {
-					self.br = self.br.wrapping_add(off as u16);
+					self.br ^= off as u16;
 				}
 			
-			Op::AssertOdd(r, Addr::Offset(off)) =>
-				if (self.reg[r] & 1) == 1 {
-					self.br = self.br.wrapping_sub(off as u16);
-				}
-			
-			Op::BranchNeg(r, Addr::Offset(off)) =>
+			Instr::JumpNeg(r, off) =>
 				if (self.reg[r] as i16) < 0 {
-					self.br = self.br.wrapping_add(off as u16);
+					self.br ^= off as u16;
 				}
 			
-			Op::AssertNeg(r, Addr::Offset(off)) =>
-				if (self.reg[r] as i16) < 0 {
-					self.br = self.br.wrapping_sub(off as u16);
-				}
-			
-			Op::BranchEven(r, Addr::Offset(off)) =>
-				if (self.reg[r] & 1) == 0 {
-					self.br = self.br.wrapping_add(off as u16);
-				}
-			
-			Op::AssertEven(r, Addr::Offset(off)) =>
-				if (self.reg[r] & 1) == 0 {
-					self.br = self.br.wrapping_sub(off as u16);
-				}
-			
-			Op::BranchNotNeg(r, Addr::Offset(off)) =>
-				if (self.reg[r] as i16) >= 0 {
-					self.br = self.br.wrapping_add(off as u16);
-				}
-			
-			Op::AssertNotNeg(r, Addr::Offset(off)) =>
-				if (self.reg[r] as i16) >= 0 {
-					self.br = self.br.wrapping_sub(off as u16);
-				}
-			
-			#[cfg(feature = "teleport")]
-			Op::Teleport(Addr::Offset(off)) =>
-				self.pc ^= off as u16,
-			
-			Op::GoTo(Addr::Offset(off)) =>
-				self.br = self.br.wrapping_add(off as u16),
-		
-			Op::ComeFrom(Addr::Offset(off)) =>
-				self.br = self.br.wrapping_sub(off as u16),
-			
-			// for when branch instrs use labels (which shouldn't 
-			// happen)
-			Op::BranchOdd(..)
-			| Op::BranchEven(..)
-			| Op::BranchNeg(..)
-			| Op::BranchNotNeg(..)
-			| Op::AssertOdd(..)
-			| Op::AssertEven(..)
-			| Op::AssertNeg(..)
-			| Op::AssertNotNeg(..) =>
-				unreachable!(),
-			
-			Op::GoTo(_) | Op::ComeFrom(_) =>
-				unreachable!(),
-			
-			#[cfg(feature = "teleport")]
-			Op::Teleport(_) =>
-				unreachable!(),
+			Instr::Jump(off) =>
+				self.br ^= off,
 		}
 		
 		// decide next instruction based on offset and dir bit

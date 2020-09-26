@@ -5,7 +5,7 @@ use std::convert::From;
 use std::error::Error;
 use std::str::FromStr;
 
-use super::reg::{self, Reg};
+use crate::vm::reg::{self, Reg};
 
 type Result<T> = result::Result<T, ParseOpError>;
 
@@ -128,14 +128,6 @@ pub enum Op {
 	/// Turns the given register's value into its two's complement.
 	Negate(Reg),
 	
-	#[cfg(feature = "xor-pc")]
-	/// Flips bits in PC register based on given register.
-	/// 
-	/// The destination instruction has no restrictions. The only
-	/// restriction is that this is dependent on code/memory
-	/// position.
-	XorPc(Reg),
-	
 	/// Swaps the register and the program counter. Used for calling
 	/// functions.
 	SwapPc(Reg),
@@ -226,13 +218,6 @@ pub enum Op {
 	/// instruction to avoid skipping instructions.
 	ComeFrom(Addr),
 	
-	#[cfg(feature = "teleport")]
-	/// XORs an immediate value to the PC register.
-	/// 
-	/// The only restrictions on this instruction are that it be dependent
-	/// on code/memory position, and the higher bits of PC can't be reached.
-	Teleport(Addr),
-	
 	/// Adds an offset to the branch register if the register is an
 	/// odd number.
 	BranchOdd(Reg, Addr),
@@ -285,8 +270,6 @@ impl Op {
 			
 			Op::Not(_)        => self,
 			Op::Negate(_)     => self,
-			#[cfg(feature = "xor-pc")]
-			Op::XorPc(_)      => self,
 			Op::SwapPc(r)     => Op::RevSwapPc(r),
 			Op::RevSwapPc(r)  => Op::SwapPc(r),
 			
@@ -316,51 +299,9 @@ impl Op {
 			Op::AssertNeg(r, a)    => Op::BranchNeg(r, a),
 			Op::AssertNotNeg(r, a) => Op::BranchNotNeg(r, a),
 			
-			#[cfg(feature = "teleport")]
-			Op::Teleport(_)    => self,
-			
 			Op::GoTo(addr)     => Op::ComeFrom(addr),
 			Op::ComeFrom(addr) => Op::GoTo(addr),
 			Op::IO(r, p)       => Op::IO(r, p),
-		}
-	}
-	
-	fn mneu_usage(s: &str) -> &'static str {
-		match s {
-			"hlt" | "nop" | "dbg" =>
-				"no arguments taken",
-			
-			"not" | "neg" | "spc" | "rspc" =>
-				"<register>",
-			
-			#[cfg(feature = "xor-pc")]
-			"xpc" =>
-				"<register>",
-			
-			"swp" | "xchg" | "xor" | "add" | "sub" | "rol" | "ror" =>
-				"<register> <register>",
-			
-			"ccn" | "cswp" =>
-				"<register> <register> <register>",
-			
-			"xori" | "addi" | "subi" | "roli" | "rori" =>
-				"<register> <8-bit unsigned int>",
-			
-			"jpo" | "apo" | "js" | "as" | "jpe" | "ape" | "jns"
-			| "ans" =>
-				"<register> <label or 10-bit address>",
-			
-			"jmp" | "pmj" =>
-				"<label or 14-bit address>",
-			
-			#[cfg(feature = "teleport")]
-			"tp" =>
-				"<label or 14-bit address>",
-			
-			"io" =>
-			    "<register> <port number>",
-			
-			_ => unreachable!()
 		}
 	}
 }
@@ -374,8 +315,6 @@ impl fmt::Display for Op {
 			
 			Op::Not(r)       => write!(f, "not {}", r),
 			Op::Negate(r)    => write!(f, "neg {}", r),
-			#[cfg(feature = "xor-pc")]
-			Op::XorPc(r)     => write!(f, "xpc {}", r),
 			Op::SwapPc(r)    => write!(f, "spc {}", r),
 			Op::RevSwapPc(r) => write!(f, "rspc {}", r),
 			
@@ -406,8 +345,6 @@ impl fmt::Display for Op {
 			Op::BranchNotNeg(r, ref a) => write!(f, "jns {} {}", r, a),
 			Op::AssertNotNeg(r, ref a) => write!(f, "ans {} {}", r, a),
 			
-			#[cfg(feature = "teleport")]
-			Op::Teleport(addr) => write!(f, "tp {}", addr),
 			Op::GoTo(addr)     => write!(f, "jmp {}", addr),
 			Op::ComeFrom(addr) => write!(f, "pmj {}", addr),
 		}
@@ -479,8 +416,6 @@ impl FromStr for Op {
 			
 			"not"   => Op::Not(reg!()),
 			"neg"   => Op::Negate(reg!()),
-			#[cfg(feature = "xor-pc")]
-			"xpc"   => Op::XorPc(reg!()),
 			"spc"   => Op::SwapPc(reg!()),
 			"rspc"  => Op::RevSwapPc(reg!()),
 						
@@ -511,8 +446,6 @@ impl FromStr for Op {
 			"jns" => Op::BranchNotNeg(reg!(), addr!(0xFF)),
 			"ans" => Op::AssertNotNeg(reg!(), addr!(0xFF)),
 			
-			#[cfg(feature = "teleport")]
-			"tp"  => Op::Teleport(addr!(0x1FFF)),
 			"jmp" => Op::GoTo(addr!(0x1FFF)),
 			"pmj" => Op::ComeFrom(addr!(0x1FFF)),
 			

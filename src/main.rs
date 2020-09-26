@@ -1,12 +1,9 @@
-mod vm;
-mod asm;
-mod isa;
-
 use std::env;
-use std::io::BufReader;
-use std::fs::File;
+use std::fs;
 use getopts::Options;
 
+mod vm;
+mod asm;
 
 static USAGE: &str = "\
 Usage:
@@ -39,8 +36,17 @@ fn main() {
 	}
 	
 	if let Some(arg) = matches.free.get(0) {
-		let reader = BufReader::new(File::open(arg).unwrap());
-		let code = asm::parse(reader).unwrap();
+		let data = fs::read(arg).unwrap();
+		let code = data
+			.chunks(2)
+			.map(|slice| match slice {
+				[a, b] => (*a as u16) << 8 | (*b as u16),
+				[_] => panic!("uneven file length"),
+				_ => unreachable!(),
+			})
+			.map(vm::Instr::decode)
+			.collect::<Result<Vec<_>, _>>()
+			.unwrap();
 		let logging_enabled = matches.opt_present("verbose");
 		let mut dm = vm::DeviceManager::new();
 		

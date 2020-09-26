@@ -1,5 +1,5 @@
 use std::ops::{Index, IndexMut};
-use crate::isa::Reg;
+use super::reg::Reg;
 
 pub struct RegisterFile(pub [u16; 8]);
 

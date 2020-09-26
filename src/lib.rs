@@ -1,7 +1,5 @@
-pub mod isa;
+pub mod asm;
+pub mod vm;
 
-pub use crate::isa::op;
-pub use crate::isa::reg;
-
-pub use crate::isa::op::{Op, Addr};
-pub use crate::isa::reg::Reg;
+pub use crate::vm::{Instr, Addr, Reg};
+pub use crate::asm::Op;

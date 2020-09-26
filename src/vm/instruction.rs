@@ -1,4 +1,4 @@
-use crate::isa::reg::{self, Reg};
+use crate::vm::reg::{self, Reg};
 
 pub type Addr = usize;
 type RegMut = Reg;
@@ -101,7 +101,7 @@ pub enum Instr {
 	Exchange(RegMut, Reg),
 	
 	/// XORs an immediate value to the branch register.
-	Jump(Addr),
+	Jump(u16),
 	
 	/// XORs an offset to the branch register if the given register has an odd number.
 	JumpOdd(Reg, Addr),
@@ -167,7 +167,7 @@ impl Instr {
 			Instr::Jump(val) if val > 0x7FF => Err(EncodeError),
 			
 			Instr::Halt(code) => Ok((code as u16) << 5 | 0x1F),
-			Instr::Jump(addr) => Ok((addr as u16) << 5 | 0x08),
+			Instr::Jump(addr) => Ok((addr as u16) << 5 | 0x07),
 			
 			// immediate format
 			Instr::ImmLow(reg, imm) => Ok(
@@ -197,10 +197,10 @@ impl Instr {
 			),
 			
 			// double register format
-			Instr::Not(reg, _) => Ok(
+			Instr::Not(reg_a, reg_b) => Ok(
 				0 << 11
-				| (reg as u16) << 8
-				| 0 << 5
+				| (reg_a as u16) << 8
+				| (reg_b as u16) << 5
 				| 0x05
 			),
 			Instr::Xor(reg_a, reg_b) => Ok(
@@ -245,16 +245,16 @@ impl Instr {
 				| (reg_b as u16) << 5
 				| 0x05
 			),
-			Instr::SwapPc(reg, _) => Ok(
+			Instr::SwapPc(reg_a, reg_b) => Ok(
 				8 << 11
-				| (reg as u16) << 8
-				| 0 << 5
+				| (reg_a as u16) << 8
+				| (reg_b as u16) << 5
 				| 0x05
 			),
-			Instr::RevSwapPc(reg, _) => Ok(
+			Instr::RevSwapPc(reg_a, reg_b) => Ok(
 				9 << 11
-				| (reg as u16) << 8
-				| 0 << 5
+				| (reg_a as u16) << 8
+				| (reg_b as u16) << 5
 				| 0x05
 			),
 			
@@ -278,18 +278,6 @@ impl Instr {
 	
 	pub fn decode(instr: u16) -> Result<Self, DecodeError> {
 		match instr & 0x1F {
-			// halt
-			0x1F => {
-				let value = instr >> 5;
-				Ok(Instr::Halt(value))
-			}
-			
-			// direct jump
-			0x07 => {
-				let offset = instr >> 5;
-				Ok(Instr::Jump(offset as usize))
-			}
-			
 			// low immediate
 			0x00 => {
 				let reg = ((instr >> 5) & 0x7) as usize;
@@ -331,7 +319,7 @@ impl Instr {
 				let rw = reg::ALL_REGISTERS[((instr >> 8) & 0x7) as usize];
 				
 				match instr >> 11 {
-					0x00 => Ok(Instr::Not(rb, rw)),
+					0x00 => Ok(Instr::Not(rw, rb)),
 					0x01 => Ok(Instr::Xor(rw, rb)),
 					0x02 => Ok(Instr::Swap(rw, rb)),
 					0x03 => Ok(Instr::Exchange(rw, rb)),
@@ -342,7 +330,7 @@ impl Instr {
 					0x08 => Ok(Instr::SwapPc(rw, rb)),
 					0x09 => Ok(Instr::RevSwapPc(rw, rb)),
 					
-					0x00 ..= 0x1F => unimplemented!(),
+					0x0A ..= 0x1F => unimplemented!(),
 					_ => unreachable!()
 				}
 			}
@@ -357,12 +345,24 @@ impl Instr {
 					0x0 => Ok(Instr::CCNot(rr, rb, rw)),
 					0x1 => Ok(Instr::CSwap(rr, rb, rw)),
 					
-					0x0 ..= 0x3 => unimplemented!(),
+					0x2 ..= 0x3 => unimplemented!(),
 					_ => unreachable!()
 				}
 			}
 			
-			0x00 ..= 0x1F => unimplemented!(),
+			// direct jump
+			0x07 => {
+				let offset = instr >> 5;
+				Ok(Instr::Jump(offset))
+			}
+			
+			// halt
+			0x1F => {
+				let value = instr >> 5;
+				Ok(Instr::Halt(value))
+			}
+			
+			op @ 0x08 ..= 0x1E => unimplemented!("op={}, instr={:x}", op, instr),
 			_ => unreachable!(),
 		}
 	}
