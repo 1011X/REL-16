@@ -1,3 +1,5 @@
+mod parser;
+
 //use std::collections::HashMap;
 use std::io::{self, BufRead};
 use std::str::FromStr;

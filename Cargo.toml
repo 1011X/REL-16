@@ -10,6 +10,4 @@ license = "0BSD"
 
 [dependencies]
 getopts = "0.2.14"
-
-[features]
-teleport = []
+logos = "0.11.4"

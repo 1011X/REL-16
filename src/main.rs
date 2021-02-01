@@ -1,6 +1,10 @@
+#[macro_use]
+extern crate logos;
+
 mod vm;
 mod asm;
 mod isa;
+mod token;
 
 use std::env;
 use std::io::BufReader;

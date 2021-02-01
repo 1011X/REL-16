@@ -36,7 +36,7 @@ impl fmt::Display for ParseOpError {
 }
 
 impl Error for ParseOpError {
-    fn cause(&self) -> Option<&Error> {
+    fn cause(&self) -> Option<&dyn Error> {
         match self {
             ParseOpError::ParseInt(pie) => Some(pie),
             _ => None
