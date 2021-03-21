@@ -1,4 +1,6 @@
-use crate::token::{Token, Lexer};
+use std::ops::Range;
+
+use super::token::{Token, Lexer};
 
 // planned assembler features:
 // + register allocation
@@ -16,7 +18,12 @@ pub struct Parser<'src> {
 
 impl<'src> Parser<'src> {
 	pub fn new(lexer: Lexer<'src>) -> Self {
-		Self { lexer, peek: None, line: 1 }
+		Self {
+			lexer,
+			peek: None,
+			line: 1,
+			col: 1,
+		}
 	}
 	
 	pub fn slice(&self) -> &str {
@@ -43,6 +50,8 @@ impl<'src> Parser<'src> {
 		if token == Some(Token::Newline) {
 			self.line += 1;
 			self.col = 0;
+		} else {
+			self.col += 1;
 		}
 		
 		token

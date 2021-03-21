@@ -1,10 +1,11 @@
 mod parser;
+mod token;
 
 //use std::collections::HashMap;
 use std::io::{self, BufRead};
 use std::str::FromStr;
 
-use crate::isa::{Op, Offset};
+use crate::isa::Op;
 
 // XXX Notes:
 // * maybe register and immediate literals (and variables, in the future) should

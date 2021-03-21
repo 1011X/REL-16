@@ -1,10 +1,23 @@
+// Notes to self
+// 
+// features to include:
+// + labels (@)
+// + scheduled branches?
+// + register allocation ($)
+// + macros
+// + assembler directives (:)
+// 
+// also: y'know those leftover imm bits when rotating? maybe use them
+// for something? like idk, xoring afterwards? after all, shifting and
+// ANDing bits is a somewhat common pattern analogous to rotating and
+// XORing.
+
 #[macro_use]
 extern crate logos;
 
 mod vm;
-mod asm;
+mod assembler;
 mod isa;
-mod token;
 
 use std::env;
 use std::io::BufReader;
@@ -44,7 +57,8 @@ fn main() {
 	
 	if let Some(arg) = matches.free.get(0) {
 		let reader = BufReader::new(File::open(arg).unwrap());
-		let code = asm::parse(reader).unwrap();
+		let assembly = assembler::parse(reader).unwrap();
+		let code: Vec<_> = assembly.into_iter().map(|op| op.into()).collect();
 		let logging_enabled = matches.opt_present("verbose");
 		let mut dm = vm::DeviceManager::new();
 		
@@ -56,8 +70,7 @@ fn main() {
 	    cpu.run();
 		
 		dm.debug_devices();
-	}
-	else {
+	} else {
 		eprintln!("Error: Missing input file.\n");
 		eprintln!("{}", opts.usage(USAGE));
 	}

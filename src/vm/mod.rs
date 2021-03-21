@@ -1,3 +1,4 @@
+mod instr;
 mod register_file;
 mod cpu;
 mod device;

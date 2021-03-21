@@ -25,7 +25,7 @@ pub enum Token {
 	#[token(",")]  Comma,
 	#[token("\n")] Newline,
 	
-	#[regex("#.*", logos::skip)]
+	#[regex(":.*", logos::skip)]
 	Comment,
 	
 	// literals
@@ -35,13 +35,13 @@ pub enum Token {
 	#[regex("@[A-Za-z0-9_]+")]
 	Label,
 	
-	#[regex(":[A-Za-z_][A-Za-z0-9_]*")]
+	#[regex("%[A-Za-z_][A-Za-z0-9_]*")]
 	Directive,
 	
 	#[regex("0b[01]+|0x[0-9A-Fa-f]+|[1-9][0-9]*")]
 	Number,
 	
-	#[regex("[ \t]+", logos::skip)]
+	#[regex("[ \t\r]+", logos::skip)]
 	#[error]
 	Error,
 }

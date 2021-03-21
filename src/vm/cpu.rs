@@ -1,4 +1,5 @@
-use crate::isa::{Op, Offset, Reg};
+use crate::isa::Reg;
+use super::instr::Instr;
 use super::register_file::RegisterFile;
 use super::device::DeviceManager;
 
@@ -20,7 +21,7 @@ pub struct Cpu<'pm, 'dev> {
 	dir: bool,
 	br: u16,
 	pc: u16,
-	ir: Op,
+	ir: Instr,
 	
 	// Some conventions on registers:
 	// r0 can be treated like an accumulator register
@@ -28,20 +29,20 @@ pub struct Cpu<'pm, 'dev> {
 	// r7 is the stack base pointer (bp)
 	reg: RegisterFile,
 	
-	prog_mem: &'pm [Op],      // ROM
+	prog_mem: &'pm [Instr],   // ROM
 	data_mem: [u16; MAX_MEM], // RAM
 	devices: &'dev mut DeviceManager,
 }
 
 impl Cpu<'_, '_> {
-	pub fn new<'pm, 'dev>(prog: &'pm [Op], dev: &'dev mut DeviceManager, log: bool) -> Cpu<'pm, 'dev> {
+	pub fn new<'pm, 'dev>(prog: &'pm [Instr], dev: &'dev mut DeviceManager, log: bool) -> Cpu<'pm, 'dev> {
 		Cpu {
 			logging_enabled: log,
 			
 			dir: false,
 			br: 1,
 			pc: 0,
-			ir: Op::Halt,
+			ir: Instr::Halt,
 			reg: RegisterFile([0; 8]),
 			
 			prog_mem: prog,
@@ -112,27 +113,27 @@ impl Cpu<'_, '_> {
 		}
 	
 		match self.ir {
-			Op::Halt => return true,
-			Op::Nop => {}
-			Op::Debug => {
+			Instr::Halt => return true,
+			
+			Instr::Debug => {
 			    unimplemented!();
 		    }
 			
-			Op::Not(a) =>
+			Instr::Not(a) =>
 				self.reg[a] = !self.reg[a],
 		
-			Op::SwapPc(r) =>
+			Instr::SwapPc(r) =>
 				swap!(self.pc, self.reg[r]),
 		
-			Op::RevSwapPc(r) => {
+			Instr::RevSwapPc(r) => {
 				swap!(self.pc, self.reg[r]);
 				self.dir = !self.dir;
 			}
 		
-			Op::Swap(a, b) =>
+			Instr::Swap(a, b) =>
 				self.reg.0.swap(a as usize, b as usize),
 			
-			Op::Exchange(rd, ra) => {
+			Instr::Exchange(rd, ra) => {
 				let mut d = 0;
 				swap!(d, self.reg[rd]);
 				
@@ -143,7 +144,7 @@ impl Cpu<'_, '_> {
 				debug_assert!(d == 0);
 			}
 			
-			Op::Xor(rn, rc) => {
+			Instr::Xor(rn, rc) => {
 				let mut n = 0;
 				swap!(n, self.reg[rn]);
 				
@@ -153,7 +154,7 @@ impl Cpu<'_, '_> {
 				debug_assert!(n == 0);
 			}
 			
-			Op::Add(ra, rc) => {
+			Instr::Add(ra, rc) => {
 				let mut a = 0;
 				swap!(a, self.reg[ra]);
 				
@@ -163,7 +164,7 @@ impl Cpu<'_, '_> {
 				debug_assert!(a == 0);
 			}
 			
-			Op::Sub(rs, rc) => {
+			Instr::Sub(rs, rc) => {
 				let mut s = 0;
 				swap!(s, self.reg[rs]);
 				
@@ -173,7 +174,7 @@ impl Cpu<'_, '_> {
 				debug_assert!(s == 0);
 			}
 			
-			Op::LRot(rr, ro) => {
+			Instr::LRot(rr, ro) => {
 				let mut r = 0;
 				swap!(r, self.reg[rr]);
 				
@@ -183,7 +184,7 @@ impl Cpu<'_, '_> {
 				debug_assert!(r == 0);
 			}
 			
-			Op::RRot(rr, ro) => {
+			Instr::RRot(rr, ro) => {
 				let mut r = 0;
 				swap!(r, self.reg[rr]);
 				
@@ -194,10 +195,10 @@ impl Cpu<'_, '_> {
 			}
 			
 			
-			Op::XorImm(r, v) =>
+			Instr::XorImm(r, v) =>
 				self.reg[r] ^= v as u16,
 			
-			Op::AddImm(r, i) => {
+			Instr::AddImm(r, i) => {
 				let mut a = 0;
 				swap!(a, self.reg[r]);
 				
@@ -207,7 +208,7 @@ impl Cpu<'_, '_> {
 				debug_assert!(a == 0);
 			}
 			
-			Op::SubImm(r, i) => {
+			Instr::SubImm(r, i) => {
 				let mut s = 0;
 				swap!(s, self.reg[r]);
 				
@@ -217,13 +218,19 @@ impl Cpu<'_, '_> {
 				debug_assert!(s == 0);
 			}
 			
-			Op::LRotImm(r, v) =>
-				self.reg[r] = self.reg[r].rotate_left(v as u32),
+			Instr::XorRot(r, val) => {
+				let offset = (val & 0x0F) as u32;
+				self.reg[r] ^= (val >> 4) as u16;
+				self.reg[r] = self.reg[r].rotate_left(offset);
+			}
 			
-			Op::RRotImm(r, v) =>
-				self.reg[r] = self.reg[r].rotate_right(v as u32),
+			Instr::RotXor(r, val) => {
+				let offset = (val & 0x0F) as u32;
+				self.reg[r] = self.reg[r].rotate_right(offset);
+				self.reg[r] ^= (val >> 4) as u16;
+			}
 			
-			Op::IO(r, p) => {
+			Instr::IO(r, p) => {
 			    if self.devices.call(self.dir, &mut self.reg[r], p) {
 			        eprintln!("Error while trying to call device.");
 			        eprintln!("reg = {}  data = {}  port = {}", r, self.reg[r], p);
@@ -234,7 +241,7 @@ impl Cpu<'_, '_> {
 			// Swap the modified register's value to a zeroed
 			// location, so that in case it's also used as a control
 			// register, then this instruction just becomes a no-op.
-			Op::CCNot(rc0, rc1, rn) => {
+			Instr::CCNot(rc0, rc1, rn) => {
 				let mut n = 0;
 				swap!(n, self.reg[rn]);
 				
@@ -246,7 +253,7 @@ impl Cpu<'_, '_> {
 			
 			// Swap the modified registers' values to zeroed
 			// locations, just like the CCNot instruction.
-			Op::CSwap(rc, rs0, rs1) => {
+			Instr::CSwap(rc, rs0, rs1) => {
 				let mut s0 = 0;
 				let mut s1 = 0;
 				swap!(s0, self.reg[rs0]);
@@ -262,53 +269,29 @@ impl Cpu<'_, '_> {
 				debug_assert!(s0 == 0);
 			}
 			
-			Op::BranchParity(val, r, ref offset) =>
-				if (self.reg[r] & 1) == val as u16 {
-				    match *offset {
-				        Offset::Forward(off) =>
-        					self.br = self.br.wrapping_add(off as u16),
-				        Offset::Backward(off) =>
-        					self.br = self.br.wrapping_sub(off as u16),
-                        #[cfg(feature = "labels")]
-    					Offset::Label(_) =>
-    					    panic!("found label while running vm"),
-					}
+			Instr::BranchOdd(r, val) =>
+				if (self.reg[r] & 1) != 0 {
+					self.br ^= val as u16;
 				}
 			
-			Op::BranchSign(val, r, ref offset) =>
-				if (self.reg[r] >> 15) == val as u16 {
-				    match *offset {
-				        Offset::Forward(off) =>
-        					self.br = self.br.wrapping_add(off as u16),
-				        Offset::Backward(off) =>
-        					self.br = self.br.wrapping_sub(off as u16),
-                        #[cfg(feature = "labels")]
-    					Offset::Label(_) =>
-    					    panic!("found label while running vm"),
-					}
+			Instr::BranchEven(r, val) =>
+				if (self.reg[r] & 1) == 0 {
+					self.br ^= val as u16;
 				}
 			
-			#[cfg(feature = "teleport")]
-			Op::Teleport(Offset::Forward(off))
-			| Op::Teleport(Offset::Backward(off)) =>
-				self.br ^= off as u16,
-			
-			Op::Jump(ref offset) =>
-			    match *offset {
-			        Offset::Forward(off) =>
-    					self.br = self.br.wrapping_add(off as u16),
-			        Offset::Backward(off) =>
-    					self.br = self.br.wrapping_sub(off as u16),
-                    #[cfg(feature = "labels")]
-					Offset::Label(_) =>
-					    panic!("found label while running vm"),
+			Instr::BranchSign(r, val) =>
+				if (self.reg[r] as i16) < 0 {
+					self.br ^= val as u16;
 				}
 			
-			// for when branch instrs use labels (which shouldn't 
-			// happen)
-			#[cfg(feature = "teleport")]
-			Op::Teleport(_) =>
-				unreachable!(),
+			Instr::BranchUnsign(r, val) =>
+				if (self.reg[r] as i16) >= 0 {
+					self.br ^= val as u16;
+				}
+			
+			Instr::Jump(val) => {
+				self.br ^= val;
+			}
 		}
 		
 		// decide next instruction based on offset and dir bit

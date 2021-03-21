@@ -2,23 +2,23 @@
 ; pops them and adds them
 
 ; initialization
-not r6      ; sp = 0xffff
-not r7      ; bp = 0xffff
+not sp      ; sp = 0xffff
+not x6      ; bp = 0xffff
 
 ; summon 2 values from the void
 ; and send them to The Stack
-xori r0 5   ; r0 = 5
-push r0     ; push(r0, sp)
+xor x0 5    ; x0 = 5
+push x0     ; push(x0, sp)
 
-xori r0 3   ; r0 = 3
-push r0     ; push(r0, sp)
+xor x0 3    ; x0 = 3
+push x0     ; push(x0, sp)
 
 ; summon values from The Stack
-pop r0      ; pop(r0, sp)  // r0 = 3
-pop r1      ; pop(r1, sp)  // r1 = 5
+pop x0      ; pop(x0, sp)  // x0 = 3
+pop x1      ; pop(x1, sp)  // x1 = 5
 
 ; sum them
-add r0 r1   ; r0 = 8
+add x0 x1   ; x0 = 8
 
-; result is in r0
-hlt
+; result is in x0
+halt

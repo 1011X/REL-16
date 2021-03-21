@@ -22,15 +22,15 @@ impl fmt::Display for ParseOpError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             ParseOpError::ExtraToken =>
-                write!(f, "Found extra token."),
+                f.write_str("Found extra token."),
             ParseOpError::NoToken =>
-                write!(f, "Missing token"),
+                f.write_str("Missing token"),
             ParseOpError::BadToken(tok) =>
                 write!(f, "Bad token: {}", tok),
             ParseOpError::ValueOverflow(max) =>
                 write!(f, "Value exceeds maximum of {}", max),
             ParseOpError::ParseInt(pie) =>
-                write!(f, "{}", pie),
+            	pie.fmt(f),
         }
     }
 }
@@ -245,13 +245,6 @@ pub enum Op {
     /// direction, to avoid skipping instructions.
     Jump(Offset),
     
-    /// XORs an immediate value to the PC register.
-    /// 
-    /// The only restrictions on this instruction are that it be dependent
-    /// on code/memory position, and the higher bits of PC can't be reached.
-    #[cfg(feature = "teleport")]
-    Teleport(u16),
-    
     /// Offsets the branch register if the given register has the
     /// given parity value.
     BranchParity(bool, Reg, Offset),
@@ -305,8 +298,6 @@ impl Op {
                 Op::BranchSign(val, reg, offset.invert()),
             
             Op::Jump(offset) => Op::Jump(offset.invert()),
-            #[cfg(feature = "teleport")]
-            Op::Teleport(_) => self,
             
             Op::IO(..) => self,
         }
@@ -365,8 +356,6 @@ impl fmt::Display for Op {
             Op::BranchSign(false, reg, offset) =>
                 write!(f, "bn {} {}", reg, offset),
             
-            #[cfg(feature = "teleport")]
-            Op::Teleport(val) => write!(f, "tp {}", val),
             Op::Jump(offset)  => write!(f, "jmp {}", offset),
         }
     }
@@ -488,9 +477,6 @@ impl FromStr for Op {
             "bn" => Op::BranchSign(false, reg!(), offset!(0xFF)),
             
             "jmp" => Op::Jump(offset!(0x1FFF)),
-            
-            #[cfg(feature = "teleport")]
-            "tp"  => Op::Teleport(imm!(0x1FFF)),
             
             token => return Err(OpError::BadToken(token.to_string()))
         };

@@ -5,39 +5,40 @@
 
 ; initialize stack and base pointer to last address.
 ; it's necessary to keep these values in range.
-not r7; sp = 0xffff
-not r6; bp = 0xffff
+not sp; sp = 0xffff
+not x6; bp = 0xffff
 
 ; make stack sentinel value unique so it's easy to identify.
-xori r0 222   ; 0x00DE
-roli r0 8     ; 0xDE00
-xori r0 173   ; 0xDEAD
-xchg r0 r7    ; r0 <> mem[sp]
+;xor x0 0xDE   ; 0x00DE
+;rol x0 8      ; 0xDE00
+;xor x0 0xAD   ; 0xDEAD
+xor x0 0xDEAD
+xchg x0 sp    ; x0 <> mem[sp]
 
 ; push and pop the stack. enforces stack boundary.
-; fn push(r0): addr = 0x0007, len = 10
-jmp +12
-spc r5
+; fn push(x0): addr = 0x0007, len = 10
+jmp @push
+spc x5
     ; boundary check. check that next address is in range.
     ; can't check SP directly bc then the assertion afterwards won't hold.
-    ; instead, copy value to r1 and check that.
-    xor r1 r7      ; r1 ^= sp
+    ; instead, copy value to x1 and check that.
+    xor x1 sp      ; x1 ^= sp
     
-    ; r1 is decremented bc we're checking the *next* address is valid.
-    subi r1 1      ; r1 -= 1
+    ; x1 is decremented bc we're checking the *next* address is valid.
+    dec x1         ; x1 -= 1
 
-    bs r1 +2       ; if r1 < 0x8000 // stack overflow
-        hlt        ;     halt
+    br.neg x1 +2   ; if x1 < 0x8000 // stack overflow
+        halt       ;     halt
     jmp +3
     jmp -2         ; else
-        subi r7 1  ;     sp -= 1
-        xchg r0 r7 ;     r0 <=> mem[sp]
-    bn r1 -3       ; fi r1 < 0x8000
+        sub sp 1   ;     sp -= 1
+        xchg x0 sp ;     x0 <=> mem[sp]
+    br.neg x1 -3   ; fi x1 < 0x8000
 
-    xor r1 r7      ; r1 ^= sp
-spc r5
-pmj -12
-; fn pop(r0): addr = 0x0012
+    xor x1 sp      ; x1 ^= sp
+spc x5
+pmj @push
+; fn pop(x0): addr = 0x0012
 
 
 ; TODO finish heap section
@@ -65,7 +66,7 @@ pmj -12
 ; * linearly search all blocks of the same wanted size.
 
 ; allocate 16 words on the stack to store the heap information.
-subi r7 16
+sub sp 16
 
 ; TODO describe how to derive address and size from index of bit.
 ; TODO the rest of this.
@@ -154,15 +155,15 @@ subi r7 16
     ; r += 1
     ; r ^= s
 
-; fn level(size: r1, lvl: r0)
-jmp :func_level
-spc r5
-    subi r1 1; size -= 1
-    bn r1 :here   ; if size[15] = 1:
-        xori r0 8
-    bn r1 :here   ; fi size[15] = 1
-    addi r1 1
-spc r5
-pmj :func_level
+; fn level(size: x1, lvl: x0)
+jmp @func_level
+spc x5
+    sub x1 1; size -= 1
+    bn x1 @here   ; if size[15] = 1:
+        xor x0 8
+    bn x1 @here   ; fi size[15] = 1
+    add x1 1
+spc x5
+pmj @func_level
 
-hlt
+halt
