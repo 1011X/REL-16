@@ -7,6 +7,9 @@ use std::str::FromStr;
 use super::reg::{self, Reg};
 
 
+// for semantic purposes
+type RegMut = Reg;
+
 /// Various things that can go wrong in the process of parsing a string to an
 /// `Op` enum.
 #[derive(Debug)]
@@ -119,34 +122,27 @@ impl FromStr for Offset {
 }
 
 
+#[derive(Debug, Clone)]
+enum Value {
+	Reg(Reg),
+	Imm(u16),
+}
+
+#[derive(Debug, Clone)]
+enum Address {
+	Label(String),
+	Imm(u16),
+}
+
+
 /**
-High-level machine instruction representation
+An assembly instruction.
 
-This enum represents all valid instructions used in the REL-16
-architecture. It allows for simpler processing compared to string
-interpretation.
-
-It's required that each variant here has a reversible equivalent.
-That is, if the instruction can't undo its own actions, it must have
-a partner instruction that can. By tying each instruction with its
-opposite, we can guarantee the reversibility property of the
-architecture.
-
-Being a 16-bit architecture, we must organize the bits so all
-instructions are representable within 16 bits. There are some
-addressing modes:
-
-* Signal (3): nothing
-* Register (3): 1-3 registers
-  * Single (4-5): 1 register
-  * Double (7): 2 registers
-  * Triple (2): 3 registers, ah ah ah
-* Immediate (6): register, 8-bit value
-* Branch (8): register, address
-* Jump (2-3): address
+This enum is a more flexible version of the REL-16 machine instruction
+equivalent, as assembly is more likely to be seen and used by a human. For
+example, if you provide a register or immediate value to an arithmetic
+instruction, the assembler will pick the right machine instruction for you.
 */
-// TODO: decide whether to keep branch instructions using I-form or change them
-// to R-form and have a constant offset.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Op {
     /// Stops the machine.
@@ -159,99 +155,79 @@ pub enum Op {
     Debug,
     
     /// Flips every bit in the register.
-    Not(Reg),
+    Not(RegMut),
     
     /// Swaps the register and the program counter. Used for calling
     /// functions.
-    SwapPc(Reg),
+    SwapPc(RegMut),
     
     /// Flips direction bit, then swaps the register and the program
     /// counter. Used when **un**calling functions.
-    RevSwapPc(Reg),
+    RevSwapPc(RegMut),
     
     /// Swaps the registers' values.
-    Swap(Reg, Reg),
+    Swap(RegMut, RegMut),
     
     /// Swaps the first register's value with the value pointed to in
     /// memory by the second register.
-    Exchange(Reg, Reg),
+    Exchange(RegMut, Address),
     
     /// Flips bits in first register based on bits in second register.
     /// Exactly like x86's `xor` instruction.
-    Xor(Reg, Reg),
+    Xor(RegMut, Value),
     
     /// Adds/increases first register's value by second register's
     /// value.
-    Add(Reg, Reg),
+    Add(RegMut, Value),
     
     /// Subtracts/decreases the first register's value by the second
     /// register's value.
-    Sub(Reg, Reg),
+    Sub(RegMut, Value),
     
     /// Rotates the first register's bits leftwards by the value in
     /// the second register.
     /// 
     /// Only the first 4 bits are necessary/used.
-    LRot(Reg, Reg),
+    LRot(RegMut, Value),
     
     /// Rotates the first register's bits rightwards by the value in
     /// the second register.
     /// 
     /// Only the first 4 bits are necessary/used.
-    RRot(Reg, Reg),
-    
-    /// Flips bits in the register's lower half based on the bits of
-    /// the immediate byte value.
-    /// 
-    /// This is usually used to set the register to the given value
-    /// or to reset its value to zero.
-    XorImm(Reg, u8),
-    
-    /// Adds/increases first register's value by the value of the
-    /// given immediate.
-    AddImm(Reg, u8),
-    
-    /// Subtracts/decreases first register's value by the value of the
-    /// given immediate.
-    SubImm(Reg, u8),
-    
-    /// Rotates the register's bits leftwards by the given amount. The
-    /// last bit's value is moved to the first bit.
-    LRotImm(Reg, u8),
-    
-    /// Rotates the register's bits rightwards by the given amount.
-    /// The first bit's value is moved to the last bit.
-    RRotImm(Reg, u8),
+    RRot(RegMut, Value),
     
     /// Toffoli gate; ANDs first and second registers and flips the
     /// bits in the third register based on the result.
     /// 
     /// If a register is in the first or second position, it *should
     /// not* be in the third position.
-    CCNot(Reg, Reg, Reg),
+    CCNot(Reg, Reg, RegMut),
     
     /// Fredkin gate; swaps bits in second and third registers based
     /// on bits in the first register.
     /// 
     /// If a register is in the first position, it *should not* be in
     /// the second or third position.
-    CSwap(Reg, Reg, Reg),
+    CSwap(Reg, RegMut, RegMut),
     
     /// Adds an immediate value to the branch register.
-    /// 
-    /// This is used to jump unconditionally to another instruction.
-    /// To avoid wonky behavior, the destination should be another
-    /// jump instruction with the same offset value but opposite
-    /// direction, to avoid skipping instructions.
-    Jump(Offset),
+    Jump(Address),
     
-    /// Offsets the branch register if the given register has the
-    /// given parity value.
-    BranchParity(bool, Reg, Offset),
+    /// XORs the immediate value onto the branch register if the given register
+    /// is odd.
+    BranchOdd(Reg, Address),
     
-    /// Offsets the branch register if the given register has the
-    /// given sign value.
-    BranchSign(bool, Reg, Offset),
+    /// XORs the immediate value onto the branch register if the given register
+    /// is even.
+    BranchEven(Reg, Address),
+    
+    /// XORs the immediate value onto the branch register if the given register
+    /// has the sign bit (uppermost bit) set.
+    BranchSign(Reg, Address),
+    
+    /// XORs the immediate value onto the branch register if the given register
+    /// has the sign bit (uppermost bit) unset.
+    BranchUnsign(Reg, Address),
     
     /// Swaps data at given register to the device at the given port.
     ///
@@ -262,47 +238,6 @@ pub enum Op {
 }
 
 impl Op {
-    // To guarantee VM is reversible, every operation must have an
-    // inverse. Involutory instructions (which are their own inverse)
-    // return self.
-    pub fn invert(self) -> Op {
-        match self {
-            Op::Halt          => self,
-            Op::Nop           => self,
-            Op::Debug         => self,
-            
-            Op::Not(_)        => self,
-            Op::SwapPc(r)     => Op::RevSwapPc(r),
-            Op::RevSwapPc(r)  => Op::SwapPc(r),
-            
-            Op::Swap(..)      => self,
-            Op::Exchange(..)  => self,
-            Op::Xor(..)       => self,
-            Op::Add(ra, rc)   => Op::Sub(ra, rc),
-            Op::Sub(rs, rc)   => Op::Add(rs, rc),
-            Op::LRot(rr, rv)  => Op::RRot(rr, rv),
-            Op::RRot(rr, rv)  => Op::LRot(rr, rv),
-            
-            Op::XorImm(..)    => self,
-            Op::AddImm(rc, i) => Op::SubImm(rc, i),
-            Op::SubImm(rc, i) => Op::AddImm(rc, i),
-            Op::LRotImm(r, v) => Op::RRotImm(r, v),
-            Op::RRotImm(r, v) => Op::LRotImm(r, v),
-            
-            Op::CCNot(..)     => self,
-            Op::CSwap(..)     => self,
-            
-            Op::BranchParity(val, reg, offset) =>
-                Op::BranchParity(val, reg, offset.invert()),
-            Op::BranchSign(val, reg, offset) =>
-                Op::BranchSign(val, reg, offset.invert()),
-            
-            Op::Jump(offset) => Op::Jump(offset.invert()),
-            
-            Op::IO(..) => self,
-        }
-    }
-    
     pub fn get_label(&self) -> Option<&String> {
         match self {
             #[cfg(feature = "labels")]
@@ -315,7 +250,7 @@ impl Op {
         }
     }
 }
-
+/*
 impl fmt::Display for Op {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -360,7 +295,7 @@ impl fmt::Display for Op {
         }
     }
 }
-
+*/
 impl FromStr for Op {
     type Err = ParseOpError;
     
@@ -498,45 +433,6 @@ mod tests {
     
     #[test]
     fn instruction_encoding() {
-        // Make a vector with all parameters initialized
-        let ops = vec![
-            Op::Halt,
-            Op::Nop,
-            Op::Debug,
-            Op::Not(Reg::R6),
-            Op::SwapPc(Reg::R6),
-            Op::RevSwapPc(Reg::R6),
-            Op::Swap(Reg::R6, Reg::R6),
-            Op::Exchange(Reg::R6, Reg::R6),
-            Op::Xor(Reg::R6, Reg::R6),
-            Op::Add(Reg::R6, Reg::R6),
-            Op::Sub(Reg::R6, Reg::R6),
-            Op::LRot(Reg::R6, Reg::R6),
-            Op::RRot(Reg::R6, Reg::R6),
-            Op::XorImm(Reg::R6, 0xFF),
-            Op::AddImm(Reg::R6, 0xFF),
-            Op::SubImm(Reg::R6, 0xFF),
-            Op::IO(Reg::R6, 0xFF),
-            Op::LRotImm(Reg::R6, 0xF),
-            Op::RRotImm(Reg::R6, 0xF),
-            Op::CCNot(Reg::R6, Reg::R6, Reg::R6),
-            Op::CSwap(Reg::R6, Reg::R6, Reg::R6),
-            Op::BranchParity(true, Reg::R6, Offset::Forward(0xFF)),
-            Op::BranchParity(true, Reg::R6, Offset::Backward(0xFF)),
-            Op::BranchParity(false, Reg::R6, Offset::Forward(0xFF)),
-            Op::BranchParity(false, Reg::R6, Offset::Backward(0xFF)),
-            Op::BranchSign(true, Reg::R6, Offset::Forward(0xFF)),
-            Op::BranchSign(true, Reg::R6, Offset::Backward(0xFF)),
-            Op::BranchSign(false, Reg::R6, Offset::Forward(0xFF)),
-            Op::BranchSign(false, Reg::R6, Offset::Backward(0xFF)),
-            Op::Jump(Offset::Forward(0xFF)),
-            Op::Jump(Offset::Backward(0xFF)),
-        ];
-        
-        for op in ops {
-            // String conversion shouldn't error when decoding
-            // a valid instruction, so just unwrap it.
-            assert_eq!(op, Op::from_str(&op.to_string()).unwrap());
-        }
+    	
     }
 }

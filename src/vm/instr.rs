@@ -1,61 +1,10 @@
-use std::fmt;
-use std::num;
 use std::convert::From;
 use std::error::Error;
 
-use crate::isa::reg::{self, Reg};
+use crate::isa::Reg;
 
 // for semantic purposes.
 type RegMut = Reg;
-
-/// Various things that can go wrong in the process of parsing a string to an
-/// `Op` enum.
-#[derive(Debug)]
-pub enum ParseOpError {
-    ExtraToken,
-    NoToken,
-    BadToken(String),
-    ValueOverflow(usize),
-    ParseInt(num::ParseIntError),
-}
-
-impl fmt::Display for ParseOpError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ParseOpError::ExtraToken =>
-                f.write_str("found extra token."),
-            ParseOpError::NoToken =>
-                f.write_str("missing token"),
-            ParseOpError::BadToken(tok) =>
-                write!(f, "bad token: {}", tok),
-            ParseOpError::ValueOverflow(max) =>
-                write!(f, "value exceeds maximum of {}", max),
-            ParseOpError::ParseInt(pie) =>
-            	pie.fmt(f),
-        }
-    }
-}
-
-impl Error for ParseOpError {
-    fn cause(&self) -> Option<&dyn Error> {
-        match self {
-            ParseOpError::ParseInt(pie) => Some(pie),
-            _ => None
-        }
-    }
-}
-
-impl From<reg::ParseError> for ParseOpError {
-    fn from(e: reg::ParseError) -> Self {
-        ParseOpError::BadToken(e.0.clone())
-    }
-}
-
-impl From<num::ParseIntError> for ParseOpError {
-    fn from(e: num::ParseIntError) -> Self {
-        ParseOpError::ParseInt(e)
-    }
-}
 
 /**
 High-level machine instruction representation
