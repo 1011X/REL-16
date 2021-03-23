@@ -15,21 +15,22 @@ pub enum Token {
 	#[token("spc")]   SwapPC,
 	#[token("spc.r")] SwapPCRev,
 	
-	#[token("br")]      Branch,
-	#[token("br.odd")]  BranchOdd,
-	#[token("br.even")] BranchEven,
-	#[token("br.neg")]  BranchNeg,
-	#[token("br.pos")]  BranchPos,
+	#[token("br")]  Branch,
+	#[token("bro")] BranchOdd,
+	#[token("bre")] BranchEven,
+	#[token("brn")] BranchNeg,
+	#[token("brp")] BranchPos,
 	
 	// syntax
 	#[token(",")]  Comma,
 	#[token("\n")] Newline,
 	
-	#[regex(":.*", logos::skip)]
+	#[regex(";.*", logos::skip)]
 	Comment,
 	
 	// literals
-	#[regex("ra|sp|[st][012]|x[0-7]|\\$[A-Za-z0-9_]+")]
+	#[regex("ra|sp|[st][012]|x[0-7]")]
+	#[regex("\\$[A-Za-z0-9_]+")]
 	Register,
 	
 	#[regex("@[A-Za-z0-9_]+")]
@@ -38,7 +39,9 @@ pub enum Token {
 	#[regex("%[A-Za-z_][A-Za-z0-9_]*")]
 	Directive,
 	
-	#[regex("0b[01]+|0x[0-9A-Fa-f]+|[1-9][0-9]*")]
+	#[regex("[0-9][0-9']*")]
+	#[regex("0b[01][01']*")]
+	#[regex("0x[0-9A-Fa-f][0-9A-Fa-f']*")]
 	Number,
 	
 	#[regex("[ \t\r]+", logos::skip)]
